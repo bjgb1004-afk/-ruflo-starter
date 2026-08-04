@@ -1,0 +1,24 @@
+{
+  "name": "lotto-batch",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "cleanup": "tsx cleanup.ts",
+    "ingest:stores": "tsx fetchStoresFromCSV.ts",
+    "ingest:stores:api": "tsx fetchStores.ts",
+    "ingest:winning-stores": "tsx fetchWinningStores.ts",
+    "ingest:draws": "tsx fetchDrawHistory.ts",
+    "ingest:refresh-rankings": "tsx refreshRankingStats.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.4.2",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

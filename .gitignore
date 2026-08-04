@@ -1,0 +1,22 @@
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+
+# native (expo prebuild 산출물)
+ios/
+android/
+
+# env
+.env
+.env.local
+
+# supabase local
+supabase/.branches/
+supabase/.temp/
+
+# 기존 claude-flow 툴링 상태 (이미 untracked)
+.claude-flow/
+.swarm/
+ruvector.db

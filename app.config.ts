@@ -1,0 +1,47 @@
+import type { ExpoConfig } from "expo/config";
+
+const config: ExpoConfig = {
+  name: "로또맵",
+  slug: "lotto-map-platform",
+  scheme: "lottomap",
+  version: "0.1.0",
+  orientation: "portrait",
+  userInterfaceStyle: "automatic",
+  newArchEnabled: true,
+  icon: "./assets/images/icon.png",
+  splash: {
+    image: "./assets/images/splash.png",
+    resizeMode: "contain",
+    backgroundColor: "#ffffff",
+  },
+  ios: {
+    supportsTablet: true,
+    bundleIdentifier: "com.lottomap.app",
+  },
+  android: {
+    package: "com.lottomap.app",
+    adaptiveIcon: {
+      foregroundImage: "./assets/images/adaptive-icon.png",
+      backgroundColor: "#ffffff",
+    },
+  },
+  plugins: [
+    "expo-router",
+    [
+      "expo-location",
+      {
+        locationAlwaysAndWhenInUsePermission:
+          "주변 로또 판매점을 찾기 위해 위치 정보를 사용합니다.",
+      },
+    ],
+  ],
+  extra: {
+    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+    supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    naverMapClientId: process.env.EXPO_PUBLIC_NAVER_MAP_CLIENT_ID,
+    sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+    posthogApiKey: process.env.EXPO_PUBLIC_POSTHOG_API_KEY,
+  },
+};
+
+export default config;
