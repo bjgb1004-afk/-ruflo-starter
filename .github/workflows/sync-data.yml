@@ -49,7 +49,7 @@ jobs:
       - name: 📦 의존성 설치
         run: |
           cd ${{ env.WORKING_DIR }}
-          npm ci --omit=dev
+          npm ci
 
       - name: ✅ 필수 환경 변수 확인
         run: |
