@@ -33,9 +33,7 @@ export default function FavoritesScreen() {
     if (favorites.length === 0) {
       result.push({
         type: "empty",
-        message: isLoggedIn
-          ? "판매점 상세에서 ☆를 눌러 즐겨찾기에 추가하세요."
-          : "판매점 상세에서 ☆를 눌러 즐겨찾기에 추가하세요. 로그인하면 기기 간에도 동기화됩니다.",
+        message: "판매점 상세에서 ☆를 눌러 즐겨찾기에 추가하세요.",
       });
     } else {
       favorites.forEach((store) => result.push({ type: "favorite", store }));

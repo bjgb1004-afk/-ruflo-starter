@@ -1,10 +1,10 @@
 import { StyleSheet, View, ActivityIndicator, Text, TextInput, Pressable, FlatList } from "react-native";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
 import { useNearbyStores } from "@/features/map/hooks/useNearbyStores";
-import { NaverMapView } from "@/features/map/components/NaverMapView";
+import { StoreMapView } from "@/features/map/components/StoreMapView";
 import { TopStoresCarousel } from "@/features/map/components/TopStoresCarousel";
 import { searchStores, type StoreSearchResult } from "@/features/stores/api/storesApi";
 import { NewWinnerBanner } from "@/features/draws/components/NewWinnerBanner";
@@ -42,22 +42,36 @@ export default function MapScreen() {
   // 핀치 줌이나 마커 탭 후 카메라가 미세하게 움직이는 것까지 매번 재조회하면, 마커 전체가
   // 다시 그려지면서 방금 연 말풍선이 닫히고 "화면이 리셋"되는 것처럼 보인다.
   // 실제로 의미 있게(대략 검색 반경의 1/4 이상) 이동했을 때만 다시 불러온다.
+  // Android에서 onRegionChangeComplete가 관성 스크롤 중 연속으로 여러 번 호출될 수 있어,
+  // 400ms debounce로 마지막 호출만 반영하고(빈 화면/반복 새로고침 방지) unmount 시 타이머를 정리한다.
+  const regionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (regionDebounceRef.current) clearTimeout(regionDebounceRef.current);
+    };
+  }, []);
+
   const handleRegionChangeComplete = useCallback(
     (region: { latitude: number; longitude: number }) => {
-      setQueryCenter((prev) => {
-        if (!prev) return { latitude: region.latitude, longitude: region.longitude };
-        const R = 6371000;
-        const dLat = ((region.latitude - prev.latitude) * Math.PI) / 180;
-        const dLng = ((region.longitude - prev.longitude) * Math.PI) / 180;
-        const a =
-          Math.sin(dLat / 2) ** 2 +
-          Math.cos((prev.latitude * Math.PI) / 180) *
-            Math.cos((region.latitude * Math.PI) / 180) *
-            Math.sin(dLng / 2) ** 2;
-        const distanceM = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        if (distanceM < DEFAULT_SEARCH_RADIUS_M / 4) return prev;
-        return { latitude: region.latitude, longitude: region.longitude };
-      });
+      if (regionDebounceRef.current) clearTimeout(regionDebounceRef.current);
+      regionDebounceRef.current = setTimeout(() => {
+        setQueryCenter((prev) => {
+          if (!prev) return { latitude: region.latitude, longitude: region.longitude };
+          const R = 6371000;
+          const dLat = ((region.latitude - prev.latitude) * Math.PI) / 180;
+          const dLng = ((region.longitude - prev.longitude) * Math.PI) / 180;
+          const a =
+            Math.sin(dLat / 2) ** 2 +
+            Math.cos((prev.latitude * Math.PI) / 180) *
+              Math.cos((region.latitude * Math.PI) / 180) *
+              Math.sin(dLng / 2) ** 2;
+          const distanceM = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          // 동일 지도 영역에 대한 불필요한 재조회 방지: 의미 있게 이동했을 때만 갱신
+          if (distanceM < DEFAULT_SEARCH_RADIUS_M / 4) return prev;
+          return { latitude: region.latitude, longitude: region.longitude };
+        });
+      }, 400);
     },
     [],
   );
@@ -236,7 +250,7 @@ export default function MapScreen() {
         )
       ) : (
         <View style={styles.mapWrap}>
-          <NaverMapView
+          <StoreMapView
             center={center}
             stores={sortedStores}
             onPressStore={handlePressStore}

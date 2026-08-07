@@ -39,7 +39,6 @@
     "extra": {
       "supabaseUrl": "@env EXPO_PUBLIC_SUPABASE_URL",
       "supabaseAnonKey": "@env EXPO_PUBLIC_SUPABASE_ANON_KEY",
-      "naverMapClientId": "@env EXPO_PUBLIC_NAVER_MAP_CLIENT_ID",
       "sentryDsn": "@env EXPO_PUBLIC_SENTRY_DSN",
       "posthogApiKey": "@env EXPO_PUBLIC_POSTHOG_API_KEY"
     },

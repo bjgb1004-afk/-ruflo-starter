@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { View } from "react-native";
 import { Stack } from "expo-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import {
   useFonts,
   SpaceGrotesk_400Regular,
@@ -9,6 +9,7 @@ import {
   SpaceGrotesk_700Bold,
 } from "@expo-google-fonts/space-grotesk";
 import { initSentry } from "@/lib/sentry";
+import { reportError } from "@/lib/errorLog";
 import { initAnalytics } from "@/lib/analytics";
 import { useAuth } from "@/features/auth/useAuth";
 import { useFavoritesCloudSync } from "@/features/favorites/useFavoritesCloudSync";
@@ -17,6 +18,9 @@ import { colors } from "@/constants/theme";
 // OS가 재시작 후 백그라운드에서 앱을 깨울 때도 태스크를 찾을 수 있다.
 import "@/features/geofencing/geofenceTask";
 
+// 모든 API(Supabase 쿼리) 실패를 화면마다 따로 try/catch로 잡지 않고 이 한 곳에서
+// Sentry로 보낸다 - "실제 사용자 폰에서 네트워크 오류가 얼마나 나는지" 확인하려면
+// 개별 화면 코드를 다 훑는 것보다 이 방식이 누락 없이 안전하다.
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -27,6 +31,16 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false, // RN에는 브라우저 탭 포커스 개념이 없어 불필요한 리페치 방지
     },
   },
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      reportError(error, `api:${String(query.queryKey[0] ?? "unknown")}`);
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      reportError(error, "api:mutation");
+    },
+  }),
 });
 
 export default function RootLayout() {
@@ -56,7 +70,10 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="store/[id]" options={{ title: "판매점 상세" }} />
-        <Stack.Screen name="login" options={{ title: "로그인", presentation: "modal" }} />
+        <Stack.Screen name="draw/[drawNo]" options={{ title: "회차 배출업소" }} />
+        <Stack.Screen name="scan" options={{ title: "QR 당첨 확인" }} />
+        <Stack.Screen name="mylotto" options={{ title: "내 복권 보관함" }} />
+        <Stack.Screen name="admin" options={{ title: "관리자" }} />
       </Stack>
     </QueryClientProvider>
   );

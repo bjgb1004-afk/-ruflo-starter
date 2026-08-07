@@ -39,6 +39,31 @@ async function fetchDraw(drwNo: number): Promise<DhLotteryResponse | null> {
   return json.returnValue === "success" ? json : null;
 }
 
+interface OpenLottoDivisions {
+  divisions: Array<{ prize: number; winners: number }>;
+}
+
+// 동행복권 공식 API는 1등 정보만 제공한다. 2·3등은 회차별 변동(파리뮤추얼) 금액이라
+// 오픈소스 미러(smok95/lotto)에서 함께 가져온다. 실패해도 회차 저장 자체는 계속 진행하고
+// null로 남겨(추후 backfillThirdPrizeAmount.ts 등으로 재시도 가능) 나머지 파이프라인을 막지 않는다.
+async function fetchSecondAndThirdPrizeInfo(
+  drwNo: number,
+): Promise<{ second: { amount: number; winners: number } | null; third: { amount: number; winners: number } | null }> {
+  try {
+    const res = await fetch(`https://raw.githubusercontent.com/smok95/lotto/master/results/${drwNo}.json`);
+    if (!res.ok) return { second: null, third: null };
+    const d = (await res.json()) as OpenLottoDivisions;
+    const secondDiv = d.divisions?.[1];
+    const thirdDiv = d.divisions?.[2];
+    return {
+      second: secondDiv ? { amount: secondDiv.prize, winners: secondDiv.winners } : null,
+      third: thirdDiv ? { amount: thirdDiv.prize, winners: thirdDiv.winners } : null,
+    };
+  } catch {
+    return { second: null, third: null };
+  }
+}
+
 /**
  * 회차별 1·2등 배출점 발표(상호명 + 주소) 조회.
  *
@@ -268,12 +293,16 @@ async function main() {
 
         console.log(`📄 회차 ${drwNo} (${draw.drwNoDate}): 당첨번호 ${[draw.drwtNo1, draw.drwtNo2, draw.drwtNo3, draw.drwtNo4, draw.drwtNo5, draw.drwtNo6].join("-")}+${draw.bnusNo}`);
 
-        const [firstPrizeStoreIds, secondPrizeStoreIds] = await Promise.all([
+        const [firstPrizeStoreIds, secondPrizeStoreIds, prizeDivisions] = await Promise.all([
           resolvePrizeStoreIds(draw.drwNo, 1),
           resolvePrizeStoreIds(draw.drwNo, 2),
+          fetchSecondAndThirdPrizeInfo(draw.drwNo),
         ]);
 
         console.log(`  • 1등 배출점: ${firstPrizeStoreIds.length}건, 2등 배출점: ${secondPrizeStoreIds.length}건`);
+        if (!prizeDivisions.second || !prizeDivisions.third) {
+          console.warn(`  ⚠️ 2·3등 금액 조회 실패 - null로 저장됨 (나중에 재시도 가능)`);
+        }
 
         const { error } = await supabaseAdmin.from("draw_history").upsert(
           {
@@ -284,6 +313,10 @@ async function main() {
             first_prize_total_amount: draw.firstAccumamnt,
             first_prize_winner_count: draw.firstPrzwnerCo,
             first_prize_amount_per_win: draw.firstWinamnt,
+            second_prize_amount_per_win: prizeDivisions.second?.amount ?? null,
+            second_prize_winner_count: prizeDivisions.second?.winners ?? null,
+            third_prize_amount_per_win: prizeDivisions.third?.amount ?? null,
+            third_prize_winner_count: prizeDivisions.third?.winners ?? null,
             total_sales_amount: draw.totSellamnt,
             first_prize_store_ids: firstPrizeStoreIds,
             second_prize_store_ids: secondPrizeStoreIds,

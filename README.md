@@ -90,7 +90,7 @@ recommend_score(조회 시점 계산) = store_score - 현재 거리(km) * 15
 │   ├── hooks/useCurrentLocation.ts # expo-location 래퍼 훅
 │   └── features/
 │       ├── map/
-│       │   ├── components/NaverMapView.tsx   # 네이버 지도 SDK 래퍼
+│       │   ├── components/StoreMapView.tsx   # 지도 래퍼 (Android: Google Maps, iOS: Apple Maps)
 │       │   └── hooks/useNearbyStores.ts       # nearby_stores RPC 훅
 │       ├── stores/api/storesApi.ts            # 판매점 조회/랭킹 API
 │       └── draws/api/drawHistoryApi.ts        # 회차/당첨 이력 API

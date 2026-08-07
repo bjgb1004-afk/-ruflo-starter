@@ -14,13 +14,18 @@ import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, memo } from "react";
 import { getStoreWithStats } from "@/features/stores/api/storesApi";
-import { getWinningsByStore, getLatestFirstPrizeWinners } from "@/features/draws/api/drawHistoryApi";
+import {
+  getWinningsByStore,
+  getLatestFirstPrizeWinners,
+  getPurchaseMethodsForStore,
+} from "@/features/draws/api/drawHistoryApi";
 import { openDirections } from "@/features/stores/utils/openDirections";
 import { openNearbySearch } from "@/features/stores/utils/openNearbySearch";
 import { toLuckyIndex, toStarRating, starRatingText, computeSmartBadges } from "@/features/stores/utils/luckyIndex";
 import { useFavorites } from "@/features/favorites/useFavorites";
 import { useRecentlyViewed } from "@/features/favorites/useRecentlyViewed";
 import { useAuth } from "@/features/auth/useAuth";
+import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
 import type { StoreWinningRow } from "@/types/database.types";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
@@ -57,11 +62,24 @@ function summarizeBusinessHours(hours: Record<string, string>): string {
     .join(", ");
 }
 
-const WinningRow = memo(function WinningRow({ item }: { item: StoreWinningRow }) {
+const WinningRow = memo(function WinningRow({
+  item,
+  purchaseType,
+}: {
+  item: StoreWinningRow;
+  purchaseType?: string;
+}) {
   return (
     <View style={styles.winRow}>
       <View style={styles.winInfo}>
-        <Text style={styles.winDraw}>{item.draw_no}회</Text>
+        <View style={styles.winDrawRow}>
+          <Text style={styles.winDraw}>{item.draw_no}회</Text>
+          {purchaseType && (
+            <View style={styles.methodTag}>
+              <Text style={styles.methodTagText}>{purchaseType}</Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.winDate}>{item.draw_date}</Text>
       </View>
       <View style={[styles.winBadge, item.rank === 1 ? styles.winBadge1st : styles.winBadge2nd]}>
@@ -97,6 +115,15 @@ export default function StoreDetailScreen() {
     enabled: !!id,
   });
 
+  // 1등 당첨 회차 중 구매 방식(자동/수동/반자동)이 pyony.com에서 확인된 회차만 태그로 표시.
+  const { data: purchaseMethods } = useQuery({
+    queryKey: ["store", id, "purchase-methods"],
+    queryFn: () => getPurchaseMethodsForStore(id!),
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    enabled: !!id,
+  });
+
   // 홈 화면 배너와 같은 쿼리키를 써서 캐시를 재사용한다 (같은 세션에서 홈을 먼저
   // 봤으면 재요청 없이 바로 사용됨).
   const { data: latestWinners } = useQuery({
@@ -106,7 +133,12 @@ export default function StoreDetailScreen() {
     gcTime: 30 * 60 * 1000,
   });
 
-  const renderWinning = useCallback(({ item }: { item: StoreWinningRow }) => <WinningRow item={item} />, []);
+  const renderWinning = useCallback(
+    ({ item }: { item: StoreWinningRow }) => (
+      <WinningRow item={item} purchaseType={item.rank === 1 ? purchaseMethods?.get(item.draw_no) : undefined} />
+    ),
+    [purchaseMethods],
+  );
   const winningKeyExtractor = useCallback(
     (item: StoreWinningRow, idx: number) => `${item.draw_no}-${idx}`,
     [],
@@ -138,6 +170,8 @@ export default function StoreDetailScreen() {
     },
     [stats],
   );
+
+  const formattedPhone = formatPhoneNumber(stats?.phone);
 
   const handleShowScoreInfo = useCallback(() => {
     Alert.alert(
@@ -177,11 +211,14 @@ export default function StoreDetailScreen() {
         </View>
         <Text style={styles.address}>{stats.address}</Text>
         <View style={styles.headerActions}>
-          {stats.phone && (
-            <Pressable onPress={() => Linking.openURL(`tel:${stats.phone}`)}>
-              <Text style={styles.phone}>📞 {stats.phone}</Text>
-            </Pressable>
-          )}
+          <Pressable
+            disabled={!formattedPhone}
+            onPress={() => formattedPhone && Linking.openURL(`tel:${formattedPhone}`)}
+          >
+            <Text style={[styles.phone, !formattedPhone && styles.phoneDisabled]}>
+              {formattedPhone ? `📞 ${formattedPhone}` : "전화번호 정보 없음"}
+            </Text>
+          </Pressable>
           {stats.latitude != null && stats.longitude != null && (
             <Pressable
               style={styles.directionsButton}
@@ -355,8 +392,7 @@ export default function StoreDetailScreen() {
           </View>
         </View>
         <Text style={styles.statsFootnote}>
-          * 1년/5년 집계는 회차별 자동 수집을 시작한 2026년 5월 30일(1226회차) 이후
-          당첨만 반영됩니다. 그 이전 당첨은 "1등/2등 배출" 누적 횟수에는 포함되어 있어요.
+          * 1년/5년 당첨 통계는 최신 당첨 데이터 업데이트가 반영된 결과입니다.
         </Text>
       </View>
 
@@ -394,6 +430,7 @@ const styles = StyleSheet.create({
   favoriteIcon: { fontSize: 22, color: colors.gold },
   address: { fontSize: 14, color: colors.textSecondary },
   phone: { fontSize: 14, color: colors.primary, fontWeight: "600" },
+  phoneDisabled: { color: colors.textMuted },
   headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.xs },
   directionsButton: {
     backgroundColor: colors.primaryLight,
@@ -490,7 +527,17 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   winInfo: { gap: spacing.xs },
+  winDrawRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   winDraw: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, fontFamily: numericFont.medium },
+  methodTag: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: 1,
+    borderRadius: radius.pill,
+  },
+  methodTagText: { fontSize: 10, color: colors.textSecondary, fontWeight: "600" },
   winDate: { fontSize: 12, color: colors.textMuted },
   winBadge: { paddingHorizontal: spacing.md - 2, paddingVertical: spacing.sm - 2, borderRadius: radius.pill },
   winBadge1st: { backgroundColor: colors.gold },

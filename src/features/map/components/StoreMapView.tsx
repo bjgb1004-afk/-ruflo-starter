@@ -1,7 +1,9 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import MapView, { Callout, Marker, type Region } from "react-native-maps";
 import ClusteredMapView from "react-native-map-clustering";
+import * as Location from "expo-location";
+import { reportError } from "@/lib/errorLog";
 import type { NearbyStoreRow } from "@/types/database.types";
 import { colors, radius } from "@/constants/theme";
 
@@ -37,24 +39,6 @@ const RANK_BADGE_COLOR: Record<1 | 2 | 3, string> = {
   2: colors.silver,
   3: colors.bronze,
 };
-
-// TOP3 배지가 은은하게 커졌다 작아졌다를 반복하며 "여기 주목"을 시각적으로 알린다.
-const PulsingBadge = memo(function PulsingBadge({ children }: { children: React.ReactNode }) {
-  const scale = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scale, { toValue: 1.18, duration: 700, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 1, duration: 700, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [scale]);
-
-  return <Animated.View style={{ transform: [{ scale }] }}>{children}</Animated.View>;
-});
 
 const StoreMarker = memo(function StoreMarker({
   store,
@@ -93,11 +77,11 @@ const StoreMarker = memo(function StoreMarker({
     <Marker
       coordinate={{ latitude: store.latitude, longitude: store.longitude }}
       anchor={{ x: 0.5, y: 0.5 }}
-      // 애니메이션이 실제로 지도 위에 반영되려면 이 마커만 계속 다시 스냅샷 떠야 한다
-      // (기본값 true는 전체 마커에 적용되면 성능 문제가 되므로 TOP3만 켠다).
-      tracksViewChanges={badge.type === "rank"}
+      // TOP1~3 배지도 애니메이션 없는 고정(Solid) 마커라 다른 마커와 동일하게 스냅샷을
+      // 재사용해도 되므로, 렌더링 안정성을 위해 항상 false로 둔다.
+      tracksViewChanges={false}
     >
-      {badge.type === "rank" ? <PulsingBadge>{pin}</PulsingBadge> : pin}
+      {pin}
       <Callout tooltip onPress={handleCalloutPress}>
         <View style={styles.callout}>
           <Text style={styles.calloutName} numberOfLines={1}>
@@ -115,9 +99,10 @@ const StoreMarker = memo(function StoreMarker({
 });
 
 // 지도 컴포넌트 (react-native-maps + react-native-map-clustering 사용)
-// 지도 공급자를 교체할 경우 이 컴포넌트만 대체하면 되도록 화면 코드와 분리했다.
+// Android는 Google Maps, iOS는 Apple Maps(react-native-maps 기본값). 지도 공급자를
+// 교체할 경우 이 컴포넌트만 대체하면 되도록 화면 코드와 분리했다.
 // 판매점이 밀집된 지역에서 마커가 겹쳐 렌더링 비용이 커지는 것을 막기 위해 클러스터링 적용.
-export const NaverMapView = memo(function NaverMapView({
+export const StoreMapView = memo(function StoreMapView({
   center,
   stores,
   onPressStore,
@@ -142,6 +127,87 @@ export const NaverMapView = memo(function NaverMapView({
     );
   }, [focusCoordinate]);
 
+  // 현재 위치 버튼 토글: 1회 탭 시 현재 위치로 이동 + 추적 모드 ON(이후 위치가 바뀔 때마다
+  // 지도가 계속 따라감), 다시 탭하면 추적 모드 OFF(구독 해제, 지도는 사용자가 둔 자리에 그대로 유지).
+  const [isTracking, setIsTracking] = useState(false);
+  const watchSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
+  // handleToggleTracking의 await 구간(권한요청/현재위치/구독시작) 도중 화면이 unmount되면,
+  // unmount 시점엔 아직 구독 객체가 없어 cleanup이 정리하지 못하고, await가 끝난 뒤에야
+  // watchSubscriptionRef에 할당되어 영원히 해제되지 않는 누수가 생긴다. 각 await 이후
+  // 이 플래그를 확인해 unmount 후에는 구독을 만들자마자 바로 해제한다.
+  const isMountedRef = useRef(true);
+
+  const stopTracking = useCallback(() => {
+    watchSubscriptionRef.current?.remove();
+    watchSubscriptionRef.current = null;
+    setIsTracking(false);
+  }, []);
+
+  const handleToggleTracking = useCallback(async () => {
+    if (isTracking) {
+      stopTracking();
+      return;
+    }
+
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (!isMountedRef.current || status !== "granted") return;
+
+      // 앱 권한은 허용됐어도 기기 상단바에서 위치 서비스(GPS) 자체를 꺼둔 경우
+      // getCurrentPositionAsync가 응답 없이 멈추거나 모호한 오류를 던져 "눌렀는데 반응 없음"으로
+      // 보인다. 미리 확인해 명확한 안내를 준다.
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+      if (!isMountedRef.current) return;
+      if (!servicesEnabled) {
+        Alert.alert("위치 서비스 꺼짐", "기기의 위치 서비스(GPS)를 켜주세요.");
+        return;
+      }
+
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      if (!isMountedRef.current) return;
+      mapRef.current?.animateToRegion(
+        {
+          latitude: current.coords.latitude,
+          longitude: current.coords.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.005,
+        },
+        500,
+      );
+      setIsTracking(true);
+
+      const subscription = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Balanced, timeInterval: 3000, distanceInterval: 15 },
+        (loc) => {
+          mapRef.current?.animateCamera(
+            { center: { latitude: loc.coords.latitude, longitude: loc.coords.longitude } },
+            { duration: 500 },
+          );
+        },
+      );
+      if (!isMountedRef.current) {
+        subscription.remove();
+        return;
+      }
+      watchSubscriptionRef.current = subscription;
+    } catch (err) {
+      reportError(err, "map-location-tracking");
+      if (isMountedRef.current) {
+        Alert.alert("위치를 가져올 수 없어요", "잠시 후 다시 시도해 주세요.");
+        setIsTracking(false);
+      }
+    }
+  }, [isTracking, stopTracking]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      watchSubscriptionRef.current?.remove();
+      watchSubscriptionRef.current = null;
+    };
+  }, []);
+
   const initialRegion = useMemo(
     () => ({
       latitude: center.latitude,
@@ -155,36 +221,64 @@ export const NaverMapView = memo(function NaverMapView({
   );
 
   return (
-    <ClusteredMapView
-      ref={mapRef}
-      style={styles.map}
-      initialRegion={initialRegion}
-      onRegionChangeComplete={onRegionChangeComplete}
-      customMapStyle={MAP_STYLE}
-      showsUserLocation
-      showsMyLocationButton
-      radius={60}
-      minPoints={3}
-      clusterColor={colors.seal}
-      clusterTextColor="#fff"
-    >
-      {stores.map((store) => {
-        const rank = topRecommendRanks?.get(store.store_id);
-        const badge: MarkerBadge = rank
-          ? { type: "rank", rank }
-          : newWinnerIds?.has(store.store_id)
-            ? { type: "new" }
-            : favoriteIds?.has(store.store_id)
-              ? { type: "favorite" }
-              : { type: "default" };
-        return <StoreMarker key={store.store_id} store={store} onPress={onPressStore} badge={badge} />;
-      })}
-    </ClusteredMapView>
+    <View style={styles.container}>
+      <ClusteredMapView
+        ref={mapRef}
+        style={styles.map}
+        initialRegion={initialRegion}
+        onRegionChangeComplete={onRegionChangeComplete}
+        customMapStyle={MAP_STYLE}
+        showsUserLocation
+        showsMyLocationButton={false}
+        radius={60}
+        minPoints={3}
+        clusterColor={colors.seal}
+        clusterTextColor="#fff"
+      >
+        {stores.map((store) => {
+          const rank = topRecommendRanks?.get(store.store_id);
+          const badge: MarkerBadge = rank
+            ? { type: "rank", rank }
+            : newWinnerIds?.has(store.store_id)
+              ? { type: "new" }
+              : favoriteIds?.has(store.store_id)
+                ? { type: "favorite" }
+                : { type: "default" };
+          return <StoreMarker key={store.store_id} store={store} onPress={onPressStore} badge={badge} />;
+        })}
+      </ClusteredMapView>
+      <Pressable
+        style={[styles.locationButton, isTracking && styles.locationButtonActive]}
+        onPress={handleToggleTracking}
+        hitSlop={8}
+      >
+        <Text style={styles.locationButtonIcon}>{isTracking ? "🎯" : "📍"}</Text>
+      </Pressable>
+    </View>
   );
 });
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
   map: { flex: 1 },
+  locationButton: {
+    position: "absolute",
+    right: 16,
+    bottom: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  locationButtonActive: { backgroundColor: colors.primary },
+  locationButtonIcon: { fontSize: 20 },
   // 순위 1~3위: 랭킹 탭과 같은 언어(금/은/동 사각 배지)로 지도 위에도 표시해서
   // "추천순이 뭘 기준으로 하는지" 설명 문구 없이도 바로 눈에 보이게 한다.
   pinRank: {

@@ -20,8 +20,7 @@ export const NewWinnerBanner = memo(function NewWinnerBanner() {
   });
 
   const handlePress = useCallback(() => {
-    const first = data?.stores[0];
-    if (first) router.push(`/store/${first.storeId}`);
+    if (data) router.push(`/draw/${data.drawNo}`);
   }, [data, router]);
 
   if (!data || data.stores.length === 0) return null;

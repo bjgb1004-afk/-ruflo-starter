@@ -1,13 +1,48 @@
-import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Alert,
+  Modal,
+  TextInput,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { useRouter } from "expo-router";
+import Constants from "expo-constants";
 import { useAuth } from "@/features/auth/useAuth";
 import { GeofenceToggle } from "@/features/geofencing/GeofenceToggle";
+import { ADMIN_EMAILS } from "@/constants/config";
 import { colors } from "@/constants/theme";
+
+const SECRET_TAP_COUNT = 5;
+// 이 시간 안에 연속으로 눌러야 카운트가 이어진다 - 하루 종일 산발적으로 누른 게 우연히
+// 쌓이는 것을 방지한다.
+const SECRET_TAP_WINDOW_MS = 2000;
 
 export default function SettingsScreen() {
   const router = useRouter();
   const user = useAuth((s) => s.user);
   const signOut = useAuth((s) => s.signOut);
+  const signIn = useAuth((s) => s.signIn);
+
+  // 카운트는 useState로 둬서 로직을 명시적으로 추적 가능하게 하고, 매 탭마다 setTimeout으로
+  // 리셋 타이머를 다시 예약한다 - 2초 안에 다음 탭이 없으면 자동으로 0으로 되돌아간다.
+  const [tapCount, setTapCount] = useState(0);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [masterKeyModalOpen, setMasterKeyModalOpen] = useState(false);
+  const [masterKey, setMasterKey] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    };
+  }, []);
 
   const handleLogout = () => {
     Alert.alert("로그아웃", "로그아웃 하시겠습니까?", [
@@ -16,34 +51,117 @@ export default function SettingsScreen() {
     ]);
   };
 
+  // 앱 버전 텍스트를 짧은 시간 안에 5번 연속 누르면 관리자 전용 비밀번호 입력창을 띄운다.
+  // 일반 사용자에게는 로그인/회원가입 진입점 자체가 보이지 않는다.
+  const handleVersionTap = useCallback(() => {
+    setTapCount((prev) => {
+      const next = prev + 1;
+      if (next >= SECRET_TAP_COUNT) {
+        setAuthError(null);
+        setMasterKey("");
+        setMasterKeyModalOpen(true);
+        return 0;
+      }
+      return next;
+    });
+
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    resetTimerRef.current = setTimeout(() => {
+      setTapCount(0);
+    }, SECRET_TAP_WINDOW_MS);
+  }, []);
+
+  const handleMasterKeySubmit = useCallback(async () => {
+    if (!masterKey) return;
+    setSubmitting(true);
+    setAuthError(null);
+    // "Master Key"는 별도의 하드코딩된 비밀이 아니라 관리자 본인 Supabase 계정의 실제
+    // 비밀번호다 - 서버(Supabase Auth + is_admin() RLS)가 실제로 검증하도록 하기 위함이며,
+    // 클라이언트에만 존재하는 비밀번호 비교는 번들을 열어보면 그대로 노출되어 안전하지 않다.
+    const { error } = await signIn(ADMIN_EMAILS[0], masterKey);
+    setSubmitting(false);
+
+    if (error) {
+      // 별도 네이티브 Alert 대신 모달 안에 인라인 경고 문구로 보여줘 바로 재입력할 수 있게 하고,
+      // 탭 카운트도 방어적으로 0으로 되돌린다(제스처를 처음부터 다시 하도록).
+      setAuthError("비밀번호가 올바르지 않습니다.");
+      setTapCount(0);
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+      return;
+    }
+
+    setMasterKeyModalOpen(false);
+    setMasterKey("");
+    router.push("/admin");
+  }, [masterKey, signIn, router]);
+
+  const appVersion = Constants.expoConfig?.version ?? "0.0.0";
+
   return (
     <View style={styles.container}>
-      {/* 계정 */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>계정</Text>
-        {user ? (
-          <View style={styles.accountCard}>
-            <View style={styles.accountInfo}>
-              <Text style={styles.accountLabel}>로그인됨</Text>
-              <Text style={styles.accountEmail}>{user.email}</Text>
-            </View>
-            <Pressable style={styles.logoutButton} onPress={handleLogout}>
-              <Text style={styles.logoutButtonText}>로그아웃</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <Pressable style={styles.loginCard} onPress={() => router.push("/login")}>
-            <Text style={styles.loginCardText}>로그인 / 회원가입</Text>
-            <Text style={styles.loginCardArrow}>›</Text>
-          </Pressable>
-        )}
-      </View>
-
       {/* 알림 설정 */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>알림</Text>
         <GeofenceToggle />
       </View>
+
+      {/* 로그인 상태라면(관리자가 마스터키로 인증한 경우) 로그아웃만 노출 - 일반 사용자에게는
+          로그인/회원가입 진입점 자체를 보여주지 않는다. */}
+      {user && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>계정</Text>
+          <View style={styles.accountCard}>
+            <Text style={styles.accountEmail}>{user.email}</Text>
+            <Pressable style={styles.logoutButton} onPress={handleLogout}>
+              <Text style={styles.logoutButtonText}>로그아웃</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      <View style={styles.footer}>
+        <Pressable onPress={handleVersionTap} hitSlop={12}>
+          <Text style={styles.versionText}>v{appVersion}</Text>
+        </Pressable>
+      </View>
+
+      <Modal
+        visible={masterKeyModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMasterKeyModalOpen(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <Pressable style={styles.modalBackdropTouchable} onPress={() => setMasterKeyModalOpen(false)} />
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>관리자 인증</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="비밀번호"
+              placeholderTextColor="#999"
+              value={masterKey}
+              onChangeText={(text) => {
+                setMasterKey(text);
+                if (authError) setAuthError(null);
+              }}
+              secureTextEntry
+              autoFocus
+              onSubmitEditing={handleMasterKeySubmit}
+            />
+            {authError && <Text style={styles.modalErrorText}>{authError}</Text>}
+            <Pressable
+              style={[styles.modalSubmitButton, submitting && styles.modalSubmitButtonDisabled]}
+              onPress={handleMasterKeySubmit}
+              disabled={submitting}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalSubmitButtonText}>확인</Text>}
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -67,9 +185,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 10,
   },
-  accountInfo: { gap: 4 },
-  accountLabel: { fontSize: 12, color: "#999" },
-  accountEmail: { fontSize: 15, fontWeight: "600", color: "#000" },
+  accountEmail: { fontSize: 14, fontWeight: "600", color: "#000" },
   logoutButton: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -78,15 +194,34 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
   },
   logoutButtonText: { fontSize: 13, color: "#FF3B30", fontWeight: "600" },
-  loginCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#f9f9f9",
-    marginHorizontal: 16,
-    padding: 16,
-    borderRadius: 10,
+  footer: { alignItems: "center", paddingVertical: 32 },
+  versionText: { fontSize: 12, color: "#ccc" },
+  modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },
+  modalBackdropTouchable: { ...StyleSheet.absoluteFillObject },
+  modalCard: {
+    width: 280,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    gap: 12,
   },
-  loginCardText: { fontSize: 15, fontWeight: "600", color: colors.primary },
-  loginCardArrow: { fontSize: 18, color: "#999" },
+  modalTitle: { fontSize: 16, fontWeight: "700", color: "#000", textAlign: "center" },
+  modalErrorText: { fontSize: 12, color: "#FF3B30", textAlign: "center" },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: "#000",
+  },
+  modalSubmitButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  modalSubmitButtonDisabled: { opacity: 0.6 },
+  modalSubmitButtonText: { color: "#fff", fontSize: 15, fontWeight: "600" },
 });

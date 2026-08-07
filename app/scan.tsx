@@ -1,0 +1,393 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
+import { useIsFocused } from "@react-navigation/native";
+import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
+import { reportError } from "@/lib/errorLog";
+import { getDrawByNo } from "@/features/draws/api/drawHistoryApi";
+import { parseLottoQr, type ParsedLottoGame } from "@/features/qr/parseLottoQr";
+import { computeWinRank, getPrizeAmount, type WinRank } from "@/features/qr/checkWinnings";
+import { useMyLottoTickets } from "@/features/mylotto/useMyLottoTickets";
+import { scheduleDrawReminder } from "@/features/mylotto/drawReminders";
+import { colors, spacing, radius, cardShadow } from "@/constants/theme";
+
+// 같은 용지를 계속 카메라에 비추고 있을 때 Bottom Sheet를 닫자마자 동일 QR이
+// 즉시 재인식되어 다시 열리는 "깜빡임"을 막기 위한 잠금 해제 지연 시간.
+const RESCAN_LOCK_MS = 1500;
+
+type GameResult = ParsedLottoGame & { rank: WinRank; prizeAmount: number };
+
+type ScanResult =
+  | { status: "ok"; drawNo: number; drawDate: string; games: GameResult[] }
+  // 추첨 전(구매 직후)에 스캔한 경우 - 정상적인 사용 흐름이라 에러가 아니라 "저장하고 기다리기"를 안내한다.
+  | { status: "pending"; drawNo: number; games: ParsedLottoGame[] }
+  | { status: "unrecognized" }
+  | { status: "error" };
+
+const RANK_LABEL: Record<Exclude<WinRank, null>, string> = {
+  1: "1등",
+  2: "2등",
+  3: "3등",
+  4: "4등",
+  5: "5등",
+};
+
+export default function ScanScreen() {
+  const router = useRouter();
+  const [permission, requestPermission] = useCameraPermissions();
+  const [result, setResult] = useState<ScanResult | null>(null);
+  const [torchOn, setTorchOn] = useState(false);
+  const [cameraError, setCameraError] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const addTickets = useMyLottoTickets((s) => s.addTickets);
+
+  const handleCameraMountError = useCallback((event: { message: string }) => {
+    reportError(new Error(`camera mount error: ${event.message}`), "qr-scan-camera");
+    setCameraError(true);
+  }, []);
+  // Expo Router(Stack)는 다른 화면으로 이동해도 이 화면을 언마운트하지 않고 메모리에 남겨둘 수
+  // 있어, active 없이 두면 카메라가 백그라운드에서 계속 켜진 채로 배터리/발열 문제가 생긴다.
+  // 포커스를 잃으면 CameraView의 active를 꺼서 실제 카메라 리소스를 확실히 해제한다.
+  const isFocused = useIsFocused();
+
+  // active={false}만으로 카메라 세션이 끊겨도 일부 기기에서는 torch(LED)가 카메라 파이프라인과
+  // 완전히 동기화되지 않아 꺼지지 않을 수 있다. 또한 torchOn을 그대로 두면 나중에 이 화면으로
+  // 돌아왔을 때 active가 다시 true가 되면서 사용자가 누르지 않았는데도 손전등이 자동으로 다시
+  // 켜지는 문제가 생긴다 - 화면을 벗어나는 시점에 명시적으로 꺼서 두 문제를 함께 방지한다.
+  useEffect(() => {
+    if (!isFocused) setTorchOn(false);
+  }, [isFocused]);
+
+  // 결과 처리 중(파싱→DB조회→표시)에는 카메라 이벤트를 무시해 중복 스캔/중복 API 요청을 막는다.
+  // Bottom Sheet가 열려있는 동안도 이 플래그가 true로 유지되어 추가 스캔 이벤트를 차단한다.
+  const scanLockRef = useRef(false);
+  const unlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (unlockTimerRef.current) clearTimeout(unlockTimerRef.current);
+    };
+  }, []);
+
+  const handleBarcodeScanned = useCallback(async (scan: BarcodeScanningResult) => {
+    if (scanLockRef.current) return;
+    scanLockRef.current = true;
+    setSaveState("idle");
+
+    const parsed = parseLottoQr(scan.data);
+    if (!parsed) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setResult({ status: "unrecognized" });
+      return;
+    }
+
+    try {
+      const draw = await getDrawByNo(parsed.drawNo);
+      if (!draw) {
+        // 아직 추첨하지 않은 회차(구매 직후 스캔)일 가능성이 가장 크다 - 에러가 아니라
+        // "보관함에 저장하고 추첨일에 알림받기" 흐름으로 안내한다.
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setResult({ status: "pending", drawNo: parsed.drawNo, games: parsed.games });
+        return;
+      }
+      const games: GameResult[] = parsed.games.map((g) => {
+        const rank = computeWinRank(g.numbers, draw.winning_numbers, draw.bonus_number);
+        return {
+          ...g,
+          rank,
+          prizeAmount: getPrizeAmount(
+            rank,
+            draw.first_prize_amount_per_win,
+            draw.second_prize_amount_per_win,
+            draw.third_prize_amount_per_win,
+          ),
+        };
+      });
+      // QR 스캔 자체가 성공적으로 완료됐다는 것을 화면을 보지 않고도 알 수 있도록 진동을 준다
+      // (당첨 여부와 무관하게 "스캔이 인식됐다"는 신호).
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setResult({ status: "ok", drawNo: draw.draw_no, drawDate: draw.draw_date, games });
+    } catch (err) {
+      // QR 자체는 정상 파싱됐는데 네트워크/DB 조회가 실패한 경우다. "인식할 수 없는 QR"이라고
+      // 하면 사용자가 용지를 의심하게 되므로, 원인이 다른 별도 상태로 구분해 안내한다.
+      reportError(err, "qr-scan-lookup");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setResult({ status: "error" });
+    }
+  }, []);
+
+  const handleCloseSheet = useCallback(() => {
+    setResult(null);
+    // 카메라는 계속 유지하되, 방금 닫은 용지가 여전히 프레임 안에 있으면 바로 재인식되어
+    // 같은 결과 시트가 다시 뜨는 깜빡임이 생긴다. 일정 시간 뒤에만 잠금을 풀어 방지한다.
+    if (unlockTimerRef.current) clearTimeout(unlockTimerRef.current);
+    unlockTimerRef.current = setTimeout(() => {
+      scanLockRef.current = false;
+    }, RESCAN_LOCK_MS);
+  }, []);
+
+  const handleSaveToVault = useCallback(() => {
+    if (!result || (result.status !== "ok" && result.status !== "pending")) return;
+    setSaveState("saving");
+
+    if (result.status === "ok") {
+      addTickets(
+        result.games.map((g) => ({
+          drawNo: result.drawNo,
+          numbers: g.numbers,
+          purchaseType: g.type,
+          checked: true,
+          rank: g.rank,
+          prizeAmount: g.prizeAmount,
+        })),
+      );
+    } else {
+      addTickets(
+        result.games.map((g) => ({
+          drawNo: result.drawNo,
+          numbers: g.numbers,
+          purchaseType: g.type,
+        })),
+      );
+      scheduleDrawReminder(result.drawNo).catch((err) => reportError(err, "mylotto-reminder"));
+    }
+
+    setSaveState("saved");
+  }, [result, addTickets]);
+
+  if (!permission) {
+    return <View style={styles.container} />;
+  }
+
+  if (!permission.granted) {
+    // canAskAgain=false는 iOS/Android가 이미 "다시 묻지 않음"으로 처리한 상태라
+    // requestPermission()을 다시 불러도 시스템 팝업이 뜨지 않는다(무반응처럼 보임).
+    // 이 경우엔 앱 설정 화면으로 직접 보내야 한다. 앱스토어 심사에서 권한 거부 시
+    // 검은 화면만 남는 것도 리젝 사유가 될 수 있어 항상 안내 문구+버튼을 보여준다.
+    const canAskAgain = permission.canAskAgain;
+    return (
+      <View style={styles.permissionContainer}>
+        <Text style={styles.permissionText}>QR 당첨 확인을 위해 카메라 권한이 필요합니다.</Text>
+        {canAskAgain ? (
+          <Pressable style={styles.permissionButton} onPress={requestPermission}>
+            <Text style={styles.permissionButtonText}>카메라 권한 허용</Text>
+          </Pressable>
+        ) : (
+          <Pressable style={styles.permissionButton} onPress={() => Linking.openSettings()}>
+            <Text style={styles.permissionButtonText}>설정으로 이동</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }
+
+  if (cameraError) {
+    return (
+      <View style={styles.permissionContainer}>
+        <Text style={styles.permissionText}>카메라를 사용할 수 없어요. 앱을 재시작한 뒤 다시 시도해 주세요.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <CameraView
+        style={styles.camera}
+        facing="back"
+        active={isFocused}
+        enableTorch={torchOn}
+        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+        onBarcodeScanned={handleBarcodeScanned}
+        onMountError={handleCameraMountError}
+      />
+      <View style={styles.guideOverlay} pointerEvents="none">
+        <Text style={styles.guideText}>로또 용지의 QR코드를 비춰주세요</Text>
+      </View>
+      <Pressable style={styles.vaultButton} onPress={() => router.push("/mylotto")}>
+        <Text style={styles.vaultButtonText}>🎟️ 내 복권 보관함</Text>
+      </Pressable>
+      <Pressable
+        style={[styles.torchButton, torchOn && styles.torchButtonActive]}
+        onPress={() => setTorchOn((v) => !v)}
+        hitSlop={8}
+      >
+        <Text style={styles.torchButtonIcon}>{torchOn ? "🔦" : "💡"}</Text>
+      </Pressable>
+
+      <Modal visible={result !== null} transparent animationType="slide" onRequestClose={handleCloseSheet}>
+        <Pressable style={styles.sheetBackdrop} onPress={handleCloseSheet}>
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            {result?.status === "unrecognized" && (
+              <>
+                <Text style={styles.sheetTitle}>인식할 수 없는 QR코드예요</Text>
+                <Text style={styles.sheetSubtitle}>로또 6/45 용지의 QR코드가 맞는지 확인해 주세요.</Text>
+              </>
+            )}
+            {result?.status === "pending" && (
+              <>
+                <Text style={styles.sheetTitle}>{result.drawNo}회 추첨 전이에요</Text>
+                <Text style={styles.sheetSubtitle}>
+                  보관함에 저장하면 추첨일에 알림을 보내드리고, 결과가 나오면 자동으로 당첨을 확인해요.
+                </Text>
+                <View style={styles.gamesList}>
+                  {result.games.map((game, idx) => (
+                    <View key={idx} style={styles.gameRow}>
+                      <Text style={styles.gameNumbers}>{game.numbers.join(", ")}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Pressable
+                  style={[styles.saveButton, saveState === "saved" && styles.saveButtonDone]}
+                  onPress={handleSaveToVault}
+                  disabled={saveState !== "idle"}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {saveState === "saved" ? "보관함에 저장됨 ✓" : saveState === "saving" ? "저장 중..." : "🎟️ 보관함에 저장하고 알림받기"}
+                  </Text>
+                </Pressable>
+              </>
+            )}
+            {result?.status === "error" && (
+              <>
+                <Text style={styles.sheetTitle}>일시적인 오류가 발생했어요</Text>
+                <Text style={styles.sheetSubtitle}>네트워크 상태를 확인한 뒤 다시 스캔해 주세요.</Text>
+              </>
+            )}
+            {result?.status === "ok" && (
+              <>
+                <Text style={styles.sheetTitle}>{result.drawNo}회 당첨 확인</Text>
+                <View style={styles.gamesList}>
+                  {result.games.map((game, idx) => (
+                    <View key={idx} style={styles.gameRow}>
+                      <Text style={styles.gameNumbers}>{game.numbers.join(", ")}</Text>
+                      <View style={[styles.rankBadge, game.rank ? styles.rankBadgeWin : styles.rankBadgeLose]}>
+                        <Text style={styles.rankBadgeText}>
+                          {game.rank ? RANK_LABEL[game.rank] : "낙첨"}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+                <Pressable
+                  style={[styles.saveButton, saveState === "saved" && styles.saveButtonDone]}
+                  onPress={handleSaveToVault}
+                  disabled={saveState !== "idle"}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {saveState === "saved" ? "보관함에 저장됨 ✓" : saveState === "saving" ? "저장 중..." : "🎟️ 보관함에 저장"}
+                  </Text>
+                </Pressable>
+              </>
+            )}
+            <Pressable style={styles.closeButton} onPress={handleCloseSheet}>
+              <Text style={styles.closeButtonText}>닫고 다음 QR 스캔</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#000" },
+  camera: { flex: 1 },
+  guideOverlay: {
+    position: "absolute",
+    top: 60,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  guideText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+  },
+  permissionContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+    gap: spacing.lg,
+    backgroundColor: colors.background,
+  },
+  permissionText: { fontSize: 15, color: colors.textPrimary, textAlign: "center" },
+  permissionButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+  },
+  permissionButtonText: { color: "#fff", fontWeight: "700" },
+  vaultButton: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+  },
+  vaultButtonText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  torchButton: {
+    position: "absolute",
+    right: 16,
+    bottom: 40,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  torchButtonActive: { backgroundColor: colors.goldBright },
+  torchButtonIcon: { fontSize: 22 },
+  sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    padding: spacing.xl,
+    gap: spacing.md,
+    ...cardShadow,
+  },
+  sheetTitle: { fontSize: 18, fontWeight: "800", color: colors.textPrimary },
+  sheetSubtitle: { fontSize: 13, color: colors.textSecondary },
+  gamesList: { gap: spacing.sm },
+  gameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  gameNumbers: { fontSize: 14, color: colors.textPrimary, fontWeight: "600" },
+  rankBadge: { paddingHorizontal: spacing.md - 2, paddingVertical: spacing.sm - 2, borderRadius: radius.pill },
+  rankBadgeWin: { backgroundColor: colors.gold },
+  rankBadgeLose: { backgroundColor: colors.rankNeutral },
+  rankBadgeText: { color: "#fff", fontWeight: "700", fontSize: 12 },
+  closeButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  closeButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  saveButton: {
+    backgroundColor: colors.goldBright,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  saveButtonDone: { backgroundColor: colors.rankNeutral },
+  saveButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+});

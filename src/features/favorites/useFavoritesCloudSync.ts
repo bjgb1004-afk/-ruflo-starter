@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { reportError } from "@/lib/errorLog";
 import { useAuth } from "@/features/auth/useAuth";
 import { useFavorites } from "./useFavorites";
 import { getCloudFavorites, addCloudFavorite } from "./favoritesApi";
@@ -24,8 +25,10 @@ export function useFavoritesCloudSync() {
 
         const localOnly = Object.values(localStores).filter((s) => !cloudIds.has(s.id));
         await Promise.all(localOnly.map((store) => addCloudFavorite(userId, store).catch(() => {})));
-      } catch {
-        // 동기화 실패해도 로컬 즐겨찾기는 그대로 동작하므로 조용히 무시
+      } catch (err) {
+        // 동기화 실패해도 로컬 즐겨찾기는 그대로 동작하므로 사용자에게는 조용히 넘어가되,
+        // 실제로 얼마나 자주 실패하는지는 Sentry로 확인할 수 있어야 한다.
+        reportError(err, "favorites-cloud-sync");
       }
     })();
   }, [userId, mergeCloud]);

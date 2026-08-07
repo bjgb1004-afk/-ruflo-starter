@@ -21,7 +21,6 @@ const config: ExpoConfig = {
     bundleIdentifier: "com.lottomap.app",
     jsEngine: "hermes",
     infoPlist: {
-      UIBackgroundModes: ["location"],
       LSApplicationQueriesSchemes: ["kakaomap", "nmap"],
     },
   },
@@ -46,13 +45,24 @@ const config: ExpoConfig = {
       {
         locationAlwaysAndWhenInUsePermission:
           "명당 판매점 근처에 도착하면 알림을 보내드리기 위해 위치 정보를 사용합니다.",
+        locationWhenInUsePermission:
+          "주변 로또 판매점을 찾기 위해 위치 정보를 사용합니다.",
         isAndroidBackgroundLocationEnabled: true,
+        // iOS도 Android(isAndroidBackgroundLocationEnabled)와 동일하게 플러그인이
+        // UIBackgroundModes(location)를 선언적으로 추가하도록 위임한다(수동 infoPlist 중복 방지).
+        isIosBackgroundLocationEnabled: true,
       },
     ],
     [
       "expo-notifications",
       {
         icon: "./assets/images/icon.png",
+      },
+    ],
+    [
+      "expo-camera",
+      {
+        cameraPermission: "로또 용지 QR코드로 당첨 여부를 확인하기 위해 카메라를 사용합니다.",
       },
     ],
     "expo-font",
@@ -62,7 +72,6 @@ const config: ExpoConfig = {
   extra: {
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
-    naverMapClientId: process.env.EXPO_PUBLIC_NAVER_MAP_CLIENT_ID,
     sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
     posthogApiKey: process.env.EXPO_PUBLIC_POSTHOG_API_KEY,
     eas: {

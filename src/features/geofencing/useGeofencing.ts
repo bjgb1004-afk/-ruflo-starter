@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import * as Location from "expo-location";
+import { reportError } from "@/lib/errorLog";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { requestNotificationPermission } from "./notifications";
+import { ensureGeofenceNotificationChannel, requestNotificationPermission } from "./notifications";
 import { GEOFENCE_STORE_MAP_KEY, GEOFENCE_TASK_NAME, type GeofenceStoreInfo } from "./geofenceTask";
 import { GEOFENCE_RADIUS_M } from "@/constants/config";
 import { useSelectedStores, type SelectedStore } from "./useSelectedStores";
@@ -63,6 +64,7 @@ export function useGeofencing() {
     setErrorMessage(null);
 
     try {
+      await ensureGeofenceNotificationChannel();
       const notifGranted = await requestNotificationPermission();
       if (!notifGranted) {
         setStatus("error");
@@ -84,11 +86,21 @@ export function useGeofencing() {
         return;
       }
 
+      // 권한은 모두 허용됐어도 기기 상단바에서 위치 서비스(GPS) 자체가 꺼져 있으면
+      // 지오펜스가 등록되어도 실제로는 절대 발동하지 않는다 - 조용히 실패하지 않도록 미리 확인한다.
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+      if (!servicesEnabled) {
+        setStatus("error");
+        setErrorMessage("기기의 위치 서비스(GPS)를 켜주세요.");
+        return;
+      }
+
       await persistStoreMap(stores);
       await Location.startGeofencingAsync(GEOFENCE_TASK_NAME, buildRegions(stores));
       await AsyncStorage.setItem(ENABLED_STORAGE_KEY, "true");
       setStatus("enabled");
     } catch (err) {
+      reportError(err, "geofencing");
       setStatus("error");
       setErrorMessage(err instanceof Error ? err.message : String(err));
     }

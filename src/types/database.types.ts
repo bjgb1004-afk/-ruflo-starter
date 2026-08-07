@@ -85,6 +85,8 @@ export type Database = {
           first_prize_amount_per_win: number | null
           second_prize_amount_per_win: number | null
           second_prize_winner_count: number | null
+          third_prize_amount_per_win: number | null
+          third_prize_winner_count: number | null
           total_sales_amount: number | null
           first_prize_store_ids: string[]
           second_prize_store_ids: string[]
@@ -92,6 +94,27 @@ export type Database = {
         }
         Insert: Omit<Database['public']['Tables']['draw_history']['Row'], "created_at">
         Update: Partial<Omit<Database['public']['Tables']['draw_history']['Row'], "draw_no" | "created_at">>
+        Relationships: []
+      }
+      draw_first_prize_methods: {
+        Row: {
+          draw_no: number
+          store_id: string
+          purchase_type: '자동' | '수동' | '반자동'
+        }
+        Insert: Database['public']['Tables']['draw_first_prize_methods']['Row']
+        Update: Partial<Database['public']['Tables']['draw_first_prize_methods']['Row']>
+        Relationships: []
+      }
+      app_error_logs: {
+        Row: {
+          id: number
+          feature: string
+          message: string
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['app_error_logs']['Row'], "id" | "created_at">
+        Update: Partial<Omit<Database['public']['Tables']['app_error_logs']['Row'], "id" | "created_at">>
         Relationships: []
       }
       app_notices: {
@@ -148,6 +171,7 @@ export type Database = {
       refresh_store_ranking_stats: { Args: Record<PropertyKey, never>, Returns: void }
       stores_within_radius: { Args: { in_lat: number, in_lng: number, radius_m: number }, Returns: { id: string, name: string, address: string, latitude: number, longitude: number, building_main: number | null, building_sub: number | null }[] }
       nearby_stores: { Args: { in_lat: number, in_lng: number, radius_m?: number, max_results?: number }, Returns: { store_id: string, name: string, address: string, latitude: number, longitude: number, distance_m: number, first_prize_count: number, second_prize_count: number, store_score: number, recommend_score: number, nation_rank: number | null, province_rank: number | null, city_rank: number | null }[] }
+      get_user_count: { Args: Record<PropertyKey, never>, Returns: number }
     }
   }
 }
