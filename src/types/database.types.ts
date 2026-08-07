@@ -11,6 +11,29 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// RPC 함수 반환 타입들
+export type NearbyStoreRow = {
+  store_id: string
+  name: string
+  address: string
+  latitude: number
+  longitude: number
+  distance_m: number
+  first_prize_count: number
+  second_prize_count: number
+  store_score: number
+  recommend_score: number
+  nation_rank: number | null
+  province_rank: number | null
+  city_rank: number | null
+}
+
+export type StoreWinningRow = {
+  draw_no: number
+  draw_date: string
+  rank: number
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -34,9 +57,21 @@ export type Database = {
           is_active: boolean
           created_at: string
           updated_at: string
+          historical_first_prize_count: number
+          historical_second_prize_count: number
+          business_hours: Json | null
+          has_parking: boolean
+          has_restroom: boolean
+          has_atm: boolean
+          website_url: string | null
+          rating: number
+          review_count: number
+          amenities: string[] | null
+          latest_review: string | null
+          info_updated_at: string
         }
-        Insert: Omit<Row, "created_at" | "updated_at">
-        Update: Partial<Omit<Row, "id" | "created_at">>
+        Insert: Omit<Database['public']['Tables']['stores']['Row'], "created_at" | "updated_at">
+        Update: Partial<Omit<Database['public']['Tables']['stores']['Row'], "id" | "created_at">>
         Relationships: []
       }
       draw_history: {
@@ -48,13 +83,39 @@ export type Database = {
           first_prize_total_amount: number | null
           first_prize_winner_count: number | null
           first_prize_amount_per_win: number | null
+          second_prize_amount_per_win: number | null
+          second_prize_winner_count: number | null
           total_sales_amount: number | null
           first_prize_store_ids: string[]
           second_prize_store_ids: string[]
           created_at: string
         }
-        Insert: Omit<Row, "created_at">
-        Update: Partial<Omit<Row, "draw_no" | "created_at">>
+        Insert: Omit<Database['public']['Tables']['draw_history']['Row'], "created_at">
+        Update: Partial<Omit<Database['public']['Tables']['draw_history']['Row'], "draw_no" | "created_at">>
+        Relationships: []
+      }
+      app_notices: {
+        Row: {
+          id: string
+          title: string
+          message: string
+          is_active: boolean
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['app_notices']['Row'], "id" | "created_at">
+        Update: Partial<Omit<Database['public']['Tables']['app_notices']['Row'], "id" | "created_at">>
+        Relationships: []
+      }
+      user_favorite_stores: {
+        Row: {
+          user_id: string
+          store_id: string
+          store_name: string
+          store_address: string
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['user_favorite_stores']['Row'], "created_at">
+        Update: Partial<Omit<Database['public']['Tables']['user_favorite_stores']['Row'], "user_id" | "store_id">>
         Relationships: []
       }
       store_ranking_stats: {
@@ -78,8 +139,8 @@ export type Database = {
           store_score: number
           updated_at: string
         }
-        Insert: Omit<Row, "updated_at">
-        Update: Partial<Omit<Row, "id">>
+        Insert: Omit<Database['public']['Tables']['store_ranking_stats']['Row'], "updated_at">
+        Update: Partial<Omit<Database['public']['Tables']['store_ranking_stats']['Row'], "id">>
         Relationships: [{ foreignKeyName: "store_ranking_stats_id_fkey", columns: ["id"], referencedRelation: "stores", referencedColumns: ["id"] }]
       }
     }
@@ -90,3 +151,8 @@ export type Database = {
     }
   }
 }
+
+// 테이블 타입들 (Database 정의 후에 export)
+export type Store = Database['public']['Tables']['stores']['Row']
+export type DrawHistory = Database['public']['Tables']['draw_history']['Row']
+export type StoreRankingStats = Database['public']['Tables']['store_ranking_stats']['Row']

@@ -11,5 +11,5 @@ export function initAnalytics() {
 }
 
 export function trackEvent(name: string, properties?: Record<string, unknown>) {
-  client?.capture(name, properties);
+  client?.capture(name, properties as any);
 }
