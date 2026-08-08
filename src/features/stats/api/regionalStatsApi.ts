@@ -20,20 +20,6 @@ export async function getSidoLuckDensity(): Promise<SidoLuckDensity[]> {
   }));
 }
 
-export type TrendWindow = 4 | 10 | null; // null = 전체 누적
-
-export interface RegionalTrendRow {
-  sido: string;
-  firstPrizeCount: number;
-}
-
-// weeksBack이 null이면 전체 누적, 숫자면 최근 N회차(주) 기준 시/도별 1등 배출 횟수.
-export async function getRegionalTrend(weeksBack: TrendWindow): Promise<RegionalTrendRow[]> {
-  const { data, error } = await (supabase.rpc as any)("regional_trend", { weeks_back: weeksBack });
-  if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({ sido: r.sido, firstPrizeCount: r.first_prize_count }));
-}
-
 export interface ConsecutiveWinArea {
   sido: string;
   sigungu: string;
@@ -48,25 +34,6 @@ export async function getConsecutiveWinAreas(streakWeeks: number = 3): Promise<C
     sido: r.sido,
     sigungu: r.sigungu,
     streakWeeks: r.streak_weeks_out,
-  }));
-}
-
-export interface SidoCentroid {
-  sido: string;
-  latitude: number;
-  longitude: number;
-}
-
-// 시/도별 운영중 매장 좌표 평균(근사 중심) - 지도 위에 "이번 달 HOT 지역"처럼 지역
-// 단위 마커를 찍을 때, 행정구역 경계 데이터가 없어도 실제 매장이 몰린 자리에
-// 가깝게 배치할 수 있다.
-export async function getSidoCentroids(): Promise<SidoCentroid[]> {
-  const { data, error } = await (supabase.rpc as any)("sido_centroids");
-  if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({
-    sido: r.sido,
-    latitude: r.latitude,
-    longitude: r.longitude,
   }));
 }
 
