@@ -68,6 +68,11 @@ const config: ExpoConfig = {
     "expo-font",
     "expo-web-browser",
     "./plugins/withMapAppQueries",
+    // @sentry/react-native 7.x부터 네이티브 초기화 설정에 이 config plugin이 필요해짐
+    // (버전업 전엔 없어도 됐음). org/project/authToken 미설정이라 소스맵 업로드는 안 되지만,
+    // DSN 자체가 비어있어(EXPO_PUBLIC_SENTRY_DSN 미설정) Sentry.init이 아무 동작도 안 하는
+    // 상태라 지금 당장은 영향 없음 - DSN을 나중에 설정하면 이 플러그인도 그때 값 채우면 됨.
+    "@sentry/react-native",
   ],
   extra: {
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
