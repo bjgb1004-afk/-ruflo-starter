@@ -80,6 +80,13 @@ const StoreMarker = memo(function StoreMarker({
       // TOP1~3 배지도 애니메이션 없는 고정(Solid) 마커라 다른 마커와 동일하게 스냅샷을
       // 재사용해도 되므로, 렌더링 안정성을 위해 항상 false로 둔다.
       tracksViewChanges={false}
+      // react-native-map-clustering은 기본적으로 모든 Marker를 클러스터링 대상으로 삼아,
+      // 주변에 매장이 몰려있으면 1/2/3등 배지 마커까지 숫자 뭉치(cluster) 안에 흡수되어
+      // 화면에서 사라져버린다("코드는 있는데 지도엔 안 보임"의 원인). 순위 배지는 사용자가
+      // 반드시 눈으로 확인해야 하는 정보라 클러스터링 대상에서 제외한다.
+      // cluster는 react-native-map-clustering이 런타임에 props에서 직접 읽는 확장 prop이라
+      // react-native-maps의 MapMarkerProps 타입 선언에는 없다 - as any로 우회한다.
+      {...({ cluster: badge.type !== "rank" } as any)}
     >
       {pin}
       <Callout tooltip onPress={handleCalloutPress}>
