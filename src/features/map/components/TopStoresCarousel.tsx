@@ -1,5 +1,5 @@
 import { memo, useCallback } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { NearbyStoreRow } from "@/types/database.types";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
@@ -14,55 +14,45 @@ interface Props {
   onPressStore: (storeId: string) => void;
 }
 
-// 지도 하단에 떠 있는 "내 주변 TOP5" 가로 스와이프 카드. 지도 위 배지만으로는
-// 이름/거리/실적을 한눈에 비교하기 어려워서, 목록 형태로 훑어볼 수 있게 보완한다.
+// 지도 하단에 떠 있는 "내 주변 TOP3" 카드. 원래 5장을 가로 스크롤로 보여줬는데,
+// 한 화면에 옆으로 안 넘기고 다 보이는 게 낫다는 피드백으로 3장으로 줄이고
+// 고정폭 스크롤 대신 화면 폭에 맞춰 나눠지는 3칸 행으로 바꿨다.
 export const TopStoresCarousel = memo(function TopStoresCarousel({ stores, onPressStore }: Props) {
-  const top5 = stores.slice(0, 5);
+  const top3 = stores.slice(0, 3);
 
-  const renderItem = useCallback(
-    ({ item, index }: { item: NearbyStoreRow; index: number }) => (
-      <Pressable style={styles.card} onPress={() => onPressStore(item.store_id)}>
-        <View style={[styles.rankChip, { backgroundColor: RANK_COLOR[index] ?? colors.rankNeutral }]}>
-          <Text style={styles.rankChipText}>{index + 1}</Text>
-        </View>
-        <Text style={styles.name} numberOfLines={1}>
-          {item.name}
-        </Text>
-        <Text style={styles.meta}>
-          {(item.distance_m / 1000).toFixed(1)}km · 1등 {item.first_prize_count}회
-        </Text>
-      </Pressable>
-    ),
-    [onPressStore],
-  );
+  const handlePress = useCallback((storeId: string) => onPressStore(storeId), [onPressStore]);
 
-  const keyExtractor = useCallback((item: NearbyStoreRow) => item.store_id, []);
-
-  if (top5.length === 0) return null;
+  if (top3.length === 0) return null;
 
   return (
     <View style={styles.wrap} pointerEvents="box-none">
-      <FlatList
-        horizontal
-        data={top5}
-        keyExtractor={keyExtractor}
-        renderItem={renderItem}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.list}
-      />
+      <View style={styles.row}>
+        {top3.map((item, index) => (
+          <Pressable key={item.store_id} style={styles.card} onPress={() => handlePress(item.store_id)}>
+            <View style={[styles.rankChip, { backgroundColor: RANK_COLOR[index] ?? colors.rankNeutral }]}>
+              <Text style={styles.rankChipText}>{index + 1}</Text>
+            </View>
+            <Text style={styles.name} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text style={styles.meta}>
+              {(item.distance_m / 1000).toFixed(1)}km · 1등 {item.first_prize_count}회
+            </Text>
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 });
 
 const styles = StyleSheet.create({
   wrap: { position: "absolute", left: 0, right: 0, bottom: spacing.md },
-  list: { paddingHorizontal: spacing.md, gap: spacing.sm },
+  row: { flexDirection: "row", paddingHorizontal: spacing.md, gap: spacing.sm },
   card: {
-    width: 150,
+    flex: 1,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     padding: spacing.md,
-    marginRight: spacing.sm,
     ...cardShadow,
   },
   rankChip: {

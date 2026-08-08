@@ -311,10 +311,12 @@ export const StoreMapView = memo(function StoreMapView({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
+  // 하단(TopStoresCarousel 카드)에 있으면 카드에 가려 안 보인다는 신고 - 지도 우측
+  // 상단으로 옮겨서 카드 개수/높이가 바뀌어도 겹칠 일이 없게 한다.
   locationButton: {
     position: "absolute",
     right: 16,
-    bottom: 24,
+    top: 16,
     width: 44,
     height: 44,
     borderRadius: 22,
