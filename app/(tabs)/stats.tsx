@@ -1,14 +1,11 @@
-import { StyleSheet, Text, View, FlatList, ActivityIndicator, ScrollView, Pressable } from "react-native";
+import { StyleSheet, Text, View, ActivityIndicator, ScrollView, Pressable } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState, memo } from "react";
-import {
-  getLatestDraw,
-  getRegionalStats,
-  getDrawHistory,
-  type RegionalStatsRow,
-} from "@/features/draws/api/drawHistoryApi";
-import type { DrawHistory } from "@/types/database.types";
+import { getRegionalStats, type RegionalStatsRow } from "@/features/draws/api/drawHistoryApi";
+import { HotspotTrendCard } from "@/features/stats/components/HotspotTrendCard";
+import { RecentDrawSummary } from "@/features/stats/components/RecentDrawSummary";
+import { LuckDensityList } from "@/features/stats/components/LuckDensityList";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 const MIN_BAR_WIDTH_PERCENT = 4; // 값이 0이 아니면 최소한 눈에 보이도록
@@ -62,18 +59,6 @@ const RegionalStatRow = memo(function RegionalStatRow({
   );
 });
 
-const HistoryRow = memo(function HistoryRow({ item }: { item: DrawHistory }) {
-  return (
-    <View style={styles.historyRow}>
-      <Text style={styles.historyNo}>{item.draw_no}회</Text>
-      <Text style={styles.historyDate}>{item.draw_date}</Text>
-      <Text style={styles.historyNumbers}>
-        {item.winning_numbers.join(", ")} + {item.bonus_number}
-      </Text>
-    </View>
-  );
-});
-
 export default function StatsScreen() {
   const router = useRouter();
   const handleRegionPress = useCallback(
@@ -83,29 +68,12 @@ export default function StatsScreen() {
     [router],
   );
 
-  const { data: latestDraw } = useQuery({
-    queryKey: ["draws", "latest"],
-    queryFn: getLatestDraw,
-    staleTime: 1 * 60 * 1000, // 1분 캐시
-    gcTime: 5 * 60 * 1000,
-  });
-
   const { data: regionalStats = [], isLoading: isLoadingRegional } = useQuery({
     queryKey: ["stats", "regional"],
     queryFn: getRegionalStats,
     staleTime: 10 * 60 * 1000, // 10분 캐시 (변화가 적음)
     gcTime: 30 * 60 * 1000,
   });
-
-  const { data: drawHistory = [], isLoading: isLoadingHistory } = useQuery({
-    queryKey: ["draws", "history"],
-    queryFn: () => getDrawHistory(10),
-    staleTime: 1 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
-  });
-
-  const renderHistory = useCallback(({ item }: { item: DrawHistory }) => <HistoryRow item={item} />, []);
-  const historyKeyExtractor = useCallback((item: DrawHistory) => `${item.draw_no}`, []);
 
   const [regionalStatsExpanded, setRegionalStatsExpanded] = useState(true);
   const handleToggleRegionalStats = useCallback(() => {
@@ -123,39 +91,16 @@ export default function StatsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* 최근 회차 */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>최근 회차</Text>
-        {latestDraw ? (
-          <View style={styles.drawCard}>
-            <Text style={styles.drawNo}>{latestDraw.draw_no}회</Text>
-            <Text style={styles.drawDate}>{latestDraw.draw_date}</Text>
-            <Text style={styles.winningNumbers}>
-              {latestDraw.winning_numbers.join(", ")} + {latestDraw.bonus_number}
-            </Text>
-            {latestDraw.first_prize_winner_count !== null && (
-              <View style={styles.prizeInfo}>
-                <View style={styles.prizeRow}>
-                  <Text style={styles.prizeLabel}>1등 당첨금</Text>
-                  <Text style={styles.prizeValue}>
-                    {latestDraw.first_prize_amount_per_win?.toLocaleString()}원
-                  </Text>
-                </View>
-                <View style={styles.prizeRow}>
-                  <Text style={styles.prizeLabel}>당첨자 수</Text>
-                  <Text style={styles.prizeValue}>
-                    {latestDraw.first_prize_winner_count}명
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
-        ) : (
-          <ActivityIndicator />
-        )}
-      </View>
+      {/* 최근 핫스팟 트렌드 - design.txt 지시대로 최상단에 강조 배치 */}
+      <HotspotTrendCard onPressSido={handleRegionPress} />
 
-      {/* 지역별 당첨 통계 */}
+      {/* 최근 회차 당첨 현황 - "최근 회차"+"최근 회차 목록"을 하나로 통합, 상세는 아코디언 */}
+      <RecentDrawSummary />
+
+      {/* 지역별 명당 밀도(행운 지수) - 카드를 펼치면 자동/수동/반자동 비율도 함께 보임 */}
+      <LuckDensityList onPressSido={handleRegionPress} />
+
+      {/* 지역별 당첨 통계 (기존) */}
       <View style={styles.section}>
         <Pressable style={styles.sectionHeader} onPress={handleToggleRegionalStats}>
           <Text style={styles.sectionTitle}>지역별 당첨 통계</Text>
@@ -178,21 +123,6 @@ export default function StatsScreen() {
             </View>
           ))}
       </View>
-
-      {/* 최근 회차 목록 */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>최근 회차 목록</Text>
-        {isLoadingHistory ? (
-          <ActivityIndicator />
-        ) : (
-          <FlatList
-            scrollEnabled={false}
-            data={drawHistory}
-            keyExtractor={historyKeyExtractor}
-            renderItem={renderHistory}
-          />
-        )}
-      </View>
     </ScrollView>
   );
 }
@@ -209,31 +139,6 @@ const styles = StyleSheet.create({
   },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sectionTitle: { fontSize: 17, fontWeight: "700", color: colors.textPrimary },
-  drawCard: {
-    backgroundColor: colors.primaryLight,
-    padding: spacing.lg,
-    borderRadius: radius.md,
-    gap: spacing.sm,
-  },
-  drawNo: { fontSize: 26, fontWeight: "800", color: colors.primary, fontFamily: numericFont.bold },
-  drawDate: { fontSize: 14, color: colors.textSecondary },
-  winningNumbers: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.textPrimary,
-    marginTop: spacing.sm,
-    fontFamily: numericFont.medium,
-  },
-  prizeInfo: {
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: spacing.sm,
-  },
-  prizeRow: { flexDirection: "row", justifyContent: "space-between" },
-  prizeLabel: { fontSize: 13, color: colors.textSecondary },
-  prizeValue: { fontSize: 13, fontWeight: "700", color: colors.textPrimary, fontFamily: numericFont.medium },
   statRow: { paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   statRegionRow: {
     flexDirection: "row",
@@ -250,13 +155,4 @@ const styles = StyleSheet.create({
   bar1st: { backgroundColor: colors.gold, width: "50%" },
   bar2nd: { backgroundColor: colors.silver, width: "30%" },
   barLabel: { fontSize: 12, color: colors.textSecondary, fontFamily: numericFont.regular },
-  historyRow: {
-    paddingVertical: spacing.sm + 2,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: spacing.xs + 2,
-  },
-  historyNo: { fontSize: 13, fontWeight: "700", color: colors.primary, fontFamily: numericFont.medium },
-  historyDate: { fontSize: 12, color: colors.textMuted },
-  historyNumbers: { fontSize: 12, color: colors.textPrimary, fontFamily: numericFont.regular },
 });

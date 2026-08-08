@@ -60,6 +60,7 @@ export interface DrawWinnerStore {
   storeId: string;
   storeName: string;
   address: string | null;
+  sido: string | null;
   // pyony.com에서 매칭된 경우만 값이 있고, 매칭 안 되면 null(추정하지 않음). 2등은 소스 자체가
   // 없어 항상 null.
   purchaseType: PurchaseType | null;
@@ -108,9 +109,9 @@ export async function getDrawWinnersDetail(drawNo: number): Promise<DrawWinnersD
   const [{ data, error }, { data: methods, error: methodsError }] = await Promise.all([
     supabase
       .from("stores")
-      .select("id, name, address")
+      .select("id, name, address, sido")
       .in("id", allIds)
-      .returns<{ id: string; name: string; address: string | null }[]>(),
+      .returns<{ id: string; name: string; address: string | null; sido: string | null }[]>(),
     supabase
       .from("draw_first_prize_methods")
       .select("store_id, purchase_type")
@@ -128,6 +129,7 @@ export async function getDrawWinnersDetail(drawNo: number): Promise<DrawWinnersD
       storeId: id,
       storeName: s?.name ?? "알 수 없음",
       address: s?.address ?? null,
+      sido: s?.sido ?? null,
       purchaseType: methodByStoreId.get(id) ?? null,
     };
   };
