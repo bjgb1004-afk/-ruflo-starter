@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { View } from "react-native";
 import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import {
@@ -69,6 +70,10 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
+        {/* expo-status-bar가 의존성엔 있었지만 어디서도 렌더링되지 않아 상태표시줄(시간/배터리/
+            신호)이 아예 안 보이는 문제가 있었다 - 배경이 대체로 밝은 종이색이라 dark(짙은 아이콘)
+            로 고정한다. */}
+        <StatusBar style="dark" />
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="store/[id]" options={{ title: "판매점 상세" }} />

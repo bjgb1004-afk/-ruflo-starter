@@ -100,13 +100,26 @@ function groupTickets(tickets: MyLottoTicket[]): TicketGroup[] {
   return [...map.values()].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
 }
 
-const TicketGroupCard = ({ group, onShare }: { group: TicketGroup; onShare: (t: MyLottoTicket) => void }) => (
+const TicketGroupCard = ({
+  group,
+  onShare,
+  onDelete,
+}: {
+  group: TicketGroup;
+  onShare: (t: MyLottoTicket) => void;
+  onDelete: (group: TicketGroup) => void;
+}) => (
   <View style={styles.groupCard}>
     <View style={styles.groupHeaderRow}>
-      <Text style={styles.groupDraw}>{group.drawNo}회</Text>
-      <Text style={styles.groupSpent}>
-        {formatWon(group.tickets.length * LOTTO_UNIT_PRICE)}치 · {group.tickets.length}게임
-      </Text>
+      <View style={styles.groupHeaderInfo}>
+        <Text style={styles.groupDraw}>{group.drawNo}회</Text>
+        <Text style={styles.groupSpent}>
+          {formatWon(group.tickets.length * LOTTO_UNIT_PRICE)}치 · {group.tickets.length}게임
+        </Text>
+      </View>
+      <Pressable hitSlop={8} style={styles.deleteButton} onPress={() => onDelete(group)}>
+        <Text style={styles.deleteButtonIcon}>🗑️</Text>
+      </Pressable>
     </View>
     {group.tickets.map((t) => (
       <TicketRow key={t.id} ticket={t} onShare={onShare} />
@@ -118,8 +131,25 @@ export default function MyLottoScreen() {
   useAutoCheckTickets();
   const router = useRouter();
   const ticketsMap = useMyLottoTickets((s) => s.tickets);
+  const removeTicket = useMyLottoTickets((s) => s.removeTicket);
   const tickets = useMemo(() => Object.values(ticketsMap).sort((a, b) => b.savedAt.localeCompare(a.savedAt)), [ticketsMap]);
   const ticketGroups = useMemo(() => groupTickets(tickets), [tickets]);
+
+  // 그룹(한 번에 스캔한 용지) 단위로 삭제한다 - 게임 하나만 따로 지우는 것보다
+  // "이 용지를 보관함에서 뺀다"는 사용자의 실제 의도에 더 맞는다.
+  const handleDeleteGroup = useCallback(
+    (group: TicketGroup) => {
+      Alert.alert("보관함에서 삭제", `${group.drawNo}회 ${group.tickets.length}게임을 삭제할까요?`, [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제",
+          style: "destructive",
+          onPress: () => group.tickets.forEach((t) => removeTicket(t.id)),
+        },
+      ]);
+    },
+    [removeTicket],
+  );
 
   const summary = useMemo(() => computeVaultSummary(tickets), [tickets]);
   const frequentNumbers = useMemo(() => computeFrequentNumbers(tickets), [tickets]);
@@ -197,7 +227,7 @@ export default function MyLottoScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>내 복권 목록</Text>
           {ticketGroups.map((g) => (
-            <TicketGroupCard key={g.key} group={g} onShare={handleShare} />
+            <TicketGroupCard key={g.key} group={g} onShare={handleShare} onDelete={handleDeleteGroup} />
           ))}
         </View>
 
@@ -289,8 +319,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  groupHeaderInfo: { gap: 2 },
   groupDraw: { fontSize: 14, fontWeight: "800", color: colors.textPrimary, fontFamily: numericFont.medium },
   groupSpent: { fontSize: 12, color: colors.textSecondary, fontFamily: numericFont.regular },
+  deleteButton: { padding: spacing.xs },
+  deleteButtonIcon: { fontSize: 16 },
   ticketRow: {
     flexDirection: "row",
     justifyContent: "space-between",
