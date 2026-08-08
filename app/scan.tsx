@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FlatList, Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -8,9 +8,9 @@ import { reportError } from "@/lib/errorLog";
 import { getDrawByNo } from "@/features/draws/api/drawHistoryApi";
 import { parseLottoQr, type ParsedLottoGame } from "@/features/qr/parseLottoQr";
 import { computeWinRank, getPrizeAmount, type WinRank } from "@/features/qr/checkWinnings";
-import { useMyLottoTickets } from "@/features/mylotto/useMyLottoTickets";
+import { useMyLottoTickets, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
 import { scheduleDrawReminder } from "@/features/mylotto/drawReminders";
-import { colors, spacing, radius, cardShadow } from "@/constants/theme";
+import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 // 같은 용지를 계속 카메라에 비추고 있을 때 Bottom Sheet를 닫자마자 동일 QR이
 // 즉시 재인식되어 다시 열리는 "깜빡임"을 막기 위한 잠금 해제 지연 시간.
@@ -33,6 +33,28 @@ const RANK_LABEL: Record<Exclude<WinRank, null>, string> = {
   5: "5등",
 };
 
+// 하단 보관함 패널의 한 줄 - 방금 저장한 티켓이 여기 실시간으로 나타나는 것으로
+// "찍으면 보관함에 들어간다"는 걸 화면 전환 없이 체감시킨다.
+function VaultTicketRow({ ticket }: { ticket: MyLottoTicket }) {
+  return (
+    <View style={styles.vaultRow}>
+      <View style={styles.vaultRowInfo}>
+        <Text style={styles.vaultRowDraw}>{ticket.drawNo}회</Text>
+        <Text style={styles.vaultRowNumbers}>{ticket.numbers.join(", ")}</Text>
+      </View>
+      {ticket.checked ? (
+        <View style={[styles.vaultRowBadge, styles.vaultRowBadgeWin]}>
+          <Text style={styles.vaultRowBadgeText}>{ticket.rank ? RANK_LABEL[ticket.rank] : "낙첨"}</Text>
+        </View>
+      ) : (
+        <View style={[styles.vaultRowBadge, styles.vaultRowBadgePending]}>
+          <Text style={styles.vaultRowBadgeText}>추첨 전</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function ScanScreen() {
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
@@ -41,6 +63,17 @@ export default function ScanScreen() {
   const [cameraError, setCameraError] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const addTickets = useMyLottoTickets((s) => s.addTickets);
+  // 화면을 카메라(상단)/보관함(하단) 2분할로 나누고, 저장한 순간 하단 목록이 실시간으로
+  // 갱신되는 걸 보여준다 - "찍을 때마다 보관함으로 이동"을 매번 화면 전환 없이도 체감하게
+  // 하면서, 화면 전환이 없어야 가능한 "용지 여러 장 연속 스캔" 흐름은 그대로 유지한다.
+  const ticketsMap = useMyLottoTickets((s) => s.tickets);
+  const recentTickets = useMemo(
+    () =>
+      Object.values(ticketsMap)
+        .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+        .slice(0, 5),
+    [ticketsMap],
+  );
 
   const handleCameraMountError = useCallback((event: { message: string }) => {
     reportError(new Error(`camera mount error: ${event.message}`), "qr-scan-camera");
@@ -192,28 +225,46 @@ export default function ScanScreen() {
 
   return (
     <View style={styles.container}>
-      <CameraView
-        style={styles.camera}
-        facing="back"
-        active={isFocused}
-        enableTorch={torchOn}
-        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-        onBarcodeScanned={handleBarcodeScanned}
-        onMountError={handleCameraMountError}
-      />
-      <View style={styles.guideOverlay} pointerEvents="none">
-        <Text style={styles.guideText}>로또 용지의 QR코드를 비춰주세요</Text>
+      <View style={styles.cameraContainer}>
+        <CameraView
+          style={styles.camera}
+          facing="back"
+          active={isFocused}
+          enableTorch={torchOn}
+          barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+          onBarcodeScanned={handleBarcodeScanned}
+          onMountError={handleCameraMountError}
+        />
+        <View style={styles.guideOverlay} pointerEvents="none">
+          <Text style={styles.guideText}>로또 용지의 QR코드를 비춰주세요</Text>
+        </View>
+        <Pressable
+          style={[styles.torchButton, torchOn && styles.torchButtonActive]}
+          onPress={() => setTorchOn((v) => !v)}
+          hitSlop={8}
+        >
+          <Text style={styles.torchButtonIcon}>{torchOn ? "🔦" : "💡"}</Text>
+        </Pressable>
       </View>
-      <Pressable style={styles.vaultButton} onPress={() => router.push("/mylotto")}>
-        <Text style={styles.vaultButtonText}>🎟️ 내 복권 보관함</Text>
-      </Pressable>
-      <Pressable
-        style={[styles.torchButton, torchOn && styles.torchButtonActive]}
-        onPress={() => setTorchOn((v) => !v)}
-        hitSlop={8}
-      >
-        <Text style={styles.torchButtonIcon}>{torchOn ? "🔦" : "💡"}</Text>
-      </Pressable>
+
+      <View style={styles.vaultPanel}>
+        <Pressable style={styles.vaultPanelHeader} onPress={() => router.push("/mylotto")}>
+          <Text style={styles.vaultPanelTitle}>🎟️ 내 복권 보관함</Text>
+          <Text style={styles.vaultPanelMore}>전체보기 ›</Text>
+        </Pressable>
+        {recentTickets.length === 0 ? (
+          <View style={styles.vaultEmpty}>
+            <Text style={styles.vaultEmptyText}>스캔한 복권이 여기에 저장돼요</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={recentTickets}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => <VaultTicketRow ticket={item} />}
+            contentContainerStyle={styles.vaultList}
+          />
+        )}
+      </View>
 
       <Modal visible={result !== null} transparent animationType="slide" onRequestClose={handleCloseSheet}>
         <Pressable style={styles.sheetBackdrop} onPress={handleCloseSheet}>
@@ -292,6 +343,10 @@ export default function ScanScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
+  // 화면을 카메라(상단)/보관함(하단) 2분할: 카메라는 QR을 인식할 수 있을 만큼의 면적은
+  // 유지하되(0.6), 나머지(0.4)에 보관함 미리보기를 상시 노출한다.
+  cameraContainer: { flex: 0.6 },
+  vaultPanel: { flex: 0.4, backgroundColor: colors.background },
   camera: { flex: 1 },
   guideOverlay: {
     position: "absolute",
@@ -325,16 +380,36 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   permissionButtonText: { color: "#fff", fontWeight: "700" },
-  vaultButton: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
+  vaultPanelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  vaultButtonText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  vaultPanelTitle: { fontSize: 15, fontWeight: "800", color: colors.textPrimary },
+  vaultPanelMore: { fontSize: 12, fontWeight: "700", color: colors.primary },
+  vaultList: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
+  vaultEmpty: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  vaultEmptyText: { fontSize: 13, color: colors.textMuted },
+  vaultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    ...cardShadow,
+  },
+  vaultRowInfo: { gap: 2 },
+  vaultRowDraw: { fontSize: 13, fontWeight: "700", color: colors.textPrimary },
+  vaultRowNumbers: { fontSize: 11, color: colors.textSecondary, fontFamily: numericFont.regular },
+  vaultRowBadge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
+  vaultRowBadgeWin: { backgroundColor: colors.gold },
+  vaultRowBadgePending: { backgroundColor: colors.rankNeutral },
+  vaultRowBadgeText: { color: "#fff", fontWeight: "700", fontSize: 11 },
   torchButton: {
     position: "absolute",
     right: 16,
