@@ -70,6 +70,11 @@ export default function FavoritesScreen() {
           </Pressable>
         );
       }}
+      ListFooterComponent={
+        <Text style={styles.dataLossNotice}>
+          ⚠️ 즐겨찾기·최근본 목록은 이 기기에만 저장돼요. 앱을 삭제하면 함께 사라질 수 있어요.
+        </Text>
+      }
     />
   );
 }
@@ -98,4 +103,12 @@ const styles = StyleSheet.create({
   },
   rowName: { fontSize: 15, fontWeight: "600", color: "#000" },
   rowAddress: { fontSize: 13, color: "#666", marginTop: 2 },
+  dataLossNotice: {
+    fontSize: 11,
+    color: "#999",
+    textAlign: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+    lineHeight: 16,
+  },
 });

@@ -164,6 +164,10 @@ export default function MyLottoScreen() {
             <TicketRow key={t.id} ticket={t} onShare={handleShare} />
           ))}
         </View>
+
+        <Text style={styles.dataLossNotice}>
+          ⚠️ 보관함은 이 기기에만 저장돼요. 앱을 삭제하면 저장된 복권 내역이 함께 사라질 수 있어요.
+        </Text>
       </ScrollView>
 
       {shareTicket && (
@@ -268,4 +272,11 @@ const styles = StyleSheet.create({
   shareButtonText: { fontSize: 11, color: colors.primary, fontWeight: "700" },
 
   captureOffscreen: { position: "absolute", top: -9999, left: -9999 },
+  dataLossNotice: {
+    fontSize: 11,
+    color: colors.textMuted,
+    textAlign: "center",
+    paddingHorizontal: spacing.lg,
+    lineHeight: 16,
+  },
 });

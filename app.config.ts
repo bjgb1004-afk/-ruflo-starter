@@ -44,9 +44,9 @@ const config: ExpoConfig = {
       "expo-location",
       {
         locationAlwaysAndWhenInUsePermission:
-          "명당 판매점 근처에 도착하면 알림을 보내드리기 위해 위치 정보를 사용합니다.",
+          "내 주변 명당 검색 및 근처 명당 알림을 위해 위치 권한이 필요합니다.",
         locationWhenInUsePermission:
-          "주변 로또 판매점을 찾기 위해 위치 정보를 사용합니다.",
+          "내 주변 명당 검색을 위해 위치 권한이 필요합니다.",
         isAndroidBackgroundLocationEnabled: true,
         // iOS도 Android(isAndroidBackgroundLocationEnabled)와 동일하게 플러그인이
         // UIBackgroundModes(location)를 선언적으로 추가하도록 위임한다(수동 infoPlist 중복 방지).

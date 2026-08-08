@@ -28,6 +28,7 @@ export default function SettingsScreen() {
   const user = useAuth((s) => s.user);
   const signOut = useAuth((s) => s.signOut);
   const signIn = useAuth((s) => s.signIn);
+  const signUp = useAuth((s) => s.signUp);
 
   // 카운트는 useState로 둬서 로직을 명시적으로 추적 가능하게 하고, 매 탭마다 setTimeout으로
   // 리셋 타이머를 다시 예약한다 - 2초 안에 다음 탭이 없으면 자동으로 0으로 되돌아간다.
@@ -78,22 +79,50 @@ export default function SettingsScreen() {
     // "Master Key"는 별도의 하드코딩된 비밀이 아니라 관리자 본인 Supabase 계정의 실제
     // 비밀번호다 - 서버(Supabase Auth + is_admin() RLS)가 실제로 검증하도록 하기 위함이며,
     // 클라이언트에만 존재하는 비밀번호 비교는 번들을 열어보면 그대로 노출되어 안전하지 않다.
-    const { error } = await signIn(ADMIN_EMAILS[0], masterKey);
-    setSubmitting(false);
+    const { error: signInError } = await signIn(ADMIN_EMAILS[0], masterKey);
 
-    if (error) {
-      // 별도 네이티브 Alert 대신 모달 안에 인라인 경고 문구로 보여줘 바로 재입력할 수 있게 하고,
-      // 탭 카운트도 방어적으로 0으로 되돌린다(제스처를 처음부터 다시 하도록).
-      setAuthError("비밀번호가 올바르지 않습니다.");
+    if (!signInError) {
+      setSubmitting(false);
+      setMasterKeyModalOpen(false);
+      setMasterKey("");
+      router.push("/admin");
+      return;
+    }
+
+    // 로그인 실패 - "비밀번호가 틀림"과 "계정이 아직 없음(최초 1회)"을 Supabase 로그인 에러
+    // 메시지만으로는 구분할 수 없다(보안상 일부러 같은 메시지를 준다). signUp을 시도해보면
+    // 확실히 구분된다: 이미 가입된 이메일이면 signUp이 실패(=원래도 계정 있었음, 비번이 틀림),
+    // 처음 보는 이메일이면 signUp이 성공(=계정을 이번에 새로 만듦, 최초 부트스트랩).
+    const { error: signUpError } = await signUp(ADMIN_EMAILS[0], masterKey);
+
+    if (signUpError) {
+      setSubmitting(false);
+      // "이미 가입된 이메일" 계열 오류일 때만 "비밀번호 틀림"으로 안내한다. 그 외(가입 시도
+      // 자체가 막힌 경우 - 이메일 전송 한도 초과, 비밀번호 형식 등)는 원인을 그대로 보여줘야
+      // "비밀번호가 맞는데도 계속 틀렸다고 나온다"는 혼란을 막을 수 있다.
+      const isAlreadyRegistered = /already registered|already exists|already in use/i.test(signUpError);
+      setAuthError(isAlreadyRegistered ? "비밀번호가 올바르지 않습니다." : signUpError);
       setTapCount(0);
       if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
       return;
     }
 
-    setMasterKeyModalOpen(false);
-    setMasterKey("");
-    router.push("/admin");
-  }, [masterKey, signIn, router]);
+    // 계정이 방금 새로 만들어졌다. 이메일 인증이 꺼져있는 프로젝트라면 가입과 동시에 로그인
+    // 가능하므로 바로 재시도해본다 - 켜져있다면 아래 재로그인이 실패하고 안내 문구를 보여준다.
+    const { error: retrySignInError } = await signIn(ADMIN_EMAILS[0], masterKey);
+    setSubmitting(false);
+
+    if (!retrySignInError) {
+      setMasterKeyModalOpen(false);
+      setMasterKey("");
+      router.push("/admin");
+      return;
+    }
+
+    setAuthError("계정이 생성됐어요. 이메일의 인증 링크를 확인한 뒤 다시 시도해 주세요.");
+    setTapCount(0);
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+  }, [masterKey, signIn, signUp, router]);
 
   const appVersion = Constants.expoConfig?.version ?? "0.0.0";
 
