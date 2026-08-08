@@ -68,6 +68,11 @@ const config: ExpoConfig = {
     "expo-font",
     "expo-web-browser",
     "./plugins/withMapAppQueries",
+    // Android 15 엣지투엣지에서는 StatusBar.setBackgroundColor 등이 조용히 무시돼서
+    // expo-status-bar의 style만으로는 상태바 배경/아이콘 색이 제대로 안 먹는다(흰 배경에
+    // 흰 아이콘이 겹쳐 안 보이는 문제로 실기기에서 확인됨) - react-native-edge-to-edge의
+    // SystemBars로 교체.
+    "react-native-edge-to-edge",
     // @sentry/react-native 7.x부터 네이티브 초기화 설정에 이 config plugin이 필요해짐
     // (버전업 전엔 없어도 됐음). org/project/authToken 미설정이라 소스맵 업로드는 안 되지만,
     // DSN 자체가 비어있어(EXPO_PUBLIC_SENTRY_DSN 미설정) Sentry.init이 아무 동작도 안 하는

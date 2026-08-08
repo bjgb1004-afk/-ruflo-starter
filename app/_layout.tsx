@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { View } from "react-native";
 import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
+import { SystemBars } from "react-native-edge-to-edge";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import {
@@ -70,10 +70,12 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-        {/* expo-status-bar가 의존성엔 있었지만 어디서도 렌더링되지 않아 상태표시줄(시간/배터리/
-            신호)이 아예 안 보이는 문제가 있었다 - 배경이 대체로 밝은 종이색이라 dark(짙은 아이콘)
-            로 고정한다. */}
-        <StatusBar style="dark" />
+        {/* expo-status-bar는 Android 15 엣지투엣지에서 배경/아이콘 색 제어가 조용히
+            무시되어(StatusBar.setBackgroundColor 등 deprecated API 사용) 흰 배경에 흰
+            아이콘이 겹쳐 상태표시줄이 안 보이는 문제가 실기기에서 확인됐다 - 엣지투엣지를
+            제대로 지원하는 react-native-edge-to-edge의 SystemBars로 교체. 배경이 대체로
+            밝은 종이색이라 dark(짙은 아이콘)로 고정한다. */}
+        <SystemBars style="dark" />
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="store/[id]" options={{ title: "판매점 상세" }} />
