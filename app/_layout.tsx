@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { View } from "react-native";
 import { Stack } from "expo-router";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import {
   useFonts,
@@ -66,15 +67,17 @@ export default function RootLayout() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="store/[id]" options={{ title: "판매점 상세" }} />
-        <Stack.Screen name="draw/[drawNo]" options={{ title: "회차 배출업소" }} />
-        <Stack.Screen name="scan" options={{ title: "QR 당첨 확인" }} />
-        <Stack.Screen name="mylotto" options={{ title: "내 복권 보관함" }} />
-        <Stack.Screen name="admin" options={{ title: "관리자" }} />
-      </Stack>
-    </QueryClientProvider>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="store/[id]" options={{ title: "판매점 상세" }} />
+          <Stack.Screen name="draw/[drawNo]" options={{ title: "회차 배출업소" }} />
+          <Stack.Screen name="scan" options={{ title: "QR 당첨 확인" }} />
+          <Stack.Screen name="mylotto" options={{ title: "내 복권 보관함" }} />
+          <Stack.Screen name="admin" options={{ title: "관리자" }} />
+        </Stack>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }

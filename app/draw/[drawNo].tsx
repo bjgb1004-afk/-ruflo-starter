@@ -2,6 +2,7 @@ import { StyleSheet, Text, View, FlatList, ActivityIndicator, Pressable } from "
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getDrawWinnersDetail, type DrawWinnerStore } from "@/features/draws/api/drawHistoryApi";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
@@ -16,6 +17,10 @@ export default function DrawWinnersScreen() {
   const { drawNo } = useLocalSearchParams<{ drawNo: string }>();
   const router = useRouter();
   const drawNoNum = Number(drawNo);
+  // Android 엣지-투-엣지(제스처 네비게이션 바가 콘텐츠 위에 떠 있음)에서, 리스트를 끝까지
+  // 내리면 마지막 줄들이 네비게이션 바 뒤로 가려 글씨가 안 보이는 문제 - 하단 안전영역만큼
+  // 리스트 끝에 여백을 더해 항상 그 위에서 스크롤이 끝나도록 한다.
+  const insets = useSafeAreaInsets();
 
   const { data, isLoading } = useQuery({
     queryKey: ["draws", drawNoNum, "winners-detail"],
@@ -101,7 +106,7 @@ export default function DrawWinnersScreen() {
         data={rows}
         keyExtractor={(item, idx) => `${item.rank}-${item.storeId}-${idx}`}
         renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: spacing.lg + insets.bottom }]}
       />
     </View>
   );
