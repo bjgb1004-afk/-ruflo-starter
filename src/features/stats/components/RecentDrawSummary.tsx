@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import {
+  getDrawHistory,
   getDrawWinnersDetail,
   getLatestDraw,
   type DrawWinnerStore,
@@ -17,6 +18,10 @@ type Row = DrawWinnerStore & { rank: 1 | 2 };
 export const RecentDrawSummary = memo(function RecentDrawSummary() {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
+  // "지역별 당첨 통계" 섹션을 없애면서, 거기 딸려 있던 것과는 별개로 예전 "최근 회차 목록"
+  // (회차별 당첨번호 이력)이 사라졌다는 피드백 - 당첨현황판 안에 두 번째 아코디언으로
+  // 되살린다. 배출업소 목록과는 다른 데이터라 별도 토글/쿼리로 분리한다.
+  const [historyExpanded, setHistoryExpanded] = useState(false);
 
   const { data: latestDraw, isLoading: isLoadingLatest } = useQuery({
     queryKey: ["draws", "latest"],
@@ -58,7 +63,16 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
 
   const totalStoreCount = (detail?.firstPrizeStores.length ?? 0) + (detail?.secondPrizeStores.length ?? 0);
 
+  const { data: drawHistory = [], isLoading: isLoadingHistory } = useQuery({
+    queryKey: ["draws", "history"],
+    queryFn: () => getDrawHistory(20),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    enabled: historyExpanded,
+  });
+
   const handleToggle = useCallback(() => setExpanded((v) => !v), []);
+  const handleToggleHistory = useCallback(() => setHistoryExpanded((v) => !v), []);
   const handlePressStore = useCallback((storeId: string) => router.push(`/store/${storeId}`), [router]);
 
   if (isLoadingLatest || !latestDraw) {
@@ -149,6 +163,35 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
           )}
         </View>
       )}
+
+      <Pressable style={styles.toggleButton} onPress={handleToggleHistory}>
+        <Text style={styles.toggleButtonText}>지난 회차 당첨번호 보기</Text>
+        <Text style={styles.toggleChevron}>{historyExpanded ? "▲" : "▼"}</Text>
+      </Pressable>
+
+      {historyExpanded && (
+        <View style={styles.accordion}>
+          {isLoadingHistory ? (
+            <View style={styles.skeletonWrap}>
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} height={40} />
+              ))}
+            </View>
+          ) : (
+            drawHistory.map((d) => (
+              <View key={d.draw_no} style={styles.historyRow}>
+                <View style={styles.historyMeta}>
+                  <Text style={styles.historyDraw}>{d.draw_no}회</Text>
+                  <Text style={styles.historyDate}>{d.draw_date}</Text>
+                </View>
+                <Text style={styles.historyNumbers}>
+                  {d.winning_numbers.join(", ")} + {d.bonus_number}
+                </Text>
+              </View>
+            ))
+          )}
+        </View>
+      )}
     </View>
   );
 });
@@ -209,4 +252,15 @@ const styles = StyleSheet.create({
   storeInfo: { flex: 1, gap: 1 },
   storeName: { fontSize: 13, fontWeight: "700", color: colors.textPrimary },
   storeAddress: { fontSize: 11, color: colors.textMuted },
+  historyRow: {
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.background,
+    gap: 2,
+  },
+  historyMeta: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  historyDraw: { fontSize: 13, fontWeight: "700", color: colors.primary, fontFamily: numericFont.medium },
+  historyDate: { fontSize: 11, color: colors.textMuted },
+  historyNumbers: { fontSize: 12, color: colors.textPrimary, fontFamily: numericFont.regular },
 });

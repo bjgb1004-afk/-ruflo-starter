@@ -13,6 +13,7 @@ import {
 import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, memo } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getStoreWithStats } from "@/features/stores/api/storesApi";
 import {
   getWinningsByStore,
@@ -98,6 +99,9 @@ const WinningRow = memo(function WinningRow({
 
 export default function StoreDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  // 안드로이드 엣지투엣지에서 스크롤 맨 아래 내용이 시스템 네비게이션 바에 가려지는
+  // 문제 - 앱 전체 점검(design.txt) 결과 이 화면도 해당돼 하단 안전영역 여백을 더한다.
+  const insets = useSafeAreaInsets();
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ["store", id, "stats"],
@@ -197,7 +201,10 @@ export default function StoreDetailScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.scrollContent, { paddingBottom: spacing.xl + insets.bottom }]}
+    >
       {/* 상점 정보 헤더 */}
       <View style={styles.header}>
         <View style={styles.titleRow}>

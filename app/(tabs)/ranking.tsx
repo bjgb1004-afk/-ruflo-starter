@@ -187,22 +187,6 @@ export default function RankingScreen() {
     setPage(0);
   }, []);
 
-  const renderProvinceTag = useCallback(
-    ({ item }: { item: string }) => (
-      <ProvinceTag name={item} active={selectedProvince === item} onPress={handleSelectProvince} />
-    ),
-    [selectedProvince, handleSelectProvince],
-  );
-
-  const renderCityTag = useCallback(
-    ({ item }: { item: string }) => (
-      <ProvinceTag name={item} active={selectedCity === item} onPress={handleSelectCity} />
-    ),
-    [selectedCity, handleSelectCity],
-  );
-
-  const provinceKeyExtractor = useCallback((p: string) => p || "", []);
-
   const renderRankingRow = useCallback(
     ({ item }: { item: RankingStoreWithLocation }) => {
       const rank =
@@ -274,29 +258,26 @@ export default function RankingScreen() {
         </Pressable>
       </View>
 
-      {/* 시도별/시군구별: 시도 선택 */}
+      {/* 시도별/시군구별: 시도 선택. 시/도가 17개라 가로 스크롤로 두면 오른쪽 끝까지
+          한참 넘겨야 해서, flexWrap으로 줄바꿈해 스크롤 없이 한눈에 보이게 한다. */}
       {needsProvince && (
         <View style={styles.provinceList}>
-          <FlatList
-            horizontal
-            data={SIDO_LIST}
-            keyExtractor={provinceKeyExtractor}
-            renderItem={renderProvinceTag}
-            showsHorizontalScrollIndicator={false}
-          />
+          <View style={styles.tagWrap}>
+            {SIDO_LIST.map((name) => (
+              <ProvinceTag key={name} name={name} active={selectedProvince === name} onPress={handleSelectProvince} />
+            ))}
+          </View>
         </View>
       )}
 
-      {/* 시군구별: 시도 선택 후 구/군 선택 */}
+      {/* 시군구별: 시도 선택 후 구/군 선택 - 지역에 따라 구/군 개수가 많을 수 있어 동일하게 줄바꿈 */}
       {rankingType === "city" && selectedProvince && cities.length > 0 && (
         <View style={styles.provinceList}>
-          <FlatList
-            horizontal
-            data={cities}
-            keyExtractor={provinceKeyExtractor}
-            renderItem={renderCityTag}
-            showsHorizontalScrollIndicator={false}
-          />
+          <View style={styles.tagWrap}>
+            {cities.map((name) => (
+              <ProvinceTag key={name} name={name} active={selectedCity === name} onPress={handleSelectCity} />
+            ))}
+          </View>
         </View>
       )}
 
@@ -351,10 +332,10 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 14, fontWeight: "600", color: colors.textMuted },
   tabTextActive: { color: colors.primary },
   provinceList: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, backgroundColor: colors.surface },
+  tagWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   provinceTag: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm - 2,
-    marginRight: spacing.sm,
     borderRadius: radius.pill,
     backgroundColor: colors.background,
   },

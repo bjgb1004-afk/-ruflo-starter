@@ -29,26 +29,20 @@ export default function TabsLayout() {
           tabBarIcon: ({ focused }) => <TabIcon emoji="🏆" focused={focused} />,
         }}
       />
-      <Tabs.Screen
-        name="favorites"
-        options={{
-          title: "즐겨찾기",
-          tabBarIcon: ({ focused }) => <TabIcon emoji="⭐" focused={focused} />,
-        }}
-      />
-      {/* QR 당첨확인 - 더보기 하위 메뉴에 묻혀 있던 걸 즐겨찾기 옆 탭으로 이동(design.txt
-          요구사항). 카메라 화면이라 몰입감을 위해 헤더는 숨긴다. */}
+      {/* QR 당첨확인 - 더보기 하위 메뉴에 묻혀 있던 걸 탭으로 이동(design.txt 요구사항).
+          카메라 화면이라 몰입감을 위해 헤더는 숨긴다. */}
       <Tabs.Screen
         name="scan"
         options={{
           title: "당첨확인",
           headerShown: false,
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🔳" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon emoji="📷" focused={focused} />,
         }}
       />
-      {/* 지역 통계/설정은 탭바에서 빼서 "더보기" 하위 메뉴로 옮긴다(design.txt 요구사항).
-          href: null로 탭바 노출만 숨기고 라우트 자체는 유지해, 더보기 화면에서 router.push로
-          그대로 이동할 수 있게 한다. */}
+      {/* 즐겨찾기/지역 통계/설정은 탭바에서 빼서 "더보기" 하위 메뉴로 옮긴다(design.txt
+          요구사항 - 즐겨찾기는 이번에 QR당첨확인과 자리를 바꿈). href: null로 탭바 노출만
+          숨기고 라우트 자체는 유지해, 더보기 화면에서 router.push로 그대로 이동할 수 있게 한다. */}
+      <Tabs.Screen name="favorites" options={{ title: "즐겨찾기", href: null }} />
       <Tabs.Screen name="stats" options={{ title: "지역 통계", href: null }} />
       <Tabs.Screen name="settings" options={{ title: "설정", href: null }} />
       <Tabs.Screen

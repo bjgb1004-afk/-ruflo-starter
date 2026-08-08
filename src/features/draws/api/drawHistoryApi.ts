@@ -177,32 +177,6 @@ export async function getPurchaseMethodsForStore(storeId: string): Promise<Map<n
   return new Map((data ?? []).map((row) => [row.draw_no, row.purchase_type]));
 }
 
-export interface RegionalStatsRow {
-  sido: string | null;
-  first_prize_count: number;
-  second_prize_count: number;
-}
-
-export async function getRegionalStats(): Promise<RegionalStatsRow[]> {
-  const { data, error } = await supabase
-    .from("store_ranking_stats")
-    .select("sido, first_prize_count, second_prize_count") as any;
-  if (error) throw error;
-
-  // 지역별로 집계
-  const stats: Record<string, RegionalStatsRow> = {};
-  (data ?? []).forEach((row: any) => {
-    const region = row.sido || "기타";
-    if (!stats[region]) {
-      stats[region] = { sido: region, first_prize_count: 0, second_prize_count: 0 };
-    }
-    stats[region].first_prize_count += row.first_prize_count;
-    stats[region].second_prize_count += row.second_prize_count;
-  });
-
-  return Object.values(stats).sort((a, b) => b.first_prize_count - a.first_prize_count);
-}
-
 export async function getDrawHistory(limit: number = 20): Promise<DrawHistory[]> {
   const { data, error } = await supabase
     .from("draw_history")

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import { getAdminOverview } from "@/features/admin/api/adminApi";
@@ -22,6 +23,9 @@ function isDrawStale(dateStr: string): boolean {
 export default function AdminScreen() {
   const user = useAuth((s) => s.user);
   const isAdmin = useMemo(() => !!user?.email && ADMIN_EMAILS.includes(user.email), [user?.email]);
+  // 안드로이드 엣지투엣지에서 스크롤 맨 아래 내용이 시스템 네비게이션 바에 가려지는
+  // 문제 - 앱 전체 점검(design.txt) 결과 이 화면도 해당돼 하단 안전영역 여백을 더한다.
+  const insets = useSafeAreaInsets();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "overview"],
@@ -58,7 +62,10 @@ export default function AdminScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: spacing.lg + insets.bottom }]}
+    >
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>데이터 업데이트 상태</Text>
         {data.latestDrawNo ? (

@@ -11,10 +11,17 @@ export function formatPhoneNumber(raw: string | null | undefined): string | null
 
   // 서울(02)만 지역번호가 2자리, 나머지(휴대폰 010~019, 그 외 지역번호)는 3자리.
   const areaLen = normalized.startsWith("02") ? 2 : 3;
+
+  // 한국 전화번호는 지역번호 + 국번(3~4자리) + 가입자번호(4자리)로 구성되어 최소
+  // 자릿수가 정해져 있다(02는 총 9자리, 그 외는 총 10자리 이상). 파이프라인에서
+  // 원본 데이터의 자릿수가 이보다 짧게 들어오면(예: "05300000" 8자리) 가운데 토막이
+  // 1~2자리로 잘린 "053-00-0000" 같은 명백히 잘못된 번호가 만들어졌다 - 추측으로
+  // 채우지 않고 형식이 성립하지 않는 번호는 정보없음으로 처리한다.
+  const minLength = areaLen === 2 ? 9 : 10;
+  if (normalized.length < minLength) return null;
+
   const area = normalized.slice(0, areaLen);
   const rest = normalized.slice(areaLen);
-
-  if (rest.length <= 4) return `${area}-${rest}`;
   const middleLen = rest.length - 4;
   return `${area}-${rest.slice(0, middleLen)}-${rest.slice(middleLen)}`;
 }
