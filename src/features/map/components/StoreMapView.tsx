@@ -77,9 +77,12 @@ const StoreMarker = memo(function StoreMarker({
     <Marker
       coordinate={{ latitude: store.latitude, longitude: store.longitude }}
       anchor={{ x: 0.5, y: 0.5 }}
-      // TOP1~3 배지도 애니메이션 없는 고정(Solid) 마커라 다른 마커와 동일하게 스냅샷을
-      // 재사용해도 되므로, 렌더링 안정성을 위해 항상 false로 둔다.
-      tracksViewChanges={false}
+      // react-native-maps의 잘 알려진 함정: tracksViewChanges=false인 커스텀 View 마커는
+      // 레이아웃이 끝나기 전에 스냅샷이 찍히면 그대로 "빈 마커"로 굳어버릴 수 있다.
+      // cluster={false}로 클러스터링에서 제외해도 배지가 안 보인다는 재현 보고를 받고 나서
+      // 이 케이스일 가능성이 높다고 판단 - 순위 배지는 화면에 최대 3개뿐이라 계속 다시
+      // 그려도(true) 성능 부담이 없어, 이 배지에 한해서만 예외적으로 켜둔다.
+      tracksViewChanges={badge.type === "rank"}
       // react-native-map-clustering은 기본적으로 모든 Marker를 클러스터링 대상으로 삼아,
       // 주변에 매장이 몰려있으면 1/2/3등 배지 마커까지 숫자 뭉치(cluster) 안에 흡수되어
       // 화면에서 사라져버린다("코드는 있는데 지도엔 안 보임"의 원인). 순위 배지는 사용자가

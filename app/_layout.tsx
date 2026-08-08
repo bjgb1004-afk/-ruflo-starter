@@ -73,7 +73,6 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="store/[id]" options={{ title: "판매점 상세" }} />
           <Stack.Screen name="draw/[drawNo]" options={{ title: "회차 배출업소" }} />
-          <Stack.Screen name="scan" options={{ title: "QR 당첨 확인" }} />
           <Stack.Screen name="mylotto" options={{ title: "내 복권 보관함" }} />
           <Stack.Screen name="admin" options={{ title: "관리자" }} />
         </Stack>

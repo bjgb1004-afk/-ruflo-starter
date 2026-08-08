@@ -15,6 +15,9 @@ import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/th
 // 같은 용지를 계속 카메라에 비추고 있을 때 Bottom Sheet를 닫자마자 동일 QR이
 // 즉시 재인식되어 다시 열리는 "깜빡임"을 막기 위한 잠금 해제 지연 시간.
 const RESCAN_LOCK_MS = 1500;
+// 저장 버튼을 누르면 "저장됨 ✓"을 잠깐 보여준 뒤 자동으로 시트를 닫는다 - 예전엔 저장 후
+// "닫고 다음 QR 스캔"을 한 번 더 눌러야 해서 여러 장을 연달아 찍을 때 불편했다.
+const AUTO_CLOSE_AFTER_SAVE_MS = 600;
 
 type GameResult = ParsedLottoGame & { rank: WinRank; prizeAmount: number };
 
@@ -96,10 +99,12 @@ export default function ScanScreen() {
   // Bottom Sheet가 열려있는 동안도 이 플래그가 true로 유지되어 추가 스캔 이벤트를 차단한다.
   const scanLockRef = useRef(false);
   const unlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
       if (unlockTimerRef.current) clearTimeout(unlockTimerRef.current);
+      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
     };
   }, []);
 
@@ -187,7 +192,13 @@ export default function ScanScreen() {
     }
 
     setSaveState("saved");
-  }, [result, addTickets]);
+    // "저장됨 ✓"을 잠깐 보여준 뒤 자동으로 닫아 바로 다음 용지를 찍을 수 있게 한다
+    // (예전엔 "닫고 다음 QR 스캔"을 한 번 더 눌러야 했음).
+    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+    autoCloseTimerRef.current = setTimeout(() => {
+      handleCloseSheet();
+    }, AUTO_CLOSE_AFTER_SAVE_MS);
+  }, [result, addTickets, handleCloseSheet]);
 
   if (!permission) {
     return <View style={styles.container} />;
@@ -343,10 +354,9 @@ export default function ScanScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
-  // 화면을 카메라(상단)/보관함(하단) 2분할: 카메라는 QR을 인식할 수 있을 만큼의 면적은
-  // 유지하되(0.6), 나머지(0.4)에 보관함 미리보기를 상시 노출한다.
-  cameraContainer: { flex: 0.6 },
-  vaultPanel: { flex: 0.4, backgroundColor: colors.background },
+  // 화면을 카메라(상단)/보관함(하단) 정확히 반반으로 분할.
+  cameraContainer: { flex: 1 },
+  vaultPanel: { flex: 1, backgroundColor: colors.background },
   camera: { flex: 1 },
   guideOverlay: {
     position: "absolute",

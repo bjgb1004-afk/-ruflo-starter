@@ -10,6 +10,11 @@ export const LOTTO_UNIT_PRICE = 1000;
 
 export interface MyLottoTicket {
   id: string;
+  // 한 번의 QR 스캔(=한 장의 로또 용지)으로 함께 저장된 게임들을 묶는 키. addTickets() 호출
+  // 1회당 하나씩 발급되어 그 안의 모든 게임이 같은 groupId를 공유한다("5천원치 샀으면
+  // 한번에 묶어달라"는 요구사항 - 같은 용지=같은 그룹). 이 필드가 생기기 전에 저장된
+  // 기존 티켓은 groupId가 없을 수 있어, 화면에서는 id로 폴백해 각자 별도 그룹으로 취급한다.
+  groupId?: string;
   drawNo: number;
   savedAt: string;
   numbers: number[];
@@ -43,12 +48,14 @@ export const useMyLottoTickets = create<MyLottoState>()(
 
       addTickets: (inputs) => {
         const now = new Date().toISOString();
+        const groupId = generateId();
         const next = { ...get().tickets };
         for (const input of inputs) {
           const id = generateId();
           next[id] = {
             ...input,
             id,
+            groupId,
             savedAt: now,
             checked: input.checked ?? false,
             rank: input.rank ?? null,

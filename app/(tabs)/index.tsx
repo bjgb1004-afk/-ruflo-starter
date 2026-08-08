@@ -191,15 +191,6 @@ export default function MapScreen() {
         <>
           <NoticeCard />
           <NewWinnerBanner />
-          {/* 더보기 하위 메뉴에 묻혀 있던 QR 당첨확인을 메인 화면 진입 즉시 보이는 곳으로 이동. */}
-          <Pressable style={styles.scanBanner} onPress={() => router.push("/scan")}>
-            <Text style={styles.scanBannerEmoji}>🔳</Text>
-            <View style={styles.scanBannerTextWrap}>
-              <Text style={styles.scanBannerTitle}>QR 당첨 확인</Text>
-              <Text style={styles.scanBannerSubtitle}>로또 용지를 스캔해서 바로 확인하세요</Text>
-            </View>
-            <Text style={styles.scanBannerArrow}>›</Text>
-          </Pressable>
         </>
       )}
 
@@ -281,23 +272,6 @@ const styles = StyleSheet.create({
   mapWrap: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyText: { color: colors.textMuted, fontSize: 14 },
-  scanBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.primary,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    ...cardShadow,
-  },
-  scanBannerEmoji: { fontSize: 24 },
-  scanBannerTextWrap: { flex: 1 },
-  scanBannerTitle: { fontSize: 15, fontWeight: "800", color: "#fff" },
-  scanBannerSubtitle: { fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 1 },
-  scanBannerArrow: { fontSize: 20, color: "#fff", fontWeight: "700" },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",

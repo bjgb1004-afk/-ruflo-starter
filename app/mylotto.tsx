@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
 import { useRouter } from "expo-router";
-import { useMyLottoTickets, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useMyLottoTickets, LOTTO_UNIT_PRICE, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
 import { useAutoCheckTickets } from "@/features/mylotto/useAutoCheckTickets";
 import { computeVaultSummary, computeFrequentNumbers } from "@/features/mylotto/stats";
 import { WinningCard } from "@/features/mylotto/components/WinningCard";
@@ -48,14 +49,11 @@ function RoiBars({ spent, won }: { spent: number; won: number }) {
 const TicketRow = ({ ticket, onShare }: { ticket: MyLottoTicket; onShare: (t: MyLottoTicket) => void }) => (
   <View style={styles.ticketRow}>
     <View style={styles.ticketInfo}>
-      <View style={styles.ticketHeaderRow}>
-        <Text style={styles.ticketDraw}>{ticket.drawNo}회</Text>
-        {ticket.purchaseType && (
-          <View style={styles.methodTag}>
-            <Text style={styles.methodTagText}>{ticket.purchaseType}</Text>
-          </View>
-        )}
-      </View>
+      {ticket.purchaseType && (
+        <View style={styles.methodTag}>
+          <Text style={styles.methodTagText}>{ticket.purchaseType}</Text>
+        </View>
+      )}
       <Text style={styles.ticketNumbers}>{ticket.numbers.join(", ")}</Text>
     </View>
     <View style={styles.ticketRight}>
@@ -82,14 +80,52 @@ const TicketRow = ({ ticket, onShare }: { ticket: MyLottoTicket; onShare: (t: My
   </View>
 );
 
+interface TicketGroup {
+  key: string;
+  drawNo: number;
+  savedAt: string;
+  tickets: MyLottoTicket[];
+}
+
+// 한 번의 QR 스캔(한 장의 용지)으로 함께 저장된 게임들을 하나의 카드로 묶는다. groupId가
+// 없는 옛 데이터(이 필드가 생기기 전 저장분)는 각자 자기 id를 그룹 키로 써서 개별 카드가 된다.
+function groupTickets(tickets: MyLottoTicket[]): TicketGroup[] {
+  const map = new Map<string, TicketGroup>();
+  for (const t of tickets) {
+    const key = t.groupId ?? t.id;
+    const existing = map.get(key);
+    if (existing) existing.tickets.push(t);
+    else map.set(key, { key, drawNo: t.drawNo, savedAt: t.savedAt, tickets: [t] });
+  }
+  return [...map.values()].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+}
+
+const TicketGroupCard = ({ group, onShare }: { group: TicketGroup; onShare: (t: MyLottoTicket) => void }) => (
+  <View style={styles.groupCard}>
+    <View style={styles.groupHeaderRow}>
+      <Text style={styles.groupDraw}>{group.drawNo}회</Text>
+      <Text style={styles.groupSpent}>
+        {formatWon(group.tickets.length * LOTTO_UNIT_PRICE)}치 · {group.tickets.length}게임
+      </Text>
+    </View>
+    {group.tickets.map((t) => (
+      <TicketRow key={t.id} ticket={t} onShare={onShare} />
+    ))}
+  </View>
+);
+
 export default function MyLottoScreen() {
   useAutoCheckTickets();
   const router = useRouter();
   const ticketsMap = useMyLottoTickets((s) => s.tickets);
   const tickets = useMemo(() => Object.values(ticketsMap).sort((a, b) => b.savedAt.localeCompare(a.savedAt)), [ticketsMap]);
+  const ticketGroups = useMemo(() => groupTickets(tickets), [tickets]);
 
   const summary = useMemo(() => computeVaultSummary(tickets), [tickets]);
   const frequentNumbers = useMemo(() => computeFrequentNumbers(tickets), [tickets]);
+  // Android 엣지-투-엣지 환경에서 목록을 끝까지 내리면 시스템 뒤로가기 바에 마지막 줄이
+  // 가려 조작이 어렵다는 신고 - 하단 안전영역만큼 스크롤 끝에 여백을 더한다.
+  const insets = useSafeAreaInsets();
 
   const [shareTicket, setShareTicket] = useState<MyLottoTicket | null>(null);
   const captureRef = useRef<View>(null);
@@ -135,7 +171,7 @@ export default function MyLottoScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: spacing.lg + insets.bottom }]}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>수익률</Text>
           <RoiBars spent={summary.totalSpent} won={summary.totalWon} />
@@ -160,8 +196,8 @@ export default function MyLottoScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>내 복권 목록</Text>
-          {tickets.map((t) => (
-            <TicketRow key={t.id} ticket={t} onShare={handleShare} />
+          {ticketGroups.map((g) => (
+            <TicketGroupCard key={g.key} group={g} onShare={handleShare} />
           ))}
         </View>
 
@@ -238,18 +274,31 @@ const styles = StyleSheet.create({
   numberBubbleText: { fontSize: 16, fontWeight: "800", color: colors.textPrimary, fontFamily: numericFont.bold },
   numberBubbleCount: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
 
+  groupCard: {
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  groupHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: spacing.sm,
+    marginBottom: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  groupDraw: { fontSize: 14, fontWeight: "800", color: colors.textPrimary, fontFamily: numericFont.medium },
+  groupSpent: { fontSize: 12, color: colors.textSecondary, fontFamily: numericFont.regular },
   ticketRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingVertical: spacing.sm + 2,
     gap: spacing.md,
   },
   ticketInfo: { flex: 1, gap: 2 },
-  ticketHeaderRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  ticketDraw: { fontSize: 13, fontWeight: "700", color: colors.textPrimary, fontFamily: numericFont.medium },
   methodTag: {
     backgroundColor: colors.background,
     borderWidth: 1,
