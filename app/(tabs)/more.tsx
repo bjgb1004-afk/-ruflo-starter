@@ -16,7 +16,7 @@ interface MoreMenuItem {
 // QR 당첨확인이 탭으로 나가고, 즐겨찾기가 그 자리로 들어왔다(design.txt 요구사항).
 const MENU_ITEMS: MoreMenuItem[] = [
   { key: "favorites", emoji: "⭐", label: "즐겨찾기", href: "/favorites" },
-  { key: "stats", emoji: "📊", label: "지역별 통계", href: "/stats" },
+  { key: "stats", emoji: "📊", label: "회차별 당첨현황", href: "/stats" },
   { key: "settings", emoji: "⚙️", label: "앱 설정", href: "/settings" },
 ];
 

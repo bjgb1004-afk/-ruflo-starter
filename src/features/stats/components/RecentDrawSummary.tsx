@@ -107,7 +107,9 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>회차별 당첨현황</Text>
+        {/* 화면 상단 헤더 제목이 이미 "회차별 당첨현황"이라 카드 안에서 또 반복하지
+            않고, 이 카드가 구체적으로 뭘 보여주는지로 다르게 적는다. */}
+        <Text style={styles.title}>당첨번호 조회</Text>
         <Dropdown
           placeholder="회차 선택"
           value={effectiveDrawNo}

@@ -43,7 +43,7 @@ export default function TabsLayout() {
           요구사항 - 즐겨찾기는 이번에 QR당첨확인과 자리를 바꿈). href: null로 탭바 노출만
           숨기고 라우트 자체는 유지해, 더보기 화면에서 router.push로 그대로 이동할 수 있게 한다. */}
       <Tabs.Screen name="favorites" options={{ title: "즐겨찾기", href: null }} />
-      <Tabs.Screen name="stats" options={{ title: "지역 통계", href: null }} />
+      <Tabs.Screen name="stats" options={{ title: "회차별 당첨현황", href: null }} />
       <Tabs.Screen name="settings" options={{ title: "설정", href: null }} />
       <Tabs.Screen
         name="more"
