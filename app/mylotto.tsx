@@ -108,24 +108,34 @@ const TicketGroupCard = ({
   group: TicketGroup;
   onShare: (t: MyLottoTicket) => void;
   onDelete: (group: TicketGroup) => void;
-}) => (
-  <View style={styles.groupCard}>
-    <View style={styles.groupHeaderRow}>
-      <View style={styles.groupHeaderInfo}>
-        <Text style={styles.groupDraw}>{group.drawNo}회</Text>
-        <Text style={styles.groupSpent}>
-          {formatWon(group.tickets.length * LOTTO_UNIT_PRICE)}치 · {group.tickets.length}게임
-        </Text>
+}) => {
+  // 회차(그룹)마다 따로 접고 펼 수 있게 - 보관함에 여러 회차가 쌓이면 전부 펼쳐진 채로
+  // 쭉 나열되어 원하는 회차를 찾기 번거롭다는 피드백. 기본은 펼침 상태로 둬서 기존
+  // 화면과 동일하게 보이되, 필요할 때 접어서 목록을 짧게 볼 수 있게 한다.
+  const [expanded, setExpanded] = useState(true);
+  const handleToggle = useCallback(() => setExpanded((v) => !v), []);
+
+  return (
+    <View style={styles.groupCard}>
+      <View style={styles.groupHeaderRow}>
+        <Pressable style={styles.groupHeaderInfo} onPress={handleToggle}>
+          <View style={styles.groupDrawRow}>
+            <Text style={styles.groupDraw}>{group.drawNo}회</Text>
+            <Text style={styles.groupChevron}>{expanded ? "▲" : "▼"}</Text>
+          </View>
+          <Text style={styles.groupSpent}>
+            {formatWon(group.tickets.length * LOTTO_UNIT_PRICE)}치 · {group.tickets.length}게임
+          </Text>
+        </Pressable>
+        <Pressable hitSlop={8} style={styles.deleteButton} onPress={() => onDelete(group)}>
+          <Text style={styles.deleteButtonIcon}>🗑️</Text>
+        </Pressable>
       </View>
-      <Pressable hitSlop={8} style={styles.deleteButton} onPress={() => onDelete(group)}>
-        <Text style={styles.deleteButtonIcon}>🗑️</Text>
-      </Pressable>
+      {expanded &&
+        group.tickets.map((t) => <TicketRow key={t.id} ticket={t} onShare={onShare} />)}
     </View>
-    {group.tickets.map((t) => (
-      <TicketRow key={t.id} ticket={t} onShare={onShare} />
-    ))}
-  </View>
-);
+  );
+};
 
 export default function MyLottoScreen() {
   useAutoCheckTickets();
@@ -319,8 +329,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  groupHeaderInfo: { gap: 2 },
+  groupHeaderInfo: { flex: 1, gap: 2 },
+  groupDrawRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   groupDraw: { fontSize: 14, fontWeight: "800", color: colors.textPrimary, fontFamily: numericFont.medium },
+  groupChevron: { fontSize: 11, color: colors.textMuted },
   groupSpent: { fontSize: 12, color: colors.textSecondary, fontFamily: numericFont.regular },
   deleteButton: { padding: spacing.xs },
   deleteButtonIcon: { fontSize: 16 },
