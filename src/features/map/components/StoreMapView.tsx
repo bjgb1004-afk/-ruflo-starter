@@ -30,6 +30,11 @@ interface Props {
   topRecommendRanks?: Map<string, 1 | 2 | 3>;
   favoriteIds?: Set<string>;
   newWinnerIds?: Set<string>;
+  // "이번 달 HOT 지역"을 그 시/도 중심 좌표에 찍는 전용 마커(design.txt 요구사항 -
+  // 통계 화면 카드 대신 지도에 직접 표시). stores 목록과는 별개의 단일 마커라 props로
+  // 분리해서 받는다.
+  hotspot?: { sido: string; count: number; latitude: number; longitude: number } | null;
+  onPressHotspot?: (sido: string) => void;
 }
 
 type MarkerBadge = { type: "rank"; rank: 1 | 2 | 3 } | { type: "new" } | { type: "favorite" } | { type: "default" };
@@ -108,6 +113,38 @@ const StoreMarker = memo(function StoreMarker({
   );
 });
 
+const HotspotMarker = memo(function HotspotMarker({
+  hotspot,
+  onPress,
+}: {
+  hotspot: { sido: string; count: number; latitude: number; longitude: number };
+  onPress?: (sido: string) => void;
+}) {
+  const handlePress = useCallback(() => onPress?.(hotspot.sido), [onPress, hotspot.sido]);
+
+  return (
+    <Marker
+      coordinate={{ latitude: hotspot.latitude, longitude: hotspot.longitude }}
+      anchor={{ x: 0.5, y: 0.5 }}
+      // 화면에 항상 딱 1개뿐인 마커라 계속 다시 그려도(true) 성능 부담이 없고, 순위
+      // 배지와 같은 이유(레이아웃 완료 전 스냅샷 문제)로 커스텀 View 마커는 true가 안전하다.
+      tracksViewChanges
+      {...({ cluster: false } as any)}
+    >
+      <View style={styles.pinHotspot}>
+        <Text style={styles.pinHotspotText}>🔴</Text>
+      </View>
+      <Callout tooltip onPress={handlePress}>
+        <View style={styles.callout}>
+          <Text style={styles.calloutName}>🔴 이번 달 HOT · {hotspot.sido}</Text>
+          <Text style={styles.calloutAddress}>최근 4주 1등 {hotspot.count}건</Text>
+          <Text style={styles.calloutHint}>탭하면 명당 랭킹으로</Text>
+        </View>
+      </Callout>
+    </Marker>
+  );
+});
+
 // 지도 컴포넌트 (react-native-maps + react-native-map-clustering 사용)
 // Android는 Google Maps, iOS는 Apple Maps(react-native-maps 기본값). 지도 공급자를
 // 교체할 경우 이 컴포넌트만 대체하면 되도록 화면 코드와 분리했다.
@@ -121,6 +158,8 @@ export const StoreMapView = memo(function StoreMapView({
   topRecommendRanks,
   favoriteIds,
   newWinnerIds,
+  hotspot,
+  onPressHotspot,
 }: Props) {
   const mapRef = useRef<MapView>(null);
 
@@ -256,6 +295,7 @@ export const StoreMapView = memo(function StoreMapView({
                 : { type: "default" };
           return <StoreMarker key={store.store_id} store={store} onPress={onPressStore} badge={badge} />;
         })}
+        {hotspot && <HotspotMarker hotspot={hotspot} onPress={onPressHotspot} />}
       </ClusteredMapView>
       <Pressable
         style={[styles.locationButton, isTracking && styles.locationButtonActive]}
@@ -333,6 +373,18 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#fff",
   },
+  // "이번 달 HOT 지역" - 매장 마커들과 확실히 구분되도록 큼직하게, 인주색 테두리로 강조.
+  pinHotspot: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 3,
+    borderColor: colors.seal,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pinHotspotText: { fontSize: 20 },
   callout: {
     backgroundColor: colors.surface,
     borderRadius: radius.sm,

@@ -10,6 +10,7 @@ import { searchStores, type StoreSearchResult } from "@/features/stores/api/stor
 import { NewWinnerBanner } from "@/features/draws/components/NewWinnerBanner";
 import { NoticeCard } from "@/features/notices/components/NoticeCard";
 import { getLatestFirstPrizeWinners } from "@/features/draws/api/drawHistoryApi";
+import { getRegionalTrend, getSidoCentroids } from "@/features/stats/api/regionalStatsApi";
 import { useFavorites } from "@/features/favorites/useFavorites";
 import { DEFAULT_SEARCH_RADIUS_M } from "@/constants/config";
 import { colors, spacing, radius, cardShadow } from "@/constants/theme";
@@ -130,6 +131,35 @@ export default function MapScreen() {
   const newWinnerIdSet = useMemo(
     () => new Set((latestWinners?.stores ?? []).map((w) => w.storeId)),
     [latestWinners],
+  );
+
+  // "이번 달 HOT 지역" - 통계 화면 카드 대신 지도 위 그 시/도 중심 좌표에 마커로 표시한다
+  // (design.txt 요구사항). 최근 4주 1등 배출 1위 시/도 + 시/도별 근사 중심 좌표를 합친다.
+  const { data: hotTrend } = useQuery({
+    queryKey: ["stats", "regional-trend", 4],
+    queryFn: () => getRegionalTrend(4),
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+  const { data: sidoCentroids } = useQuery({
+    queryKey: ["stats", "sido-centroids"],
+    queryFn: getSidoCentroids,
+    staleTime: 60 * 60 * 1000,
+    gcTime: 2 * 60 * 60 * 1000,
+  });
+  const hotspot = useMemo(() => {
+    const top = hotTrend?.[0];
+    if (!top) return null;
+    const centroid = sidoCentroids?.find((c) => c.sido === top.sido);
+    if (!centroid) return null;
+    return { sido: top.sido, count: top.firstPrizeCount, latitude: centroid.latitude, longitude: centroid.longitude };
+  }, [hotTrend, sidoCentroids]);
+
+  const handlePressHotspot = useCallback(
+    (sido: string) => {
+      router.push({ pathname: "/(tabs)/ranking", params: { sido } });
+    },
+    [router],
   );
 
   // 정렬 버튼은 지도 위 마커 배치 자체를 바꾸지 않아 눌러도 눈에 띄는 변화가 없었다.
@@ -259,6 +289,8 @@ export default function MapScreen() {
             topRecommendRanks={topRecommendRanks}
             favoriteIds={favoriteIdSet}
             newWinnerIds={newWinnerIdSet}
+            hotspot={hotspot}
+            onPressHotspot={handlePressHotspot}
           />
           <TopStoresCarousel stores={stores} onPressStore={handlePressStore} />
         </View>

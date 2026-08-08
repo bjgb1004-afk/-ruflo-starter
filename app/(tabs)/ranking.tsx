@@ -1,10 +1,11 @@
-import { FlatList, Modal, StyleSheet, Text, View, Pressable, ActivityIndicator, Alert } from "react-native";
+import { FlatList, StyleSheet, Text, View, Pressable, ActivityIndicator, Alert } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState, memo } from "react";
 import { supabase } from "@/lib/supabase";
 import type { StoreRankingStats } from "@/types/database.types";
 import { useSelectedStores } from "@/features/geofencing/useSelectedStores";
+import { Dropdown } from "@/components/Dropdown";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 type RankingType = "nation" | "province" | "city";
@@ -17,61 +18,7 @@ const SIDO_LIST = [
   "충청북도", "충청남도", "전북특별자치도", "전라남도", "경상북도", "경상남도", "제주특별자치도",
 ];
 
-// 시/도 17개(구/군은 지역에 따라 더 많음)를 태그로 늘어놓으면 가로 스크롤이든
-// 줄바꿈이든 화면이 지저분해져서, 드롭다운(버튼→모달 목록) 방식으로 바꿨다 -
-// 평소엔 버튼 한 줄만 차지하고, 고를 때만 목록이 뜬다.
-const RegionPickerButton = memo(function RegionPickerButton({
-  placeholder,
-  value,
-  options,
-  onSelect,
-}: {
-  placeholder: string;
-  value: string | null;
-  options: string[];
-  onSelect: (name: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const handleClose = useCallback(() => setOpen(false), []);
-  const handleSelect = useCallback(
-    (name: string) => {
-      onSelect(name);
-      setOpen(false);
-    },
-    [onSelect],
-  );
-
-  return (
-    <>
-      <Pressable style={styles.pickerButton} onPress={() => setOpen(true)}>
-        <Text style={styles.pickerButtonText} numberOfLines={1}>
-          {value ?? placeholder}
-        </Text>
-        <Text style={styles.pickerButtonArrow}>▾</Text>
-      </Pressable>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={handleClose}>
-        <Pressable style={styles.pickerBackdrop} onPress={handleClose}>
-          <Pressable style={styles.pickerSheet} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.pickerSheetTitle}>{placeholder}</Text>
-            <FlatList
-              data={options}
-              keyExtractor={(item) => item}
-              style={styles.pickerList}
-              renderItem={({ item }) => (
-                <Pressable style={styles.pickerOption} onPress={() => handleSelect(item)}>
-                  <Text style={[styles.pickerOptionText, item === value && styles.pickerOptionTextActive]}>
-                    {item}
-                  </Text>
-                  {item === value && <Text style={styles.pickerCheckmark}>✓</Text>}
-                </Pressable>
-              )}
-            />
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </>
-  );
-});
+const identityKey = (s: string) => s;
 
 const RankingRow = memo(function RankingRow({
   item,
@@ -296,10 +243,12 @@ export default function RankingScreen() {
       {/* 시도별/시군구별: 시도 선택 - 드롭다운 하나로 17개 시/도를 고른다 */}
       {needsProvince && (
         <View style={styles.provinceList}>
-          <RegionPickerButton
+          <Dropdown
             placeholder="시/도 선택"
             value={selectedProvince}
             options={SIDO_LIST}
+            getKey={identityKey}
+            getLabel={identityKey}
             onSelect={handleSelectProvince}
           />
         </View>
@@ -308,10 +257,12 @@ export default function RankingScreen() {
       {/* 시군구별: 시도 선택 후 구/군 선택 - 동일하게 드롭다운 */}
       {rankingType === "city" && selectedProvince && cities.length > 0 && (
         <View style={styles.provinceList}>
-          <RegionPickerButton
+          <Dropdown
             placeholder="시/군/구 선택"
             value={selectedCity}
             options={cities}
+            getKey={identityKey}
+            getLabel={identityKey}
             onSelect={handleSelectCity}
           />
         </View>
@@ -368,47 +319,6 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 14, fontWeight: "600", color: colors.textMuted },
   tabTextActive: { color: colors.primary },
   provinceList: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, backgroundColor: colors.surface },
-  pickerButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: radius.md,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  pickerButtonText: { fontSize: 14, fontWeight: "700", color: colors.textPrimary },
-  pickerButtonArrow: { fontSize: 12, color: colors.textMuted },
-  pickerBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
-  pickerSheet: {
-    maxHeight: "70%",
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
-  },
-  pickerSheetTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  pickerList: { paddingHorizontal: spacing.lg },
-  pickerOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  pickerOptionText: { fontSize: 15, color: colors.textPrimary },
-  pickerOptionTextActive: { color: colors.primary, fontWeight: "700" },
-  pickerCheckmark: { fontSize: 15, color: colors.primary, fontWeight: "700" },
   list: { padding: spacing.lg, gap: spacing.sm },
   footerLoader: { paddingVertical: spacing.lg },
   row: {

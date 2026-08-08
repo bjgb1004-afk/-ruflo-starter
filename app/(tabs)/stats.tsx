@@ -20,10 +20,10 @@ export default function StatsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* 최근 핫스팟 트렌드 - design.txt 지시대로 최상단에 강조 배치 */}
+      {/* ⚡ 연속 당첨 지역 배지 - 🔴 이번 달 HOT은 지도 화면 마커로 옮겨서 여기선 뺐다 */}
       <HotspotTrendCard onPressSido={handleRegionPress} />
 
-      {/* 당첨 현황판 - 최신 회차 요약 + 배출업소 아코디언 + 지난 회차 당첨번호 목록 */}
+      {/* 회차별 당첨현황 - 1회부터 최신 회차까지 드롭다운으로 조회 + 배출업소 아코디언 */}
       <RecentDrawSummary />
 
       {/* 지역별 명당 밀도(행운 지수) - 카드를 펼치면 자동/수동/반자동 비율도 함께 보임 */}

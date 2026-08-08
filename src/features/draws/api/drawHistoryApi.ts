@@ -177,12 +177,3 @@ export async function getPurchaseMethodsForStore(storeId: string): Promise<Map<n
   return new Map((data ?? []).map((row) => [row.draw_no, row.purchase_type]));
 }
 
-export async function getDrawHistory(limit: number = 20): Promise<DrawHistory[]> {
-  const { data, error } = await supabase
-    .from("draw_history")
-    .select("*")
-    .order("draw_no", { ascending: false })
-    .limit(limit);
-  if (error) throw error;
-  return data ?? [];
-}

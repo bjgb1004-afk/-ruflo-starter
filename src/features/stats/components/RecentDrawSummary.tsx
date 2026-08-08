@@ -3,25 +3,28 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import {
-  getDrawHistory,
+  getDrawByNo,
   getDrawWinnersDetail,
   getLatestDraw,
   type DrawWinnerStore,
 } from "@/features/draws/api/drawHistoryApi";
 import { Skeleton } from "@/components/Skeleton";
+import { Dropdown } from "@/components/Dropdown";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 type Row = DrawWinnerStore & { rank: 1 | 2 };
 
-// design.txt "최근 회차 + 최근 회차 목록 통합" - 기본은 요약만 보이고, 버튼을 눌러야
-// 전체 배출업소 아코디언이 펼쳐진다(getDrawWinnersDetail은 펼치기 전엔 요청하지 않음).
+const drawNoKey = (n: number) => String(n);
+const drawNoLabel = (n: number) => `${n}회`;
+
+// "회차별 당첨현황" - design.txt 요구사항대로 1회부터 최신 회차까지 드롭다운으로
+// 아무 회차나 골라 조회할 수 있다(기본값은 최신 회차). 예전엔 최신 회차 고정 + "지난
+// 회차 목록"이 별도였는데, 회차를 직접 골라 상세를 보는 게 가능해지면서 그 목록은
+// 필요 없어져 없앴다.
 export const RecentDrawSummary = memo(function RecentDrawSummary() {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
-  // "지역별 당첨 통계" 섹션을 없애면서, 거기 딸려 있던 것과는 별개로 예전 "최근 회차 목록"
-  // (회차별 당첨번호 이력)이 사라졌다는 피드백 - 당첨현황판 안에 두 번째 아코디언으로
-  // 되살린다. 배출업소 목록과는 다른 데이터라 별도 토글/쿼리로 분리한다.
-  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [selectedDrawNo, setSelectedDrawNo] = useState<number | null>(null);
 
   const { data: latestDraw, isLoading: isLoadingLatest } = useQuery({
     queryKey: ["draws", "latest"],
@@ -30,14 +33,27 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
     gcTime: 5 * 60 * 1000,
   });
 
-  // 하이라이트(주요 배출 지역/구매방식 요약)와 아코디언 전체목록이 같은 데이터를 쓰므로
-  // 접기/펼치기와 무관하게 한 번만 조회한다(latestDraw만 알면 바로 요청, expanded로 게이팅 안 함).
-  const { data: detail, isLoading: isLoadingDetail } = useQuery({
-    queryKey: ["draws", latestDraw?.draw_no, "winners-detail"],
-    queryFn: () => getDrawWinnersDetail(latestDraw!.draw_no),
+  const effectiveDrawNo = selectedDrawNo ?? latestDraw?.draw_no ?? null;
+  const isViewingLatest = !!latestDraw && effectiveDrawNo === latestDraw.draw_no;
+
+  // 최신 회차는 이미 위 쿼리로 갖고 있으니 다시 요청하지 않고, 드롭다운으로 다른 회차를
+  // 골랐을 때만 그 회차 정보를 새로 가져온다.
+  const { data: pickedDraw, isLoading: isLoadingPicked } = useQuery({
+    queryKey: ["draws", effectiveDrawNo],
+    queryFn: () => getDrawByNo(effectiveDrawNo!),
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
-    enabled: !!latestDraw,
+    enabled: !!effectiveDrawNo && !isViewingLatest,
+  });
+
+  const activeDraw = isViewingLatest ? latestDraw : pickedDraw;
+
+  const { data: detail, isLoading: isLoadingDetail } = useQuery({
+    queryKey: ["draws", effectiveDrawNo, "winners-detail"],
+    queryFn: () => getDrawWinnersDetail(effectiveDrawNo!),
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    enabled: !!effectiveDrawNo,
   });
 
   const highlightSidos = useMemo(() => {
@@ -63,17 +79,19 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
 
   const totalStoreCount = (detail?.firstPrizeStores.length ?? 0) + (detail?.secondPrizeStores.length ?? 0);
 
-  const { data: drawHistory = [], isLoading: isLoadingHistory } = useQuery({
-    queryKey: ["draws", "history"],
-    queryFn: () => getDrawHistory(20),
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    enabled: historyExpanded,
-  });
+  const drawOptions = useMemo(() => {
+    if (!latestDraw) return [];
+    const list: number[] = [];
+    for (let n = latestDraw.draw_no; n >= 1; n--) list.push(n);
+    return list;
+  }, [latestDraw]);
 
   const handleToggle = useCallback(() => setExpanded((v) => !v), []);
-  const handleToggleHistory = useCallback(() => setHistoryExpanded((v) => !v), []);
   const handlePressStore = useCallback((storeId: string) => router.push(`/store/${storeId}`), [router]);
+  const handleSelectDraw = useCallback((n: number) => {
+    setSelectedDrawNo(n);
+    setExpanded(false);
+  }, []);
 
   if (isLoadingLatest || !latestDraw) {
     return (
@@ -88,25 +106,42 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>{latestDraw.draw_no}회 당첨 현황</Text>
-      <Text style={styles.date}>{latestDraw.draw_date}</Text>
-      <Text style={styles.numbers}>
-        {latestDraw.winning_numbers.join(", ")} + {latestDraw.bonus_number}
-      </Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>회차별 당첨현황</Text>
+        <Dropdown
+          placeholder="회차 선택"
+          value={effectiveDrawNo}
+          options={drawOptions}
+          getKey={drawNoKey}
+          getLabel={drawNoLabel}
+          onSelect={handleSelectDraw}
+        />
+      </View>
 
-      {latestDraw.first_prize_winner_count !== null && (
-        <View style={styles.summaryGrid}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>1등 당첨자</Text>
-            <Text style={styles.summaryValue}>{latestDraw.first_prize_winner_count}명</Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>1등 당첨금</Text>
-            <Text style={styles.summaryValue}>
-              {latestDraw.first_prize_amount_per_win?.toLocaleString() ?? "-"}원
-            </Text>
-          </View>
-        </View>
+      {!activeDraw || (isLoadingPicked && !isViewingLatest) ? (
+        <Skeleton height={60} />
+      ) : (
+        <>
+          <Text style={styles.date}>{activeDraw.draw_date}</Text>
+          <Text style={styles.numbers}>
+            {activeDraw.winning_numbers.join(", ")} + {activeDraw.bonus_number}
+          </Text>
+
+          {activeDraw.first_prize_winner_count !== null && (
+            <View style={styles.summaryGrid}>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryLabel}>1등 당첨자</Text>
+                <Text style={styles.summaryValue}>{activeDraw.first_prize_winner_count}명</Text>
+              </View>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryLabel}>1등 당첨금</Text>
+                <Text style={styles.summaryValue}>
+                  {activeDraw.first_prize_amount_per_win?.toLocaleString() ?? "-"}원
+                </Text>
+              </View>
+            </View>
+          )}
+        </>
       )}
 
       {summary && (summary.자동 > 0 || summary.수동 > 0 || summary.반자동 > 0) && (
@@ -118,14 +153,14 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
 
       {highlightSidos.length > 0 && (
         <View style={styles.highlightRow}>
-          <Text style={styles.highlightLabel}>🎉 이번 회차 1등 배출 지역</Text>
+          <Text style={styles.highlightLabel}>🎉 1등 배출 지역</Text>
           <Text style={styles.highlightValue}>{highlightSidos.join(" · ")}</Text>
         </View>
       )}
 
       <Pressable style={styles.toggleButton} onPress={handleToggle}>
         <Text style={styles.toggleButtonText}>
-          이번 회차 당첨 판매점 전체보기{totalStoreCount > 0 ? ` (${totalStoreCount}곳)` : ""}
+          당첨 판매점 전체보기{totalStoreCount > 0 ? ` (${totalStoreCount}곳)` : ""}
         </Text>
         <Text style={styles.toggleChevron}>{expanded ? "▲" : "▼"}</Text>
       </Pressable>
@@ -163,35 +198,6 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
           )}
         </View>
       )}
-
-      <Pressable style={styles.toggleButton} onPress={handleToggleHistory}>
-        <Text style={styles.toggleButtonText}>지난 회차 당첨번호 보기</Text>
-        <Text style={styles.toggleChevron}>{historyExpanded ? "▲" : "▼"}</Text>
-      </Pressable>
-
-      {historyExpanded && (
-        <View style={styles.accordion}>
-          {isLoadingHistory ? (
-            <View style={styles.skeletonWrap}>
-              {[0, 1, 2].map((i) => (
-                <Skeleton key={i} height={40} />
-              ))}
-            </View>
-          ) : (
-            drawHistory.map((d) => (
-              <View key={d.draw_no} style={styles.historyRow}>
-                <View style={styles.historyMeta}>
-                  <Text style={styles.historyDraw}>{d.draw_no}회</Text>
-                  <Text style={styles.historyDate}>{d.draw_date}</Text>
-                </View>
-                <Text style={styles.historyNumbers}>
-                  {d.winning_numbers.join(", ")} + {d.bonus_number}
-                </Text>
-              </View>
-            ))
-          )}
-        </View>
-      )}
     </View>
   );
 });
@@ -204,7 +210,8 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...cardShadow,
   },
-  title: { fontSize: 20, fontWeight: "800", color: colors.textPrimary, fontFamily: numericFont.bold },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  title: { fontSize: 17, fontWeight: "800", color: colors.textPrimary },
   date: { fontSize: 13, color: colors.textSecondary },
   numbers: { fontSize: 16, fontWeight: "600", color: colors.textPrimary, marginTop: spacing.xs, fontFamily: numericFont.medium },
   summaryGrid: {
@@ -252,15 +259,4 @@ const styles = StyleSheet.create({
   storeInfo: { flex: 1, gap: 1 },
   storeName: { fontSize: 13, fontWeight: "700", color: colors.textPrimary },
   storeAddress: { fontSize: 11, color: colors.textMuted },
-  historyRow: {
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.background,
-    gap: 2,
-  },
-  historyMeta: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  historyDraw: { fontSize: 13, fontWeight: "700", color: colors.primary, fontFamily: numericFont.medium },
-  historyDate: { fontSize: 11, color: colors.textMuted },
-  historyNumbers: { fontSize: 12, color: colors.textPrimary, fontFamily: numericFont.regular },
 });
