@@ -12,7 +12,7 @@
 import * as cheerio from "cheerio";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,7 +94,7 @@ function parseRows($: cheerio.CheerioAPI): FullayerWinRecord[] {
   return rows;
 }
 
-async function fetchDraw(drawNo: number): Promise<FullayerWinRecord[]> {
+export async function fetchFullayerDraw(drawNo: number): Promise<FullayerWinRecord[]> {
   const all: FullayerWinRecord[] = [];
   let pageNum = 1;
   while (true) {
@@ -126,7 +126,7 @@ async function main() {
   const all: FullayerWinRecord[] = [];
 
   for (let drawNo = from; drawNo <= to; drawNo++) {
-    const records = await fetchDraw(drawNo);
+    const records = await fetchFullayerDraw(drawNo);
     all.push(...records);
     console.log(`  회차 ${drawNo}: ${records.length}건 (누적 ${all.length}건)`);
     // 진행 중 중단돼도 그때까지 결과는 남도록 매 회차마다 저장
@@ -147,7 +147,13 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("❌ 실행 실패:", err instanceof Error ? err.message : String(err));
-  process.exit(1);
-});
+// fetchDrawHistory.ts가 fetchFullayerDraw()만 재사용하려고 이 파일을 import하는데, 이 가드가
+// 없으면 import되는 순간 아래 main()(회차 262~1235 전체 스크래핑, 수 분 소요)이 그대로
+// 실행되어 버린다 - 직접 CLI로 실행됐을 때(entry point일 때)만 돌도록 제한한다.
+const isMainModule = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMainModule) {
+  main().catch((err) => {
+    console.error("❌ 실행 실패:", err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  });
+}

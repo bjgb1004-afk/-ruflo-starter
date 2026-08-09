@@ -20,3 +20,6 @@ supabase/.temp/
 .claude-flow/
 .swarm/
 ruvector.db
+
+# fetchFullayerWinStores.ts 실행 시 생성되는 중간 산출물
+fullayer-win-records.json
