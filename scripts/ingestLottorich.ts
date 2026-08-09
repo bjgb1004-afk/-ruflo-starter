@@ -22,8 +22,8 @@ interface LottorichRaw {
   win_cnt: string;
   sido: string; // 실제로는 지번주소 전체가 들어있는 필드
   road_name: string;
-  local_x: string; // 경도
-  local_y: string; // 위도
+  local_x: string; // 필드명과 반대로 실제로는 위도(실측 확인, 아래 lat/lng 파싱 참고)
+  local_y: string; // 필드명과 반대로 실제로는 경도
   rank: string;
 }
 
