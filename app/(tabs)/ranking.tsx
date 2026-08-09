@@ -8,7 +8,7 @@ import { useSelectedStores } from "@/features/geofencing/useSelectedStores";
 import { Dropdown } from "@/components/Dropdown";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
-type RankingType = "nation" | "province" | "city";
+type RankingType = "nation" | "province";
 type RankingStoreWithLocation = StoreRankingStats & { latitude: number; longitude: number };
 const ITEMS_PER_PAGE = 50;
 
@@ -104,8 +104,8 @@ export default function RankingScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sidoParam]);
 
-  // 시도별/시군구별 탭은 시도 선택 전까지 조회하지 않음
-  const needsProvince = rankingType === "province" || rankingType === "city";
+  // 시도별 탭은 시도 선택 전까지 조회하지 않음
+  const needsProvince = rankingType === "province";
 
   const { data: allStores = [], isLoading } = useQuery<RankingStoreWithLocation[]>({
     queryKey: ["stores", "ranking", rankingType, selectedProvince],
@@ -119,8 +119,6 @@ export default function RankingScreen() {
         query = query.order("nation_rank", { ascending: true, nullsFirst: false });
       } else if (rankingType === "province" && selectedProvince) {
         query = query.eq("sido", selectedProvince).order("province_rank", { ascending: true, nullsFirst: false });
-      } else if (rankingType === "city" && selectedProvince) {
-        query = query.eq("sido", selectedProvince).order("city_rank", { ascending: true, nullsFirst: false });
       }
 
       const { data, error } = await query;
@@ -136,10 +134,14 @@ export default function RankingScreen() {
     enabled: !needsProvince || selectedProvince !== null,
   });
 
-  // 시군구별 탭에서 시군구까지 선택했으면 해당 구/군만 클라이언트 측에서 필터링
+  // 시도별 탭에서 시/군/구까지 선택했으면 해당 구/군만 클라이언트 측에서 필터링하고,
+  // 순위도 시도 전체 기준(province_rank)이 아니라 그 구/군 안에서의 순위(city_rank)로 재정렬한다.
   const filteredStores = useMemo(() => {
-    if (rankingType === "city" && selectedCity) {
-      return allStores.filter((s) => s.sigungu === selectedCity);
+    if (rankingType === "province" && selectedCity) {
+      return allStores
+        .filter((s) => s.sigungu === selectedCity)
+        .slice()
+        .sort((a, b) => (a.city_rank ?? Infinity) - (b.city_rank ?? Infinity));
     }
     return allStores;
   }, [allStores, rankingType, selectedCity]);
@@ -172,14 +174,10 @@ export default function RankingScreen() {
   const renderRankingRow = useCallback(
     ({ item }: { item: RankingStoreWithLocation }) => {
       const rank =
-        rankingType === "nation"
-          ? item.nation_rank
-          : rankingType === "province"
-            ? item.province_rank
-            : item.city_rank;
+        rankingType === "nation" ? item.nation_rank : selectedCity ? item.city_rank : item.province_rank;
       return <RankingRow item={item} rank={rank} />;
     },
-    [rankingType],
+    [rankingType, selectedCity],
   );
 
   const storeKeyExtractor = useCallback((item: RankingStoreWithLocation) => item.id, []);
@@ -227,20 +225,10 @@ export default function RankingScreen() {
             시도별
           </Text>
         </Pressable>
-        <Pressable
-          onPress={() => {
-            setRankingType("city");
-            setPage(0);
-          }}
-          style={[styles.tab, rankingType === "city" && styles.tabActive]}
-        >
-          <Text style={[styles.tabText, rankingType === "city" && styles.tabTextActive]}>
-            시군구별
-          </Text>
-        </Pressable>
       </View>
 
-      {/* 시도별/시군구별: 시도 선택 - 드롭다운 하나로 17개 시/도를 고른다 */}
+      {/* 시도별: 시도 선택 - 드롭다운 하나로 17개 시/도를 고른다. 선택하면 그 시/도
+          전체 순위가 바로 뜨고, 그 밑에 시/군/구 선택칸이 나타나 더 좁혀볼 수 있다. */}
       {needsProvince && (
         <View style={styles.provinceList}>
           <Dropdown
@@ -254,8 +242,8 @@ export default function RankingScreen() {
         </View>
       )}
 
-      {/* 시군구별: 시도 선택 후 구/군 선택 - 동일하게 드롭다운 */}
-      {rankingType === "city" && selectedProvince && cities.length > 0 && (
+      {/* 시도 선택 후 나타나는 시/군/구 선택 - 고르면 해당 구/군 순위로 좁혀진다 */}
+      {rankingType === "province" && selectedProvince && cities.length > 0 && (
         <View style={styles.provinceList}>
           <Dropdown
             placeholder="시/군/구 선택"
