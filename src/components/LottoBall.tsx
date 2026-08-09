@@ -1,22 +1,22 @@
 import { StyleSheet, Text, View } from "react-native";
 
-type BallColor = "blue" | "red" | "yellow" | "gray" | "orange";
+type BallColor = "yellow" | "blue" | "red" | "gray" | "green";
 
 function getBallColor(num: number): BallColor {
-  if (num >= 1 && num <= 10) return "blue";
-  if (num >= 11 && num <= 20) return "red";
-  if (num >= 21 && num <= 30) return "yellow";
+  if (num >= 1 && num <= 10) return "yellow";
+  if (num >= 11 && num <= 20) return "blue";
+  if (num >= 21 && num <= 30) return "red";
   if (num >= 31 && num <= 40) return "gray";
-  return "orange"; // 41-45
+  return "green"; // 41-45
 }
 
 function getBackgroundColor(color: BallColor): string {
   const colors = {
+    yellow: "#FFD100",
     blue: "#1F77D2",
     red: "#EE5A52",
-    yellow: "#FFD100",
-    gray: "#2D2D2D",
-    orange: "#FF9D3F",
+    gray: "#666666",
+    green: "#22B14C",
   };
   return colors[color];
 }
