@@ -64,56 +64,67 @@ export const LuckDensityList = memo(function LuckDensityList({ onPressSido }: Pr
     setExpandedSido((prev) => (prev === sido ? null : sido));
   }, []);
 
+  const [cardExpanded, setCardExpanded] = useState(false);
+  const handleToggleCard = useCallback(() => setCardExpanded((v) => !v), []);
+
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>🍀 지역별 명당 밀도(행운 지수)</Text>
-      <Text style={styles.subtitle}>매장 1곳당 평균 1등 배출 횟수 - 높을수록 "밀도 높은" 지역</Text>
+      <Pressable style={styles.titleRow} onPress={handleToggleCard}>
+        <Text style={styles.title}>🍀 지역별 명당 밀도</Text>
+        <Text style={styles.titleChevron}>{cardExpanded ? "▲" : "▼"}</Text>
+      </Pressable>
 
-      {isLoading ? (
-        <View style={styles.skeletonWrap}>
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} height={56} />
-          ))}
-        </View>
-      ) : (
-        <View style={styles.list}>
-          {density.map((row, idx) => {
-            const ratio = purchaseBySido.get(row.sido);
-            const isExpanded = expandedSido === row.sido;
-            return (
-              <View key={row.sido} style={styles.rowWrap}>
-                <Pressable style={styles.row} onPress={() => onPressSido(row.sido)}>
-                  <View style={[styles.rankChip, idx === 0 && styles.rankChipTop]}>
-                    <Text style={[styles.rankChipText, idx === 0 && styles.rankChipTextTop]}>{idx + 1}</Text>
-                  </View>
-                  <View style={styles.rowInfo}>
-                    <Text style={styles.rowSido}>
-                      {row.sido} {idx === 0 && "(전국 명당 밀도 1위 🏆)"}
-                    </Text>
-                    <Text style={styles.rowDetail}>
-                      매장당 평균 1등 {row.luckIndex.toFixed(2)}회 · 매장 {row.storeCount.toLocaleString()}곳 · 누적 1등{" "}
-                      {row.totalFirstPrize.toLocaleString()}회
-                    </Text>
-                  </View>
-                  {ratio && ratio.totalCount > 0 && (
-                    <Pressable
-                      hitSlop={8}
-                      style={styles.expandButton}
-                      onPress={() => handleToggleExpand(row.sido)}
-                    >
-                      <Text style={styles.expandButtonText}>{isExpanded ? "▲" : "▼"}</Text>
+      {cardExpanded && (
+        <>
+          <Text style={styles.subtitle}>매장 1곳당 평균 1등 배출 횟수 - 높을수록 "밀도 높은" 지역</Text>
+
+          {isLoading ? (
+            <View style={styles.skeletonWrap}>
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} height={56} />
+              ))}
+            </View>
+          ) : (
+            <View style={styles.list}>
+              {density.map((row, idx) => {
+                const ratio = purchaseBySido.get(row.sido);
+                const isExpanded = expandedSido === row.sido;
+                return (
+                  <View key={row.sido} style={styles.rowWrap}>
+                    <Pressable style={styles.row} onPress={() => onPressSido(row.sido)}>
+                      <View style={[styles.rankChip, idx === 0 && styles.rankChipTop]}>
+                        <Text style={[styles.rankChipText, idx === 0 && styles.rankChipTextTop]}>{idx + 1}</Text>
+                      </View>
+                      <View style={styles.rowInfo}>
+                        <Text style={styles.rowSido}>
+                          {row.sido} {idx === 0 && "(전국 명당 밀도 1위 🏆)"}
+                        </Text>
+                        <Text style={styles.rowDetail}>
+                          매장당 평균 1등 {row.luckIndex.toFixed(2)}회 · 매장 {row.storeCount.toLocaleString()}곳 · 누적 1등{" "}
+                          {row.totalFirstPrize.toLocaleString()}회
+                        </Text>
+                      </View>
+                      {ratio && ratio.totalCount > 0 && (
+                        <Pressable
+                          hitSlop={8}
+                          style={styles.expandButton}
+                          onPress={() => handleToggleExpand(row.sido)}
+                        >
+                          <Text style={styles.expandButtonText}>{isExpanded ? "▲" : "▼"}</Text>
+                        </Pressable>
+                      )}
                     </Pressable>
-                  )}
-                </Pressable>
-                {isExpanded && ratio && (
-                  <View style={styles.purchaseSection}>
-                    <PurchaseTypeBar ratio={ratio} />
+                    {isExpanded && ratio && (
+                      <View style={styles.purchaseSection}>
+                        <PurchaseTypeBar ratio={ratio} />
+                      </View>
+                    )}
                   </View>
-                )}
-              </View>
-            );
-          })}
-        </View>
+                );
+              })}
+            </View>
+          )}
+        </>
       )}
     </View>
   );
@@ -127,7 +138,9 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...cardShadow,
   },
+  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   title: { fontSize: 17, fontWeight: "800", color: colors.textPrimary },
+  titleChevron: { fontSize: 12, color: colors.textMuted },
   subtitle: { fontSize: 12, color: colors.textMuted, marginTop: -spacing.sm },
   skeletonWrap: { gap: spacing.sm },
   list: { gap: spacing.sm },

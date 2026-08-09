@@ -15,3 +15,5 @@ export const GEOFENCE_MAX_REGIONS = 20;
 // (이 앱에 별도 관리자 서버가 없음) 관리자 화면이 보여주는 데이터 자체가 공개 테이블 집계치
 // 수준으로 민감하지 않은 것을 전제로 한다. 관리자를 추가/변경하려면 이 배열만 수정하면 된다.
 export const ADMIN_EMAILS = ["bjgb1004@gmail.com"];
+
+export const PRIVACY_POLICY_URL = "https://bjgb1004-afk.github.io/-ruflo-starter/privacy-policy.html";

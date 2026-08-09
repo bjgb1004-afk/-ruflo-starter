@@ -1,7 +1,8 @@
-import { StyleSheet, View, ActivityIndicator, Text, TextInput, Pressable, FlatList } from "react-native";
+import { StyleSheet, View, ActivityIndicator, Text, TextInput, Pressable, FlatList, Modal, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
 import { useNearbyStores } from "@/features/map/hooks/useNearbyStores";
 import { StoreMapView } from "@/features/map/components/StoreMapView";
@@ -25,7 +26,21 @@ const SearchResultRow = ({ item, onPress }: { item: StoreSearchResult; onPress: 
 
 export default function MapScreen() {
   const router = useRouter();
+  const [showLocationPermissionGuide, setShowLocationPermissionGuide] = useState(false);
+  const [hasShownLocationGuide, setHasShownLocationGuide] = useState(false);
   const { location, error: locationError } = useCurrentLocation();
+
+  // 앱 첫 진입 시 한 번만 위치 권한 안내 모달 표시
+  useEffect(() => {
+    (async () => {
+      const shown = await AsyncStorage.getItem("location-permission-guide-shown");
+      if (!shown) {
+        setShowLocationPermissionGuide(true);
+        setHasShownLocationGuide(true);
+        await AsyncStorage.setItem("location-permission-guide-shown", "true");
+      }
+    })();
+  }, []);
 
   // 지도를 다른 지역으로 옮기면 그 지역 기준으로 다시 조회하도록, GPS 위치와는 별도로
   // "조회 기준 좌표"를 둔다. 최초 진입 시엔 GPS 위치로 채워지고, 이후 지도 이동이 우선한다.
@@ -169,6 +184,14 @@ export default function MapScreen() {
 
   const isSearchMode = debouncedQuery.length > 0;
 
+  if (locationError && !hasShownLocationGuide) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
   if (locationError) {
     return (
       <View style={styles.center}>
@@ -186,7 +209,33 @@ export default function MapScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <>
+      <Modal
+        visible={showLocationPermissionGuide}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLocationPermissionGuide(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <Pressable style={styles.modalBackdropTouchable} onPress={() => setShowLocationPermissionGuide(false)} />
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>위치 권한이 필요합니다</Text>
+            <Text style={styles.modalDescription}>
+              이 앱은 당신 주변의 로또 판매점을 찾기 위해 GPS 위치 정보를 사용합니다.{"\n\n"}
+              • 지도에 당신의 위치 표시{"\n"}
+              • 근처 판매점 추천{"\n"}
+              • 명당 알림 기능
+            </Text>
+            <Pressable
+              style={styles.modalButton}
+              onPress={() => setShowLocationPermissionGuide(false)}
+            >
+              <Text style={styles.modalButtonText}>확인</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      <View style={styles.container}>
       {!isSearchMode && (
         <>
           <NoticeCard />
@@ -263,7 +312,8 @@ export default function MapScreen() {
           <TopStoresCarousel stores={stores} onPressStore={handlePressStore} />
         </View>
       )}
-    </View>
+      </View>
+    </>
   );
 }
 
@@ -272,6 +322,26 @@ const styles = StyleSheet.create({
   mapWrap: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyText: { color: colors.textMuted, fontSize: 14 },
+  modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.5)" },
+  modalBackdropTouchable: { ...StyleSheet.absoluteFillObject },
+  modalCard: {
+    width: "80%",
+    maxWidth: 320,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    gap: 16,
+  },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: "#000", textAlign: "center" },
+  modalDescription: { fontSize: 14, color: colors.textSecondary, lineHeight: 22, textAlign: "center" },
+  modalButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  modalButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",

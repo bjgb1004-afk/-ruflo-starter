@@ -10,6 +10,7 @@ import {
 } from "@/features/draws/api/drawHistoryApi";
 import { Skeleton } from "@/components/Skeleton";
 import { Dropdown } from "@/components/Dropdown";
+import { LottoBall } from "@/components/LottoBall";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 type Row = DrawWinnerStore & { rank: 1 | 2 };
@@ -125,9 +126,13 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
       ) : (
         <>
           <Text style={styles.date}>{activeDraw.draw_date}</Text>
-          <Text style={styles.numbers}>
-            {activeDraw.winning_numbers.join(", ")} + {activeDraw.bonus_number}
-          </Text>
+          <View style={styles.ballsRow}>
+            {activeDraw.winning_numbers.map((num) => (
+              <LottoBall key={num} number={num} size="large" />
+            ))}
+            <Text style={styles.plusSign}>+</Text>
+            <LottoBall number={activeDraw.bonus_number} isBonus size="large" />
+          </View>
 
           {activeDraw.first_prize_winner_count !== null && (
             <View style={styles.summaryGrid}>
@@ -215,7 +220,8 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   title: { fontSize: 17, fontWeight: "800", color: colors.textPrimary },
   date: { fontSize: 13, color: colors.textSecondary },
-  numbers: { fontSize: 16, fontWeight: "600", color: colors.textPrimary, marginTop: spacing.xs, fontFamily: numericFont.medium },
+  ballsRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, flexWrap: "wrap" },
+  plusSign: { fontSize: 18, fontWeight: "700", color: colors.textSecondary },
   summaryGrid: {
     flexDirection: "row",
     gap: spacing.md,

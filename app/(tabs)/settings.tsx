@@ -12,10 +12,11 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import Constants from "expo-constants";
 import { useAuth } from "@/features/auth/useAuth";
 import { GeofenceToggle } from "@/features/geofencing/GeofenceToggle";
-import { ADMIN_EMAILS } from "@/constants/config";
+import { ADMIN_EMAILS, PRIVACY_POLICY_URL } from "@/constants/config";
 import { colors } from "@/constants/theme";
 
 const SECRET_TAP_COUNT = 5;
@@ -148,6 +149,16 @@ export default function SettingsScreen() {
         </View>
       )}
 
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>정보</Text>
+        <Pressable
+          style={styles.linkRow}
+          onPress={() => WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)}
+        >
+          <Text style={styles.linkRowText}>개인정보처리방침</Text>
+        </Pressable>
+      </View>
+
       <View style={styles.footer}>
         <Pressable onPress={handleVersionTap} hitSlop={12}>
           <Text style={styles.versionText}>v{appVersion}</Text>
@@ -215,6 +226,14 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   accountEmail: { fontSize: 14, fontWeight: "600", color: "#000" },
+  linkRow: {
+    marginHorizontal: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 10,
+  },
+  linkRowText: { fontSize: 14, fontWeight: "600", color: "#000" },
   logoutButton: {
     paddingHorizontal: 14,
     paddingVertical: 8,

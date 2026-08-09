@@ -1,6 +1,7 @@
 import { forwardRef } from "react";
 import { View, Text, StyleSheet, type LayoutChangeEvent } from "react-native";
 import type { MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
+import { LottoBall } from "@/components/LottoBall";
 import { colors, spacing, radius, numericFont } from "@/constants/theme";
 
 const RANK_LABEL: Record<1 | 2 | 3 | 4 | 5, string> = {
@@ -26,9 +27,7 @@ export const WinningCard = forwardRef<View, Props>(function WinningCard({ ticket
       <Text style={styles.draw}>{ticket.drawNo}회</Text>
       <View style={styles.numbersRow}>
         {ticket.numbers.map((n) => (
-          <View key={n} style={styles.numberBall}>
-            <Text style={styles.numberBallText}>{n}</Text>
-          </View>
+          <LottoBall key={n} number={n} size="small" />
         ))}
       </View>
       <Text style={styles.amount}>{ticket.prizeAmount.toLocaleString()}원</Text>
@@ -49,14 +48,5 @@ const styles = StyleSheet.create({
   rank: { fontSize: 22, color: colors.goldBright, fontWeight: "800" },
   draw: { fontSize: 14, color: "#fff", fontWeight: "600" },
   numbersRow: { flexDirection: "row", gap: spacing.xs, marginVertical: spacing.sm, flexWrap: "wrap", justifyContent: "center" },
-  numberBall: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  numberBallText: { fontSize: 14, fontWeight: "800", color: colors.primaryDark, fontFamily: numericFont.bold },
   amount: { fontSize: 26, color: "#fff", fontWeight: "800", fontFamily: numericFont.bold },
 });

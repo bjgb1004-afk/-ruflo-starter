@@ -5,7 +5,8 @@ const config: ExpoConfig = {
   slug: "lotto",
   owner: "bjgbs-team",
   scheme: "lottomap",
-  version: "0.1.0",
+  version: "1.0.0",
+  description: "주변 로또 판매점을 찾아보세요. 실시간 명당 정보와 근처 판매점 추천, 당첨 알림 서비스",
   orientation: "portrait",
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
@@ -26,6 +27,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: "com.lottomap.app",
+    versionCode: 1,
     jsEngine: "hermes",
     adaptiveIcon: {
       foregroundImage: "./assets/images/adaptive-icon.png",
