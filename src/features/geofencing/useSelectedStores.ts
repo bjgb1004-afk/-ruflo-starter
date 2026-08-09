@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { GEOFENCE_MAX_REGIONS } from "@/constants/config";
+import { GEOFENCE_FREE_TIER_MAX } from "@/constants/config";
 
 export type SelectedStore = {
   id: string;
@@ -13,7 +13,7 @@ export type SelectedStore = {
 
 interface SelectedStoresState {
   stores: Record<string, SelectedStore>;
-  // 선택 시 true, 해제 시 false, 이미 20개 선택된 상태에서 추가 시도 시 null 반환
+  // 선택 시 true, 해제 시 false, 무료회원 한도(GEOFENCE_FREE_TIER_MAX)를 초과해 추가 시도 시 null 반환
   toggle: (store: SelectedStore) => boolean | null;
 }
 
@@ -29,7 +29,7 @@ export const useSelectedStores = create<SelectedStoresState>()(
           set({ stores: next });
           return false;
         }
-        if (Object.keys(current).length >= GEOFENCE_MAX_REGIONS) {
+        if (Object.keys(current).length >= GEOFENCE_FREE_TIER_MAX) {
           return null;
         }
         set({ stores: { ...current, [store.id]: store } });

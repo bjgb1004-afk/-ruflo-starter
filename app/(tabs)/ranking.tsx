@@ -7,6 +7,7 @@ import type { StoreRankingStats } from "@/types/database.types";
 import { useSelectedStores } from "@/features/geofencing/useSelectedStores";
 import { Dropdown } from "@/components/Dropdown";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
+import { GEOFENCE_FREE_TIER_MAX } from "@/constants/config";
 
 type RankingType = "nation" | "province";
 type RankingStoreWithLocation = StoreRankingStats & { latitude: number; longitude: number };
@@ -39,7 +40,7 @@ const RankingRow = memo(function RankingRow({
       longitude: item.longitude,
     });
     if (result === null) {
-      Alert.alert("선택 제한", "알림은 최대 20개 판매점까지 등록할 수 있어요.");
+      Alert.alert("선택 제한", `무료 회원은 최대 ${GEOFENCE_FREE_TIER_MAX}개 판매점까지 등록할 수 있어요.`);
     }
   }, [toggle, item]);
 
