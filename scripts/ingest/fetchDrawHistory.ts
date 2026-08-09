@@ -141,6 +141,19 @@ async function main() {
 
         console.log(`  • 1등 배출점: ${firstPrizeStoreIds.length}건, 2등 배출점: ${secondPrizeStoreIds.length}건`);
 
+        // fullayer.com은 개인 운영 사이트라 사전 통보 없이 페이지 구조나 서비스 자체가
+        // 바뀔 수 있다(2026-08 기준 메인이 주식 쪽으로 개편 중인 걸 확인함). 그렇게 되면
+        // fetchFullayerDraw가 조용히 빈 배열만 반환해 "당첨자는 있는데 배출점 0건"이던
+        // 예전 DATA_GO_KR_API_KEY 문제가 티 안 나게 재발할 수 있다 - 당첨자 수(0보다 큼)와
+        // 매칭된 배출점 수(0)가 어긋나면 명시적으로 경고해 GitHub Actions 로그에서 바로
+        // 눈에 띄게 한다.
+        if (draw.firstPrizeWinnerCount > 0 && firstPrizeStoreIds.length === 0) {
+          console.warn(
+            `  ⚠️ 1등 당첨자가 ${draw.firstPrizeWinnerCount}명인데 배출점이 0건입니다 - ` +
+              `fullayer.com 페이지 구조가 바뀌었을 가능성이 있습니다. 확인 필요.`,
+          );
+        }
+
         const { error } = await supabaseAdmin.from("draw_history").upsert(
           {
             draw_no: draw.drwNo,
