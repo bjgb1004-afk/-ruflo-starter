@@ -27,7 +27,12 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
   const [expanded, setExpanded] = useState(false);
   const [selectedDrawNo, setSelectedDrawNo] = useState<number | null>(null);
 
-  const { data: latestDraw, isLoading: isLoadingLatest } = useQuery({
+  const {
+    data: latestDraw,
+    isLoading: isLoadingLatest,
+    isError: isLatestDrawError,
+    refetch: refetchLatestDraw,
+  } = useQuery({
     queryKey: ["draws", "latest"],
     queryFn: getLatestDraw,
     staleTime: 1 * 60 * 1000,
@@ -80,6 +85,12 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
 
   const totalStoreCount = (detail?.firstPrizeStores.length ?? 0) + (detail?.secondPrizeStores.length ?? 0);
 
+  // 배출업소 데이터는 별도 공공데이터 소스라 당첨번호보다 반영이 여러 날 늦을 수 있다.
+  // 최근 3일 이내 회차인데 목록이 비어 있으면 "정보 없음"이 아니라 "집계 중"으로 안내한다.
+  const isRecentDraw = activeDraw
+    ? Date.now() - new Date(activeDraw.draw_date).getTime() < 3 * 24 * 60 * 60 * 1000
+    : false;
+
   const drawOptions = useMemo(() => {
     if (!latestDraw) return [];
     const list: number[] = [];
@@ -93,6 +104,19 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
     setSelectedDrawNo(n);
     setExpanded(false);
   }, []);
+
+  // 추첨 직후(토 20:40~21:00경) 트래픽 급증으로 조회가 실패해도 재시도만 1회 하고 끝나면
+  // 화면이 스켈레톤에 무한정 멈춰 있는 것처럼 보인다 - 실패로 확정되면 안내와 재시도 버튼을 보여준다.
+  if (isLatestDrawError) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.errorText}>당첨번호를 불러오지 못했어요. 접속이 몰리는 시간일 수 있어요.</Text>
+        <Pressable style={styles.retryButton} onPress={() => refetchLatestDraw()}>
+          <Text style={styles.retryButtonText}>다시 시도</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (isLoadingLatest || !latestDraw) {
     return (
@@ -134,20 +158,27 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
             <LottoBall number={activeDraw.bonus_number} isBonus size="large" />
           </View>
 
-          {activeDraw.first_prize_winner_count !== null && (
-            <View style={styles.summaryGrid}>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>1등 당첨자</Text>
-                <Text style={styles.summaryValue}>{activeDraw.first_prize_winner_count}명</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>1등 당첨금</Text>
-                <Text style={styles.summaryValue}>
-                  {activeDraw.first_prize_amount_per_win?.toLocaleString() ?? "-"}원
-                </Text>
-              </View>
+          {/* 추첨 직후(토 20:35~21:10경)엔 당첨번호는 먼저 나오지만 당첨금 집계는
+              몇 분~몇십 분 뒤에야 채워진다. 이 구간엔 블록 자체를 숨기지 않고
+              "집계 중"임을 명시해, 빈 화면이나 이상한 값(0원 등)으로 오해하지 않게 한다. */}
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>1등 당첨자</Text>
+              <Text style={styles.summaryValue}>
+                {activeDraw.first_prize_winner_count !== null
+                  ? `${activeDraw.first_prize_winner_count}명`
+                  : "집계 중..."}
+              </Text>
             </View>
-          )}
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>1등 당첨금</Text>
+              <Text style={styles.summaryValue}>
+                {activeDraw.first_prize_amount_per_win !== null
+                  ? `${activeDraw.first_prize_amount_per_win.toLocaleString()}원`
+                  : "집계 중..."}
+              </Text>
+            </View>
+          </View>
         </>
       )}
 
@@ -181,7 +212,9 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
               ))}
             </View>
           ) : rows.length === 0 ? (
-            <Text style={styles.emptyText}>배출업소 정보가 없어요.</Text>
+            <Text style={styles.emptyText}>
+              {isRecentDraw ? "배출업소 정보를 집계 중이에요. 잠시 후 다시 확인해 주세요." : "배출업소 정보가 없어요."}
+            </Text>
           ) : (
             rows.map((item, idx) => (
               <Pressable
@@ -252,6 +285,16 @@ const styles = StyleSheet.create({
   accordion: { gap: spacing.sm, marginTop: spacing.xs },
   skeletonWrap: { gap: spacing.sm },
   emptyText: { fontSize: 13, color: colors.textMuted, textAlign: "center", paddingVertical: spacing.md },
+  errorText: { fontSize: 13, color: colors.textSecondary, textAlign: "center" },
+  retryButton: {
+    alignSelf: "center",
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+  },
+  retryButtonText: { color: "#fff", fontSize: 13, fontWeight: "700" },
   storeRow: {
     flexDirection: "row",
     alignItems: "center",
