@@ -1,11 +1,11 @@
 // 동행복권 공개 API에서 최신 회차 당첨 정보를 수집하고,
-// 1·2등 배출 판매점을 fullayer.com 좌표 매칭으로 stores와 연결해
+// 1·2등 배출 판매점을 lottorich.co.kr 좌표 매칭으로 stores와 연결해
 // draw_history 테이블에 upsert한다.
 //
 // 실행: npm run ingest:draws (GitHub Actions sync-data.yml에서 매일 1회 자동 실행)
 import { supabaseAdmin } from "./lib/supabaseAdmin";
-import { fetchFullayerDraw } from "./fetchFullayerWinStores";
-import { loadAllStores, buildGrid, findMatch, type StoreGridIndex } from "./lib/fullayerStoreMatcher";
+import { fetchLottorichDraw } from "./lib/lottorichStores";
+import { loadAllStores, buildGrid, findMatch, type StoreGridIndex } from "./lib/storeMatcher";
 
 // 동행복권 공식 API(dhlottery.co.kr)가 2026-08 기준 모든 조회에 302(/error.html)를
 // 반환해 사용 불가 상태다 - 신규/과거 회차 모두 막혀 일시 장애로 보기 어렵다.
@@ -63,15 +63,16 @@ async function fetchDrawFromMirror(drwNo: number): Promise<NormalizedDraw | null
   };
 }
 
-// 회차별 1·2등 배출점 조회 - fullayer.com "당첨판매점" 페이지가 상호명과 좌표를 함께
-// 제공해(API 키 불필요), stores 테이블과 반경 200m+이름유사도 매칭으로 store_id를 확정한다.
-// 공공데이터포털(DATA_GO_KR_API_KEY)은 실제로 키가 발급된 적이 없어 항상 0건이었던
-// 이전 경로 - fullayer가 1·2등 모두 커버해 별도 폴백 없이 이걸로 대체한다.
+// 회차별 1·2등 배출점 조회 - lottorich.co.kr 판매점 API가 seq=회차번호로 필터링하면
+// 그 회차 당첨매장만(좌표 포함, API 키 불필요) 돌려준다. stores 테이블과 반경 200m+
+// 이름유사도 매칭으로 store_id를 확정한다. (fullayer.com도 같은 방식으로 동작했었으나
+// 개인 운영 사이트라 메인이 다른 주제로 개편되는 등 폐쇄 위험이 있어 더 오래되고
+// 안정적인 lottorich.co.kr로 교체함 - 1236회로 검증: 1등 11건이 공식 발표와 정확히 일치)
 async function resolvePrizeStoreIds(
   drwNo: number,
   index: StoreGridIndex,
 ): Promise<{ first: string[]; second: string[] }> {
-  const records = await fetchFullayerDraw(drwNo);
+  const records = await fetchLottorichDraw(drwNo);
   const first = new Set<string>();
   const second = new Set<string>();
   let unmatched = 0;
@@ -141,16 +142,16 @@ async function main() {
 
         console.log(`  • 1등 배출점: ${firstPrizeStoreIds.length}건, 2등 배출점: ${secondPrizeStoreIds.length}건`);
 
-        // fullayer.com은 개인 운영 사이트라 사전 통보 없이 페이지 구조나 서비스 자체가
-        // 바뀔 수 있다(2026-08 기준 메인이 주식 쪽으로 개편 중인 걸 확인함). 그렇게 되면
-        // fetchFullayerDraw가 조용히 빈 배열만 반환해 "당첨자는 있는데 배출점 0건"이던
+        // lottorich.co.kr도 예고 없이 API 응답 구조나 서비스 자체가 바뀔 수 있다
+        // (실제로 이전에 쓰던 fullayer.com이 이런 이유로 대체된 전례가 있음). 그렇게 되면
+        // fetchLottorichDraw가 조용히 빈 배열만 반환해 "당첨자는 있는데 배출점 0건"이던
         // 예전 DATA_GO_KR_API_KEY 문제가 티 안 나게 재발할 수 있다 - 당첨자 수(0보다 큼)와
         // 매칭된 배출점 수(0)가 어긋나면 명시적으로 경고해 GitHub Actions 로그에서 바로
         // 눈에 띄게 한다.
         if (draw.firstPrizeWinnerCount > 0 && firstPrizeStoreIds.length === 0) {
           console.warn(
             `  ⚠️ 1등 당첨자가 ${draw.firstPrizeWinnerCount}명인데 배출점이 0건입니다 - ` +
-              `fullayer.com 페이지 구조가 바뀌었을 가능성이 있습니다. 확인 필요.`,
+              `lottorich.co.kr API 구조가 바뀌었을 가능성이 있습니다. 확인 필요.`,
           );
         }
 
