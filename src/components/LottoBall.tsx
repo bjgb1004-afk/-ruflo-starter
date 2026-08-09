@@ -24,24 +24,29 @@ function getBackgroundColor(color: BallColor): string {
 interface LottoBallProps {
   number: number;
   isBonus?: boolean;
-  size?: "small" | "large";
+  size?: "xs" | "small" | "large";
 }
 
 export function LottoBall({ number, isBonus = false, size = "large" }: LottoBallProps) {
   const color = getBallColor(number);
   const bgColor = getBackgroundColor(color);
-  const isLarge = size === "large";
 
   return (
     <View
       style={[
         styles.ball,
         { backgroundColor: bgColor },
-        isLarge ? styles.ballLarge : styles.ballSmall,
+        size === "large" ? styles.ballLarge : size === "small" ? styles.ballSmall : styles.ballXs,
         isBonus && styles.ballBonus,
       ]}
     >
-      <Text style={[styles.text, isLarge ? styles.textLarge : styles.textSmall, { color: color === "yellow" ? "#333" : "#fff" }]}>
+      <Text
+        style={[
+          styles.text,
+          size === "large" ? styles.textLarge : size === "small" ? styles.textSmall : styles.textXs,
+          { color: color === "yellow" ? "#333" : "#fff" },
+        ]}
+      >
         {number}
       </Text>
     </View>
@@ -62,6 +67,10 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
   },
+  ballXs: {
+    width: 22,
+    height: 22,
+  },
   ballBonus: {
     borderWidth: 2,
     borderColor: "rgba(255, 255, 255, 0.5)",
@@ -74,5 +83,8 @@ const styles = StyleSheet.create({
   },
   textSmall: {
     fontSize: 13,
+  },
+  textXs: {
+    fontSize: 9,
   },
 });

@@ -5,12 +5,13 @@ import { useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { reportError } from "@/lib/errorLog";
+import { LottoBall } from "@/components/LottoBall";
 import { getDrawByNo } from "@/features/draws/api/drawHistoryApi";
 import { parseLottoQr, type ParsedLottoGame } from "@/features/qr/parseLottoQr";
 import { computeWinRank, getPrizeAmount, type WinRank } from "@/features/qr/checkWinnings";
 import { useMyLottoTickets, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
 import { scheduleDrawReminder } from "@/features/mylotto/drawReminders";
-import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
+import { colors, spacing, radius, cardShadow } from "@/constants/theme";
 
 // 같은 용지를 계속 카메라에 비추고 있을 때 Bottom Sheet를 닫자마자 동일 QR이
 // 즉시 재인식되어 다시 열리는 "깜빡임"을 막기 위한 잠금 해제 지연 시간.
@@ -43,7 +44,11 @@ function VaultTicketRow({ ticket }: { ticket: MyLottoTicket }) {
     <View style={styles.vaultRow}>
       <View style={styles.vaultRowInfo}>
         <Text style={styles.vaultRowDraw}>{ticket.drawNo}회</Text>
-        <Text style={styles.vaultRowNumbers}>{ticket.numbers.join(", ")}</Text>
+        <View style={styles.vaultRowBalls}>
+          {ticket.numbers.map((n) => (
+            <LottoBall key={n} number={n} size="xs" />
+          ))}
+        </View>
       </View>
       {ticket.checked ? (
         <View style={[styles.vaultRowBadge, styles.vaultRowBadgeWin]}>
@@ -295,7 +300,11 @@ export default function ScanScreen() {
                 <View style={styles.gamesList}>
                   {result.games.map((game, idx) => (
                     <View key={idx} style={styles.gameRow}>
-                      <Text style={styles.gameNumbers}>{game.numbers.join(", ")}</Text>
+                      <View style={styles.gameBalls}>
+                        {game.numbers.map((n) => (
+                          <LottoBall key={n} number={n} size="small" />
+                        ))}
+                      </View>
                     </View>
                   ))}
                 </View>
@@ -322,7 +331,11 @@ export default function ScanScreen() {
                 <View style={styles.gamesList}>
                   {result.games.map((game, idx) => (
                     <View key={idx} style={styles.gameRow}>
-                      <Text style={styles.gameNumbers}>{game.numbers.join(", ")}</Text>
+                      <View style={styles.gameBalls}>
+                        {game.numbers.map((n) => (
+                          <LottoBall key={n} number={n} size="small" />
+                        ))}
+                      </View>
                       <View style={[styles.rankBadge, game.rank ? styles.rankBadgeWin : styles.rankBadgeLose]}>
                         <Text style={styles.rankBadgeText}>
                           {game.rank ? RANK_LABEL[game.rank] : "낙첨"}
@@ -415,7 +428,7 @@ const styles = StyleSheet.create({
   },
   vaultRowInfo: { gap: 2 },
   vaultRowDraw: { fontSize: 13, fontWeight: "700", color: colors.textPrimary },
-  vaultRowNumbers: { fontSize: 11, color: colors.textSecondary, fontFamily: numericFont.regular },
+  vaultRowBalls: { flexDirection: "row", gap: 3, flexWrap: "wrap" },
   vaultRowBadge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
   vaultRowBadgeWin: { backgroundColor: colors.gold },
   vaultRowBadgePending: { backgroundColor: colors.rankNeutral },
@@ -453,7 +466,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: spacing.md,
   },
-  gameNumbers: { fontSize: 14, color: colors.textPrimary, fontWeight: "600" },
+  gameBalls: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 6 },
   rankBadge: { paddingHorizontal: spacing.md - 2, paddingVertical: spacing.sm - 2, borderRadius: radius.pill },
   rankBadgeWin: { backgroundColor: colors.gold },
   rankBadgeLose: { backgroundColor: colors.rankNeutral },

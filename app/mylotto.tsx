@@ -6,6 +6,7 @@ import { useMyLottoTickets, LOTTO_UNIT_PRICE, type MyLottoTicket } from "@/featu
 import { useAutoCheckTickets } from "@/features/mylotto/useAutoCheckTickets";
 import { computeVaultSummary, computeFrequentNumbers } from "@/features/mylotto/stats";
 import { WinningCard } from "@/features/mylotto/components/WinningCard";
+import { LottoBall } from "@/components/LottoBall";
 import { shareWinningCard, ShareCardError } from "@/features/mylotto/shareWinningCard";
 import { reportError } from "@/lib/errorLog";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
@@ -54,7 +55,11 @@ const TicketRow = ({ ticket, onShare }: { ticket: MyLottoTicket; onShare: (t: My
           <Text style={styles.methodTagText}>{ticket.purchaseType}</Text>
         </View>
       )}
-      <Text style={styles.ticketNumbers}>{ticket.numbers.join(", ")}</Text>
+      <View style={styles.ticketBalls}>
+        {ticket.numbers.map((n) => (
+          <LottoBall key={n} number={n} size="xs" />
+        ))}
+      </View>
     </View>
     <View style={styles.ticketRight}>
       {!ticket.checked ? (
@@ -226,7 +231,7 @@ export default function MyLottoScreen() {
             <View style={styles.numberRow}>
               {frequentNumbers.map((item) => (
                 <View key={item.number} style={styles.numberBubble}>
-                  <Text style={styles.numberBubbleText}>{item.number}</Text>
+                  <LottoBall number={item.number} size="small" />
                   <Text style={styles.numberBubbleCount}>{item.count}회</Text>
                 </View>
               ))}
@@ -310,8 +315,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
+    gap: 2,
   },
-  numberBubbleText: { fontSize: 16, fontWeight: "800", color: colors.textPrimary, fontFamily: numericFont.bold },
   numberBubbleCount: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
 
   groupCard: {
@@ -353,7 +358,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   methodTagText: { fontSize: 10, color: colors.textSecondary, fontWeight: "600" },
-  ticketNumbers: { fontSize: 13, color: colors.textSecondary },
+  ticketBalls: { flexDirection: "row", gap: 3, flexWrap: "wrap" },
   ticketRight: { alignItems: "flex-end", gap: 4 },
   pendingBadge: { backgroundColor: colors.background, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
   pendingBadgeText: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
