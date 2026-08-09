@@ -152,10 +152,10 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
           <Text style={styles.date}>{activeDraw.draw_date}</Text>
           <View style={styles.ballsRow}>
             {activeDraw.winning_numbers.map((num) => (
-              <LottoBall key={num} number={num} size="large" />
+              <LottoBall key={num} number={num} size="small" />
             ))}
             <Text style={styles.plusSign}>+</Text>
-            <LottoBall number={activeDraw.bonus_number} isBonus size="large" />
+            <LottoBall number={activeDraw.bonus_number} isBonus size="small" />
           </View>
 
           {/* 추첨 직후(토 20:35~21:10경)엔 당첨번호는 먼저 나오지만 당첨금 집계는
@@ -253,8 +253,17 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   title: { fontSize: 17, fontWeight: "800", color: colors.textPrimary },
   date: { fontSize: 13, color: colors.textSecondary },
-  ballsRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, flexWrap: "wrap" },
-  plusSign: { fontSize: 18, fontWeight: "700", color: colors.textSecondary },
+  // 6개 숫자 공 + "+" + 보너스 공까지 한 줄에 딱 맞아야 해서(줄바꿈되면 카드가 어색하게
+  // 늘어남) 공 크기를 small로, 간격도 좁게(justifyContent: space-between으로 카드 폭에
+  // 맞춰 균등 분배) 잡는다. flexWrap은 혹시라도 더 좁은 화면에서 넘칠 때의 안전장치로 유지.
+  ballsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing.md,
+    flexWrap: "wrap",
+  },
+  plusSign: { fontSize: 14, fontWeight: "700", color: colors.textSecondary },
   summaryGrid: {
     flexDirection: "row",
     gap: spacing.md,
