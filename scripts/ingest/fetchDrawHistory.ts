@@ -9,23 +9,34 @@ import { geocodeAddress } from "./lib/vworldGeo";
 import { cascadingMatch } from "./lib/cascadingMatcher";
 import { getPrizeStoresFromSeed } from "./lib/seedData";
 
-const DHLOTTERY_ENDPOINT = "https://www.dhlottery.co.kr/common.do?method=getLottoNumber&drwNo=";
+// 동행복권 공식 API(dhlottery.co.kr)가 2026-08 기준 모든 조회에 302(/error.html)를
+// 반환해 사용 불가 상태다 - 신규/과거 회차 모두 막혀 일시 장애로 보기 어렵다.
+// 대신 매주 자동 갱신되는 오픈소스 미러(smok95/lotto)를 단일 소스로 사용한다 - 당첨번호,
+// 보너스, 1~5등 배당까지 한 번의 요청으로 모두 제공해 기존 dhlottery+미러 이중 조회보다 단순하다.
+const MIRROR_ENDPOINT = "https://raw.githubusercontent.com/smok95/lotto/master/results/";
 
-interface DhLotteryResponse {
-  returnValue: "success" | "fail";
+interface MirrorDrawResponse {
+  draw_no: number;
+  numbers: number[];
+  bonus_no: number;
+  date: string; // ISO, 예: "2026-08-08T00:00:00Z"
+  divisions: Array<{ prize: number; winners: number }>;
+  total_sales_amount: number;
+}
+
+interface NormalizedDraw {
   drwNo: number;
   drwNoDate: string;
-  drwtNo1: number;
-  drwtNo2: number;
-  drwtNo3: number;
-  drwtNo4: number;
-  drwtNo5: number;
-  drwtNo6: number;
+  numbers: number[];
   bnusNo: number;
-  firstWinamnt: number;
-  firstPrzwnerCo: number;
-  firstAccumamnt: number;
-  totSellamnt: number;
+  firstPrizeAmountPerWin: number;
+  firstPrizeWinnerCount: number;
+  firstPrizeTotalAmount: number;
+  secondPrizeAmountPerWin: number | null;
+  secondPrizeWinnerCount: number | null;
+  thirdPrizeAmountPerWin: number | null;
+  thirdPrizeWinnerCount: number | null;
+  totalSalesAmount: number;
 }
 
 interface PrizeStoreAnnouncement {
@@ -33,35 +44,30 @@ interface PrizeStoreAnnouncement {
   address: string;
 }
 
-async function fetchDraw(drwNo: number): Promise<DhLotteryResponse | null> {
-  const res = await fetch(`${DHLOTTERY_ENDPOINT}${drwNo}`);
-  const json = (await res.json()) as DhLotteryResponse;
-  return json.returnValue === "success" ? json : null;
-}
+// 아직 발표되지 않은 회차는 404 - null 반환으로 "여기까지가 최신"임을 알린다.
+async function fetchDrawFromMirror(drwNo: number): Promise<NormalizedDraw | null> {
+  const res = await fetch(`${MIRROR_ENDPOINT}${drwNo}.json`);
+  if (!res.ok) return null;
+  const d = (await res.json()) as MirrorDrawResponse;
+  const first = d.divisions?.[0];
+  const second = d.divisions?.[1];
+  const third = d.divisions?.[2];
+  if (!first || !d.numbers || d.numbers.length !== 6) return null;
 
-interface OpenLottoDivisions {
-  divisions: Array<{ prize: number; winners: number }>;
-}
-
-// 동행복권 공식 API는 1등 정보만 제공한다. 2·3등은 회차별 변동(파리뮤추얼) 금액이라
-// 오픈소스 미러(smok95/lotto)에서 함께 가져온다. 실패해도 회차 저장 자체는 계속 진행하고
-// null로 남겨(추후 backfillThirdPrizeAmount.ts 등으로 재시도 가능) 나머지 파이프라인을 막지 않는다.
-async function fetchSecondAndThirdPrizeInfo(
-  drwNo: number,
-): Promise<{ second: { amount: number; winners: number } | null; third: { amount: number; winners: number } | null }> {
-  try {
-    const res = await fetch(`https://raw.githubusercontent.com/smok95/lotto/master/results/${drwNo}.json`);
-    if (!res.ok) return { second: null, third: null };
-    const d = (await res.json()) as OpenLottoDivisions;
-    const secondDiv = d.divisions?.[1];
-    const thirdDiv = d.divisions?.[2];
-    return {
-      second: secondDiv ? { amount: secondDiv.prize, winners: secondDiv.winners } : null,
-      third: thirdDiv ? { amount: thirdDiv.prize, winners: thirdDiv.winners } : null,
-    };
-  } catch {
-    return { second: null, third: null };
-  }
+  return {
+    drwNo: d.draw_no,
+    drwNoDate: d.date.split("T")[0],
+    numbers: d.numbers,
+    bnusNo: d.bonus_no,
+    firstPrizeAmountPerWin: first.prize,
+    firstPrizeWinnerCount: first.winners,
+    firstPrizeTotalAmount: first.prize * first.winners,
+    secondPrizeAmountPerWin: second?.prize ?? null,
+    secondPrizeWinnerCount: second?.winners ?? null,
+    thirdPrizeAmountPerWin: third?.prize ?? null,
+    thirdPrizeWinnerCount: third?.winners ?? null,
+    totalSalesAmount: d.total_sales_amount,
+  };
 }
 
 /**
@@ -246,78 +252,52 @@ async function getLastStoredDrawNo(): Promise<number> {
 }
 
 async function main() {
-  console.log("🚀 시드 데이터 회차 정보 수집 시작...");
+  console.log("🚀 로또 당첨번호 자동 수집 시작...");
   console.log("");
 
   try {
     const lastDrawNo = await getLastStoredDrawNo();
+    console.log(`📍 마지막 저장 회차: ${lastDrawNo || "없음"}`);
+    console.log("");
 
-    // 시드 데이터의 회차 목록
-    const seedDrawNumbers = [1130, 1129, 1128, 1127];
     let inserted = 0;
     let failed = 0;
 
-    console.log(`📍 마지막 저장 회차: ${lastDrawNo || "없음"}`);
-    console.log(`📊 시드 데이터 회차: ${seedDrawNumbers.join(", ")}`);
-    console.log("");
-
-    for (const drwNo of seedDrawNumbers) {
-      // 이미 저장된 회차는 건너뛰기
-      if (drwNo <= lastDrawNo) {
-        console.log(`⏭️  회차 ${drwNo}: 이미 저장됨, 건너뜀`);
-        continue;
+    // 최신 회차 번호를 미리 알 수 없으므로 다음 회차부터 순서대로 시도하다가
+    // 아직 발표 안 된 회차(미러에 파일 없음 = null)를 만나면 멈춘다. 한 번 실행에
+    // 최대 10회차까지만 처리해(정상적으론 매주 1개) 자동화가 오래 멈춰 있었던
+    // 경우에도 무한정 돌지 않게 한다.
+    for (let drwNo = lastDrawNo + 1; drwNo <= lastDrawNo + 10; drwNo++) {
+      const draw = await fetchDrawFromMirror(drwNo);
+      if (!draw) {
+        console.log(`⏹️  회차 ${drwNo}: 아직 발표되지 않음 - 수집 종료`);
+        break;
       }
 
       try {
-        // 시드 데이터에서 직접 회차 정보 생성
-        const seedStores1st = getPrizeStoresFromSeed(drwNo, 1);
-        const seedStores2nd = getPrizeStoresFromSeed(drwNo, 2);
+        console.log(`📄 회차 ${draw.drwNo} (${draw.drwNoDate}): 당첨번호 ${draw.numbers.join("-")}+${draw.bnusNo}`);
 
-        // 테스트 회차 정보 (실제로는 API에서 가져와야 하지만, 현재는 기본값 사용)
-        const draw: DhLotteryResponse = {
-          returnValue: "success",
-          drwNo: drwNo,
-          drwNoDate: new Date().toISOString().split("T")[0],
-          drwtNo1: 1,
-          drwtNo2: 2,
-          drwtNo3: 3,
-          drwtNo4: 4,
-          drwtNo5: 5,
-          drwtNo6: 6,
-          bnusNo: 7,
-          firstWinamnt: 0,
-          firstPrzwnerCo: 0,
-          firstAccumamnt: 0,
-          totSellamnt: 0,
-        };
-
-        console.log(`📄 회차 ${drwNo} (${draw.drwNoDate}): 당첨번호 ${[draw.drwtNo1, draw.drwtNo2, draw.drwtNo3, draw.drwtNo4, draw.drwtNo5, draw.drwtNo6].join("-")}+${draw.bnusNo}`);
-
-        const [firstPrizeStoreIds, secondPrizeStoreIds, prizeDivisions] = await Promise.all([
+        const [firstPrizeStoreIds, secondPrizeStoreIds] = await Promise.all([
           resolvePrizeStoreIds(draw.drwNo, 1),
           resolvePrizeStoreIds(draw.drwNo, 2),
-          fetchSecondAndThirdPrizeInfo(draw.drwNo),
         ]);
 
         console.log(`  • 1등 배출점: ${firstPrizeStoreIds.length}건, 2등 배출점: ${secondPrizeStoreIds.length}건`);
-        if (!prizeDivisions.second || !prizeDivisions.third) {
-          console.warn(`  ⚠️ 2·3등 금액 조회 실패 - null로 저장됨 (나중에 재시도 가능)`);
-        }
 
         const { error } = await supabaseAdmin.from("draw_history").upsert(
           {
             draw_no: draw.drwNo,
             draw_date: draw.drwNoDate,
-            winning_numbers: [draw.drwtNo1, draw.drwtNo2, draw.drwtNo3, draw.drwtNo4, draw.drwtNo5, draw.drwtNo6],
+            winning_numbers: draw.numbers,
             bonus_number: draw.bnusNo,
-            first_prize_total_amount: draw.firstAccumamnt,
-            first_prize_winner_count: draw.firstPrzwnerCo,
-            first_prize_amount_per_win: draw.firstWinamnt,
-            second_prize_amount_per_win: prizeDivisions.second?.amount ?? null,
-            second_prize_winner_count: prizeDivisions.second?.winners ?? null,
-            third_prize_amount_per_win: prizeDivisions.third?.amount ?? null,
-            third_prize_winner_count: prizeDivisions.third?.winners ?? null,
-            total_sales_amount: draw.totSellamnt,
+            first_prize_total_amount: draw.firstPrizeTotalAmount,
+            first_prize_winner_count: draw.firstPrizeWinnerCount,
+            first_prize_amount_per_win: draw.firstPrizeAmountPerWin,
+            second_prize_amount_per_win: draw.secondPrizeAmountPerWin,
+            second_prize_winner_count: draw.secondPrizeWinnerCount,
+            third_prize_amount_per_win: draw.thirdPrizeAmountPerWin,
+            third_prize_winner_count: draw.thirdPrizeWinnerCount,
+            total_sales_amount: draw.totalSalesAmount,
             first_prize_store_ids: firstPrizeStoreIds,
             second_prize_store_ids: secondPrizeStoreIds,
           },
@@ -332,7 +312,7 @@ async function main() {
           inserted += 1;
         }
       } catch (error) {
-        console.error(`❌ 회차 ${drwNo} 처리 실패:`, error instanceof Error ? error.message : String(error));
+        console.error(`❌ 회차 ${draw.drwNo} 처리 실패:`, error instanceof Error ? error.message : String(error));
         failed += 1;
 
         if (failed >= 3) {
