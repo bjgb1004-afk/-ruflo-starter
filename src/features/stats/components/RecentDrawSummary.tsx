@@ -3,11 +3,11 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import {
-  getDrawByNo,
   getDrawWinnersDetail,
   getLatestDraw,
   type DrawWinnerStore,
 } from "@/features/draws/api/drawHistoryApi";
+import { useDrawByNo } from "@/features/draws/useDrawByNo";
 import { Skeleton } from "@/components/Skeleton";
 import { Dropdown } from "@/components/Dropdown";
 import { LottoBall } from "@/components/LottoBall";
@@ -44,12 +44,8 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
 
   // 최신 회차는 이미 위 쿼리로 갖고 있으니 다시 요청하지 않고, 드롭다운으로 다른 회차를
   // 골랐을 때만 그 회차 정보를 새로 가져온다.
-  const { data: pickedDraw, isLoading: isLoadingPicked } = useQuery({
-    queryKey: ["draws", effectiveDrawNo],
-    queryFn: () => getDrawByNo(effectiveDrawNo!),
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-    enabled: !!effectiveDrawNo && !isViewingLatest,
+  const { data: pickedDraw, isLoading: isLoadingPicked } = useDrawByNo(effectiveDrawNo, {
+    enabled: !isViewingLatest,
   });
 
   const activeDraw = isViewingLatest ? latestDraw : pickedDraw;

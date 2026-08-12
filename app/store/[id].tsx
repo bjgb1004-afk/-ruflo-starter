@@ -14,7 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, memo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getStoreWithStats } from "@/features/stores/api/storesApi";
+import { useStoreWithStats } from "@/features/stores/useStoreWithStats";
 import {
   getWinningsByStore,
   getLatestFirstPrizeWinners,
@@ -109,13 +109,7 @@ export default function StoreDetailScreen() {
   // 문제 - 앱 전체 점검(design.txt) 결과 이 화면도 해당돼 하단 안전영역 여백을 더한다.
   const insets = useSafeAreaInsets();
 
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ["store", id, "stats"],
-    queryFn: () => getStoreWithStats(id!),
-    staleTime: 5 * 60 * 1000, // 5분 캐시
-    gcTime: 10 * 60 * 1000,
-    enabled: !!id,
-  });
+  const { data: stats, isLoading } = useStoreWithStats(id);
 
   const { data: winnings = [] } = useQuery({
     queryKey: ["store", id, "winnings"],
