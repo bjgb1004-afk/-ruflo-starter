@@ -141,6 +141,54 @@ export type Database = {
         Update: Partial<Omit<Database['public']['Tables']['user_favorite_stores']['Row'], "user_id" | "store_id">>
         Relationships: []
       }
+      store_owner_profiles: {
+        Row: {
+          store_id: string
+          owner_user_id: string
+          phone: string | null
+          business_hours: string | null
+          owner_message: string | null
+          has_parking: boolean | null
+          has_restroom: boolean | null
+          has_atm: boolean | null
+          amenities: string[] | null
+          updated_at: string
+        }
+        Insert: Pick<Database['public']['Tables']['store_owner_profiles']['Row'], "store_id" | "owner_user_id"> &
+          Partial<Omit<Database['public']['Tables']['store_owner_profiles']['Row'], "store_id" | "owner_user_id" | "updated_at">>
+        Update: Partial<Omit<Database['public']['Tables']['store_owner_profiles']['Row'], "store_id" | "updated_at">>
+        Relationships: []
+      }
+      store_owner_verification_attempts: {
+        Row: {
+          id: string
+          store_id: string
+          user_id: string
+          business_reg_number: string
+          result: "approved" | "rejected"
+          reject_reason: "hometax_mismatch" | "business_closed" | "name_mismatch" | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['store_owner_verification_attempts']['Row'], "id" | "created_at">
+        Update: never
+        Relationships: []
+      }
+      store_ownership_transfer_requests: {
+        Row: {
+          id: string
+          store_id: string
+          previous_owner_user_id: string
+          new_owner_user_id: string
+          status: "pending" | "disputed" | "auto_approved" | "admin_approved" | "admin_rejected"
+          requested_at: string
+          expires_at: string
+          resolved_at: string | null
+        }
+        Insert: Omit<Database['public']['Tables']['store_ownership_transfer_requests']['Row'], "id" | "requested_at" | "resolved_at" | "status"> &
+          Partial<Pick<Database['public']['Tables']['store_ownership_transfer_requests']['Row'], "status">>
+        Update: never
+        Relationships: []
+      }
       store_ranking_stats: {
         Row: {
           id: string
