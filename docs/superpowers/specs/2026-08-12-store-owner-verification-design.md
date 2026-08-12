@@ -62,7 +62,18 @@
 ### 3) 정보 수정
 
 승인된 사장님은 매장 상세 화면(또는 "내 매장 관리" 화면)에서 전화번호 / 영업시간(자유
-텍스트 한 줄) / 한마디(최대 100자, 앱단 입력 제한 + DB check 제약 이중 검증)를 수정.
+텍스트 한 줄) / 한마디(최대 100자, 앱단 입력 제한 + DB check 제약 이중 검증) / **편의시설
+(주차·화장실·ATM 여부 체크 + 기타 편의시설 자유 태그)**을 수정.
+
+편의시설(`has_parking`/`has_restroom`/`has_atm`/`amenities`)은 현재 `stores` 테이블 컬럼으로
+존재하고 공공데이터 배치(`scripts/ingest/fetchStores.ts`)가 이 컬럼들을 upsert 대상에 포함하지
+않아 지금 당장은 배치에 덮어써지지 않지만, 이 사실에 기대지 않는다 — 전화번호/영업시간과
+동일하게 `store_owner_profiles` 오버레이로 옮겨서, 배치 스크립트가 나중에 바뀌어도 사장님이
+입력한 값이 안전하게 유지되도록 한다.
+
+**매장 상세 화면의 "주변 화장실/ATM/편의점/카페" 버튼(지도 앱으로 주변 검색)은 이 기능과
+완전히 별개**다 — 사장님이 입력하는 "이 매장 자체의 편의시설 보유 여부"와, 사용자가 누르면
+지도 앱에서 매장 주변 시설을 검색해주는 기능은 서로 다른 것이므로 UI/로직 모두 섞지 않는다.
 
 ## 데이터 모델
 
@@ -77,6 +88,10 @@ store_owner_profiles
   phone           text
   business_hours  text            -- 자유 텍스트 한 줄
   owner_message   text            -- 최대 100자, check 제약으로 서버측도 이중 검증
+  has_parking     boolean
+  has_restroom    boolean
+  has_atm         boolean
+  amenities       text[]          -- 기타 편의시설 자유 태그
   updated_at      timestamptz not null default now()
 
 store_owner_verification_attempts        -- 재시도 카운트 + 감사 로그 (이미지 비저장)
