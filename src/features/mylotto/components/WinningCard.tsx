@@ -22,7 +22,7 @@ interface Props {
 export const WinningCard = forwardRef<View, Props>(function WinningCard({ ticket, onLayout }, ref) {
   return (
     <View ref={ref} style={styles.card} onLayout={onLayout}>
-      <Text style={styles.brand}>🍀 로또맵</Text>
+      <Text style={styles.brand}>🍀 복권명당</Text>
       <Text style={styles.rank}>{ticket.rank ? RANK_LABEL[ticket.rank] : ""} 당첨</Text>
       <Text style={styles.draw}>{ticket.drawNo}회</Text>
       <View style={styles.numbersRow}>

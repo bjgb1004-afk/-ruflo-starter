@@ -1,7 +1,7 @@
 import type { ExpoConfig } from "expo/config";
 
 const config: ExpoConfig = {
-  name: "로또맵",
+  name: "복권명당",
   slug: "lotto",
   owner: "bjgbs-team",
   scheme: "lottomap",

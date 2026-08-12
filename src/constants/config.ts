@@ -22,3 +22,4 @@ export const GEOFENCE_FREE_TIER_MAX = 2;
 export const ADMIN_EMAILS = ["bjgb1004@gmail.com"];
 
 export const PRIVACY_POLICY_URL = "https://bjgb1004-afk.github.io/-ruflo-starter/privacy-policy.html";
+export const TERMS_OF_SERVICE_URL = "https://bjgb1004-afk.github.io/-ruflo-starter/terms-of-service.html";

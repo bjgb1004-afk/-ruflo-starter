@@ -173,7 +173,7 @@ export default function StoreDetailScreen() {
   const handleShare = useCallback(() => {
     if (!stats) return;
     Share.share({
-      message: `${stats.name}\n${stats.address}\n\n로또맵에서 확인하세요 🍀`,
+      message: `${stats.name}\n${stats.address}\n\n복권명당에서 확인하세요 🍀`,
     });
   }, [stats]);
 

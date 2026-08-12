@@ -18,7 +18,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/features/auth/useAuth";
 import { GeofenceToggle } from "@/features/geofencing/GeofenceToggle";
 import { GEOFENCE_DEBUG_LOG_KEY } from "@/features/geofencing/geofenceTask";
-import { ADMIN_EMAILS, PRIVACY_POLICY_URL } from "@/constants/config";
+import { ADMIN_EMAILS, PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from "@/constants/config";
 import { colors } from "@/constants/theme";
 
 const SECRET_TAP_COUNT = 5;
@@ -185,6 +185,12 @@ export default function SettingsScreen() {
           onPress={() => WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)}
         >
           <Text style={styles.linkRowText}>개인정보처리방침</Text>
+        </Pressable>
+        <Pressable
+          style={styles.linkRow}
+          onPress={() => WebBrowser.openBrowserAsync(TERMS_OF_SERVICE_URL)}
+        >
+          <Text style={styles.linkRowText}>이용약관</Text>
         </Pressable>
       </View>
 
