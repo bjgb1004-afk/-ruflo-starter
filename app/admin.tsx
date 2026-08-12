@@ -1,9 +1,9 @@
-import { useMemo } from "react";
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
+import { useCallback, useMemo } from "react";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
-import { getAdminOverview } from "@/features/admin/api/adminApi";
+import { getAdminOverview, getDisputedTransfers, resolveDisputedTransfer } from "@/features/admin/api/adminApi";
 import { ADMIN_EMAILS } from "@/constants/config";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
@@ -33,6 +33,22 @@ export default function AdminScreen() {
     enabled: isAdmin,
     staleTime: 60 * 1000,
   });
+
+  const queryClient = useQueryClient();
+  const { data: disputedTransfers } = useQuery({
+    queryKey: ["admin", "disputed-transfers"],
+    queryFn: getDisputedTransfers,
+    enabled: isAdmin,
+    staleTime: 30 * 1000,
+  });
+
+  const handleResolve = useCallback(
+    async (requestId: string, approve: boolean) => {
+      await resolveDisputedTransfer(requestId, approve);
+      queryClient.invalidateQueries({ queryKey: ["admin", "disputed-transfers"] });
+    },
+    [queryClient],
+  );
 
   // 일반적으로 이 화면은 설정 탭의 숨겨진 제스처(버전 텍스트 5회 탭 → 비밀번호 입력)를 통해서만
   // 도달하며, 그 흐름이 로그인까지 함께 처리하므로 여기 도달한 시점엔 이미 로그인되어 있어야
@@ -111,6 +127,30 @@ export default function AdminScreen() {
             <View key={item.feature} style={styles.row}>
               <Text style={styles.rowLabel}>{item.feature}</Text>
               <Text style={styles.rowValue}>{item.count}건</Text>
+            </View>
+          ))
+        )}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>소유권 이전 이의제기</Text>
+        {!disputedTransfers || disputedTransfers.length === 0 ? (
+          <Text style={styles.emptyText}>대기 중인 이의제기가 없습니다.</Text>
+        ) : (
+          disputedTransfers.map((t) => (
+            <View key={t.id} style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowLabel}>{t.store_name}</Text>
+                <Text style={styles.rowValue}>{t.previous_owner_email} → {t.new_owner_email}</Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Pressable onPress={() => handleResolve(t.id, false)}>
+                  <Text style={{ color: "#FF3B30", fontWeight: "700" }}>거절</Text>
+                </Pressable>
+                <Pressable onPress={() => handleResolve(t.id, true)}>
+                  <Text style={{ color: colors.primary, fontWeight: "700" }}>승인</Text>
+                </Pressable>
+              </View>
             </View>
           ))
         )}

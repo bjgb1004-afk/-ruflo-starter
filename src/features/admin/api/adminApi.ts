@@ -46,3 +46,27 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     errorsByFeature,
   };
 }
+
+export interface DisputedTransfer {
+  id: string;
+  store_id: string;
+  store_name: string;
+  previous_owner_email: string;
+  new_owner_email: string;
+  requested_at: string;
+  expires_at: string;
+}
+
+export async function getDisputedTransfers(): Promise<DisputedTransfer[]> {
+  const { data, error } = await (supabase.rpc as any)("admin_disputed_transfers");
+  if (error) throw error;
+  return (data ?? []) as DisputedTransfer[];
+}
+
+export async function resolveDisputedTransfer(requestId: string, approve: boolean): Promise<void> {
+  const { error } = await (supabase.rpc as any)("resolve_disputed_transfer", {
+    p_request_id: requestId,
+    p_approve: approve,
+  });
+  if (error) throw error;
+}
