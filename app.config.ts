@@ -12,6 +12,10 @@ const config: ExpoConfig = {
   newArchEnabled: true,
   jsEngine: "hermes",
   icon: "./assets/images/icon.png",
+  runtimeVersion: { policy: "appVersion" },
+  updates: {
+    url: "https://u.expo.dev/9eeff5c8-c217-4e45-9426-c0569f8c500e",
+  },
   splash: {
     image: "./assets/images/splash.png",
     resizeMode: "contain",

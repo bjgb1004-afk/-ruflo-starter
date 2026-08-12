@@ -14,8 +14,10 @@ import {
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import Constants from "expo-constants";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/features/auth/useAuth";
 import { GeofenceToggle } from "@/features/geofencing/GeofenceToggle";
+import { GEOFENCE_DEBUG_LOG_KEY } from "@/features/geofencing/geofenceTask";
 import { ADMIN_EMAILS, PRIVACY_POLICY_URL } from "@/constants/config";
 import { colors } from "@/constants/theme";
 
@@ -39,11 +41,26 @@ export default function SettingsScreen() {
   const [masterKey, setMasterKey] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [geofenceDebugLog, setGeofenceDebugLog] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
       if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
     };
+  }, []);
+
+  // 지오펜스 알림이 실기기에서 안 뜬다는 신고 조사용 - OS가 백그라운드 태스크를 호출했는지
+  // 여부를 화면 진입 시마다 확인한다. 원인 파악되면 이 블록은 제거할 것.
+  useEffect(() => {
+    AsyncStorage.getItem(GEOFENCE_DEBUG_LOG_KEY).then((raw) => {
+      if (!raw) return;
+      try {
+        const { message, at } = JSON.parse(raw);
+        setGeofenceDebugLog(`${at}: ${message}`);
+      } catch {
+        // 무시
+      }
+    });
   }, []);
 
   const handleLogout = () => {
@@ -133,6 +150,7 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>알림</Text>
         <GeofenceToggle />
+        {geofenceDebugLog && <Text style={styles.debugText}>{geofenceDebugLog}</Text>}
       </View>
 
       {/* 로그인 상태라면(관리자가 마스터키로 인증한 경우) 로그아웃만 노출 - 일반 사용자에게는
@@ -242,6 +260,7 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
   },
   logoutButtonText: { fontSize: 13, color: "#FF3B30", fontWeight: "600" },
+  debugText: { fontSize: 10, color: "#bbb", marginHorizontal: 16, marginTop: 6 },
   footer: { alignItems: "center", paddingVertical: 32 },
   versionText: { fontSize: 12, color: "#ccc" },
   modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },

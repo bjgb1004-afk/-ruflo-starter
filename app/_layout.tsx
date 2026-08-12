@@ -3,7 +3,10 @@ import { View } from "react-native";
 import { Stack } from "expo-router";
 import { SystemBars } from "react-native-edge-to-edge";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
+import { QueryClient, QueryCache, MutationCache } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   useFonts,
   SpaceGrotesk_400Regular,
@@ -45,6 +48,13 @@ const queryClient = new QueryClient({
   }),
 });
 
+// 앱을 껐다 켜면 쿼리 캐시가 메모리에서 날아가 매번 Supabase를 다시 조회했다 - AsyncStorage에
+// 캐시를 저장해 재실행 시 마지막 데이터를 즉시 보여주고, 백그라운드에서만 새로고침한다.
+const asyncStoragePersister = createAsyncStoragePersister({
+  storage: AsyncStorage,
+  key: "lotto-query-cache",
+});
+
 export default function RootLayout() {
   const initAuth = useAuth((s) => s.init);
   useFavoritesCloudSync();
@@ -69,7 +79,10 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{ persister: asyncStoragePersister, maxAge: 24 * 60 * 60 * 1000 }}
+      >
         {/* expo-status-bar는 Android 15 엣지투엣지에서 배경/아이콘 색 제어가 조용히
             무시되어(StatusBar.setBackgroundColor 등 deprecated API 사용) 흰 배경에 흰
             아이콘이 겹쳐 상태표시줄이 안 보이는 문제가 실기기에서 확인됐다 - 엣지투엣지를
@@ -83,7 +96,7 @@ export default function RootLayout() {
           <Stack.Screen name="mylotto" options={{ title: "내 복권 보관함" }} />
           <Stack.Screen name="admin" options={{ title: "관리자" }} />
         </Stack>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </SafeAreaProvider>
   );
 }
