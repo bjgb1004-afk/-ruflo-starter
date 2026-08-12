@@ -26,6 +26,8 @@ import { toLuckyIndex, toStarRating, starRatingText, computeSmartBadges } from "
 import { useFavorites } from "@/features/favorites/useFavorites";
 import { useRecentlyViewed } from "@/features/favorites/useRecentlyViewed";
 import { useAuth } from "@/features/auth/useAuth";
+import { useSelectedStores } from "@/features/geofencing/useSelectedStores";
+import { GEOFENCE_FREE_TIER_MAX } from "@/constants/config";
 import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
 import type { StoreWinningRow } from "@/types/database.types";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
@@ -153,6 +155,9 @@ export default function StoreDetailScreen() {
   const userId = useAuth((s) => s.user?.id);
   const addRecentView = useRecentlyViewed((s) => s.addView);
 
+  const isSelected = useSelectedStores((s) => !!s.stores[id!]);
+  const toggle = useSelectedStores((s) => s.toggle);
+
   useEffect(() => {
     if (!stats || !id) return;
     addRecentView({ id, name: stats.name, address: stats.address });
@@ -184,6 +189,20 @@ export default function StoreDetailScreen() {
     );
   }, []);
 
+  const handleToggleAlert = useCallback(() => {
+    if (!stats?.latitude || !stats?.longitude) return;
+    const result = toggle({
+      id: id!,
+      name: stats.name,
+      rank: stats.nation_rank,
+      latitude: stats.latitude,
+      longitude: stats.longitude,
+    });
+    if (result === null) {
+      Alert.alert("선택 제한", `무료 회원은 최대 ${GEOFENCE_FREE_TIER_MAX}개 판매점까지 등록할 수 있어요.`);
+    }
+  }, [toggle, id, stats]);
+
   if (isLoading) {
     return (
       <View style={styles.center}>
@@ -209,12 +228,17 @@ export default function StoreDetailScreen() {
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Text style={styles.name}>{stats.name}</Text>
-          <Pressable
-            hitSlop={8}
-            onPress={() => toggleFavorite({ id: id!, name: stats.name, address: stats.address }, userId)}
-          >
-            <Text style={styles.favoriteIcon}>{isFavorite ? "⭐" : "☆"}</Text>
-          </Pressable>
+          <View style={styles.actionButtons}>
+            <Pressable
+              hitSlop={8}
+              onPress={() => toggleFavorite({ id: id!, name: stats.name, address: stats.address }, userId)}
+            >
+              <Text style={styles.favoriteIcon}>{isFavorite ? "⭐" : "☆"}</Text>
+            </Pressable>
+            <Pressable hitSlop={8} onPress={handleToggleAlert}>
+              <Text style={styles.alertIcon}>{isSelected ? "🔔" : "🔕"}</Text>
+            </Pressable>
+          </View>
         </View>
         <Text style={styles.address}>{stats.address}</Text>
         <View style={styles.headerActions}>
@@ -432,9 +456,11 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...cardShadow,
   },
-  titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   name: { fontSize: 22, fontWeight: "800", color: colors.textPrimary },
+  actionButtons: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   favoriteIcon: { fontSize: 22, color: colors.gold },
+  alertIcon: { fontSize: 22 },
   address: { fontSize: 14, color: colors.textSecondary },
   phone: { fontSize: 14, color: colors.primary, fontWeight: "600" },
   phoneDisabled: { color: colors.textMuted },

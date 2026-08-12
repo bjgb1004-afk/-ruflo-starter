@@ -108,8 +108,12 @@ export default function RankingScreen() {
   // 시도별 탭은 시도 선택 전까지 조회하지 않음
   const needsProvince = rankingType === "province";
 
+  // 시/군/구를 선택하면 시/도 전체 상위 100개(province_rank 기준) 안에서 필터링하는 게
+  // 아니라, 그 구/군 안에서 다시 city_rank 기준으로 상위 100개를 서버에서 조회한다.
+  // (시/도 전체 100등 밖이라도 자기 구/군 안에서는 상위권일 수 있어, 클라이언트 필터링만으론
+  // 시/도 전체 순위 밖에 있는 매장이 구/군 랭킹에서 통째로 누락되는 문제가 있었다.)
   const { data: allStores = [], isLoading } = useQuery<RankingStoreWithLocation[]>({
-    queryKey: ["stores", "ranking", rankingType, selectedProvince],
+    queryKey: ["stores", "ranking", rankingType, selectedProvince, selectedCity],
     queryFn: async () => {
       let query = supabase
         .from("store_ranking_stats")
@@ -119,7 +123,12 @@ export default function RankingScreen() {
       if (rankingType === "nation") {
         query = query.order("nation_rank", { ascending: true, nullsFirst: false });
       } else if (rankingType === "province" && selectedProvince) {
-        query = query.eq("sido", selectedProvince).order("province_rank", { ascending: true, nullsFirst: false });
+        query = query.eq("sido", selectedProvince);
+        if (selectedCity) {
+          query = query.eq("sigungu", selectedCity).order("city_rank", { ascending: true, nullsFirst: false });
+        } else {
+          query = query.order("province_rank", { ascending: true, nullsFirst: false });
+        }
       }
 
       const { data, error } = await query;
@@ -135,31 +144,33 @@ export default function RankingScreen() {
     enabled: !needsProvince || selectedProvince !== null,
   });
 
-  // 시도별 탭에서 시/군/구까지 선택했으면 해당 구/군만 클라이언트 측에서 필터링하고,
-  // 순위도 시도 전체 기준(province_rank)이 아니라 그 구/군 안에서의 순위(city_rank)로 재정렬한다.
-  const filteredStores = useMemo(() => {
-    if (rankingType === "province" && selectedCity) {
-      return allStores
-        .filter((s) => s.sigungu === selectedCity)
-        .slice()
-        .sort((a, b) => (a.city_rank ?? Infinity) - (b.city_rank ?? Infinity));
-    }
-    return allStores;
-  }, [allStores, rankingType, selectedCity]);
+  const filteredStores = allStores;
 
   const stores = useMemo(
     () => filteredStores.slice(0, (page + 1) * ITEMS_PER_PAGE),
     [filteredStores, page],
   );
 
-  // 시군구 탭에서 시도 선택 후 나타나는 구/군 목록 (실제 데이터가 있는 곳만)
-  const cities = useMemo(
-    () =>
-      Array.from(
-        new Set(allStores.map((s) => s.sigungu).filter((v): v is string => v !== null)),
-      ).sort(),
-    [allStores],
-  );
+  // 시군구 드롭다운 목록 - 위 랭킹 조회와 별개로, 시/도 선택 시점에 그 시/도 전체의
+  // 구/군 목록을 한 번만 가져온다 (구/군을 고른 뒤에도 목록 자체는 안 바뀌어야 하므로
+  // allStores를 재사용하지 않는다).
+  const { data: cities = [] } = useQuery<string[]>({
+    queryKey: ["stores", "ranking", "cities", selectedProvince],
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = (await supabase
+        .from("store_ranking_stats")
+        .select("sigungu")
+        .eq("sido", selectedProvince!)
+        .not("sigungu", "is", null)
+        .limit(5000)) as any;
+      if (error) throw error;
+      const names: string[] = (data ?? []).map((r: any) => r.sigungu as string);
+      return Array.from(new Set(names)).sort();
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    enabled: rankingType === "province" && selectedProvince !== null,
+  });
 
   const handleSelectProvince = useCallback((name: string) => {
     setSelectedProvince((prev) => (prev === name ? null : name));
