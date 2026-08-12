@@ -153,6 +153,17 @@ export default function SettingsScreen() {
         {geofenceDebugLog && <Text style={styles.debugText}>{geofenceDebugLog}</Text>}
       </View>
 
+      {/* 판매점 사장님 진입점 - 숨겨진 관리자 제스처와 달리 누구나 볼 수 있다 */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>판매점 사장님이신가요?</Text>
+        <Pressable style={styles.linkRow} onPress={() => router.push("/store-owner/signup")}>
+          <Text style={styles.linkRowText}>매장 인증하고 정보 수정하기</Text>
+        </Pressable>
+        <Pressable style={styles.linkRow} onPress={() => router.push("/store-owner/manage")}>
+          <Text style={styles.linkRowText}>내 매장 관리</Text>
+        </Pressable>
+      </View>
+
       {/* 로그인 상태라면(관리자가 마스터키로 인증한 경우) 로그아웃만 노출 - 일반 사용자에게는
           로그인/회원가입 진입점 자체를 보여주지 않는다. */}
       {user && (
