@@ -56,8 +56,33 @@ export async function searchStores(query: string): Promise<StoreSearchResult[]> 
   return [...merged.values()].slice(0, 30);
 }
 
-export async function getStoreById(storeId: string): Promise<Store | null> {
-  const { data, error } = await supabase.from("stores").select("*").eq("id", storeId).single();
+export type StoreDetail = Pick<
+  Store,
+  | "id"
+  | "name"
+  | "address"
+  | "phone"
+  | "latitude"
+  | "longitude"
+  | "business_hours"
+  | "amenities"
+  | "has_parking"
+  | "has_restroom"
+  | "has_atm"
+  | "rating"
+  | "review_count"
+  | "latest_review"
+>;
+
+export async function getStoreById(storeId: string): Promise<StoreDetail | null> {
+  const { data, error } = await supabase
+    .from("stores")
+    .select(
+      "id, name, address, phone, latitude, longitude, business_hours, amenities, has_parking, has_restroom, has_atm, rating, review_count, latest_review",
+    )
+    .eq("id", storeId)
+    .single()
+    .returns<StoreDetail>();
   if (error) throw error;
   return data;
 }
@@ -70,7 +95,9 @@ export async function getStoreWithStats(
 ): Promise<(StoreRankingStats & { phone?: string; latitude?: number; longitude?: number }) | null> {
   const { data: store, error: storeError } = await supabase
     .from("stores")
-    .select("*")
+    .select(
+      "id, name, address, phone, latitude, longitude, has_parking, has_restroom, has_atm, amenities, rating, review_count, latest_review, business_hours",
+    )
     .eq("id", storeId)
     .single();
   if (storeError && storeError.code !== "PGRST116") throw storeError;
@@ -78,7 +105,9 @@ export async function getStoreWithStats(
 
   const { data: stats, error: statsError } = await supabase
     .from("store_ranking_stats")
-    .select("*")
+    .select(
+      "first_prize_count, second_prize_count, first_prize_1yr, first_prize_5yr, store_score, nation_rank, province_rank, city_rank",
+    )
     .eq("id", storeId)
     .maybeSingle();
   if (statsError) throw statsError;
@@ -108,12 +137,18 @@ export async function getStoreWithStats(
 
 // store_ranking_stats는 물리 테이블이라 name/address/순위가 이미 컬럼으로 존재하므로
 // stores와 별도 join 없이 바로 조회한다.
-export async function getTopRankedStores(limit: number): Promise<StoreRankingStats[]> {
+export type TopRankedStore = Pick<
+  StoreRankingStats,
+  "id" | "name" | "address" | "first_prize_count" | "second_prize_count" | "nation_rank" | "province_rank" | "city_rank" | "store_score"
+>;
+
+export async function getTopRankedStores(limit: number): Promise<TopRankedStore[]> {
   const { data, error } = await supabase
     .from("store_ranking_stats")
-    .select("*")
+    .select("id, name, address, first_prize_count, second_prize_count, nation_rank, province_rank, city_rank, store_score")
     .order("nation_rank", { ascending: true })
-    .limit(limit);
+    .limit(limit)
+    .returns<TopRankedStore[]>();
   if (error) throw error;
   return data ?? [];
 }

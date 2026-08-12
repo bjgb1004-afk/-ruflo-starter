@@ -8,7 +8,7 @@ import {
   getStoreOwnerProfile,
   updateOwnerProfile,
   type OwnedStoreSummary,
-  type StoreOwnerProfile,
+  type StoreOwnerProfileSummary,
 } from "@/features/storeOwner/api/storeOwnerApi";
 import { colors, spacing, radius } from "@/constants/theme";
 
@@ -20,7 +20,7 @@ export default function StoreOwnerManageScreen() {
   const [loading, setLoading] = useState(true);
   const [ownedStores, setOwnedStores] = useState<OwnedStoreSummary[]>([]);
   const [activeStoreId, setActiveStoreId] = useState<string | null>(paramStoreId ?? null);
-  const [profile, setProfile] = useState<StoreOwnerProfile | null>(null);
+  const [profile, setProfile] = useState<StoreOwnerProfileSummary | null>(null);
 
   const [phone, setPhone] = useState("");
   const [businessHours, setBusinessHours] = useState("");

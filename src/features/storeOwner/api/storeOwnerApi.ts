@@ -29,12 +29,18 @@ export async function verifyStoreOwner(input: VerifyStoreOwnerInput): Promise<Ve
   return data;
 }
 
-export async function getStoreOwnerProfile(storeId: string): Promise<StoreOwnerProfile | null> {
+export type StoreOwnerProfileSummary = Pick<
+  StoreOwnerProfile,
+  "store_id" | "owner_user_id" | "phone" | "business_hours" | "owner_message" | "has_parking" | "has_restroom" | "has_atm" | "amenities"
+>;
+
+export async function getStoreOwnerProfile(storeId: string): Promise<StoreOwnerProfileSummary | null> {
   const { data, error } = await supabase
     .from("store_owner_profiles")
-    .select("*")
+    .select("store_id, owner_user_id, phone, business_hours, owner_message, has_parking, has_restroom, has_atm, amenities")
     .eq("store_id", storeId)
-    .maybeSingle();
+    .maybeSingle()
+    .returns<StoreOwnerProfileSummary>();
   if (error) throw error;
   return data;
 }

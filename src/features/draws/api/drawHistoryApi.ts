@@ -1,23 +1,44 @@
 import { supabase } from "@/lib/supabase";
 import type { DrawHistory, StoreWinningRow } from "@/types/database.types";
 
-export async function getLatestDraw(): Promise<DrawHistory | null> {
+// RecentDrawSummary(당첨번호/당첨금 표시)와 useAutoCheckTickets/scan.tsx(등수/당첨금
+// 계산)가 공통으로 쓰는 필드만 선택한다. first_prize_store_ids는 getLatestFirstPrizeWinners가
+// 이 함수 결과를 그대로 재사용하기 때문에 필요.
+const DRAW_SUMMARY_COLUMNS =
+  "draw_no, draw_date, winning_numbers, bonus_number, first_prize_winner_count, first_prize_amount_per_win, second_prize_amount_per_win, third_prize_amount_per_win, first_prize_store_ids";
+
+export type DrawSummary = Pick<
+  DrawHistory,
+  | "draw_no"
+  | "draw_date"
+  | "winning_numbers"
+  | "bonus_number"
+  | "first_prize_winner_count"
+  | "first_prize_amount_per_win"
+  | "second_prize_amount_per_win"
+  | "third_prize_amount_per_win"
+  | "first_prize_store_ids"
+>;
+
+export async function getLatestDraw(): Promise<DrawSummary | null> {
   const { data, error } = await supabase
     .from("draw_history")
-    .select("*")
+    .select(DRAW_SUMMARY_COLUMNS)
     .order("draw_no", { ascending: false })
     .limit(1)
-    .maybeSingle();
+    .maybeSingle()
+    .returns<DrawSummary>();
   if (error) throw error;
   return data;
 }
 
-export async function getDrawByNo(drawNo: number): Promise<DrawHistory | null> {
+export async function getDrawByNo(drawNo: number): Promise<DrawSummary | null> {
   const { data, error } = await supabase
     .from("draw_history")
-    .select("*")
+    .select(DRAW_SUMMARY_COLUMNS)
     .eq("draw_no", drawNo)
-    .maybeSingle();
+    .maybeSingle()
+    .returns<DrawSummary>();
   if (error) throw error;
   return data;
 }
