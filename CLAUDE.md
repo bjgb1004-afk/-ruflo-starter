@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+> Workflow Orchestration / Task Management / Core Principles(Boris Cherny 워크플로우)는 전역 설정(`~/.claude/CLAUDE.md`)으로 옮겨져 모든 프로젝트에 공통 적용됩니다. 이 파일은 이 프로젝트 전용 컨텍스트만 담습니다.
 
-## What this repository is
+## Project Context
 
 This is a freshly-initialized **ruflo / claude-flow v3** scaffold (`npx ruflo@latest` was used to set it up). At present the repository contains **no application source code, no `package.json`, no README, and no git history** (`git log` is empty) — only the `.claude/` agent/skill/command configuration, claude-flow v3 runtime state, and MCP wiring described below.
 
@@ -10,7 +10,7 @@ Do not assume there is a buildable/testable app here. There are currently no bui
 
 When starting real project work in this repo, the first real code added will define its own tooling; update this file at that point with real build/lint/test commands and architecture notes.
 
-## Directory layout
+### Directory Layout
 
 - `.claude/agents/` — Markdown/YAML definitions for specialized subagents (consensus protocols, SPARC phases, swarm coordinators, testing, browser automation). These back the `Agent` tool's `subagent_type` options (e.g. `raft-manager`, `byzantine-coordinator`, `hierarchical-coordinator`, `tdd-london-swarm`).
 - `.claude/commands/` — Markdown docs for `claude-flow` CLI command groups (agents, analysis, automation, coordination, github, hive-mind, hooks, memory, monitoring, optimization, swarm, workflows). These describe the `npx claude-flow ...` / `npx ruflo ...` CLI surface, not code in this repo.
@@ -21,7 +21,7 @@ When starting real project work in this repo, the first real code added will def
 - `ruvector.db` — vector store database used by the AgentDB-related skills.
 - `.mcp.json` — registers the `claude-flow` MCP server, launched via `npx -y ruflo@latest mcp start` (autoStart is `false`, so it must be started explicitly or on first tool use).
 
-## Claude Code configuration (`.claude/settings.json`)
+### Claude Code Configuration (`.claude/settings.json`)
 
 - **Hooks are extensively wired**: `PreToolUse`/`PostToolUse` for `Bash` and `Write|Edit|MultiEdit`, plus `UserPromptSubmit`, `SessionStart`, `SessionEnd`, `Stop`, `PreCompact`, `SubagentStart`, `SubagentStop`, and `Notification`. All route through `.claude/helpers/hook-handler.cjs` (falling back to `%USERPROFILE%\.claude\helpers\hook-handler.cjs` if the project-local copy is missing).
 - **Session memory sync**: `SessionStart` runs `auto-memory-hook.mjs import`; `Stop` runs `auto-memory-hook.mjs sync` — this is how cross-session memory gets loaded/persisted for the claude-flow learning system, separate from Claude Code's own memory files.
@@ -30,7 +30,7 @@ When starting real project work in this repo, the first real code added will def
 - **`claudeFlow` block** configures the v3 runtime: hierarchical-mesh swarm topology capped at 15 agents, hybrid memory backend with HNSW indexing enabled, neural/learning pattern training enabled (short-term 24h / long-term 30d retention), a daemon with `map`/`audit`/`optimize` workers (`autoStart: false`), ADR auto-generation into `/docs/adr` (MADR template), DDD bounded-context tracking into `/docs/ddd`, and security auto-scan/CVE-check on edit.
 - Model routing: default model `claude-sonnet-5`, with `claude-haiku-4-5-20251001` used for routing/cheap tasks.
 
-## Working in this repo today
+### Working in This Repo Today
 
 - Because there's no app code yet, most useful actions are through the claude-flow tooling itself: the `Skill` tool (v3-*, agentdb-*, sparc-methodology, swarm-orchestration, etc.), the `Agent` tool with the specialized `subagent_type`s under `.claude/agents/`, and the `claude-flow` MCP server once started.
 - `.claude/helpers/v3.sh` is the master CLI for V3 progress tracking (`v3.sh status`, `v3.sh update domain N`, `v3.sh validate`, `v3.sh full-status`) — useful only once actual V3 domain/DDD work begins in this repo.
