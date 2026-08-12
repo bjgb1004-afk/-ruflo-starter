@@ -9,6 +9,7 @@ import { getCloudFavorites, addCloudFavorite } from "./favoritesApi";
 export function useFavoritesCloudSync() {
   const userId = useAuth((s) => s.user?.id);
   const mergeCloud = useFavorites((s) => s.mergeCloud);
+  const retryPendingDeletes = useFavorites((s) => s.retryPendingDeletes);
   const syncedUserId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -17,6 +18,10 @@ export function useFavoritesCloudSync() {
 
     (async () => {
       try {
+        // 지난번 앱 종료 전 클라우드 삭제가 실패했던 항목을 먼저 다시 시도한다 - 성공하면
+        // pendingDeletes에서 빠져서 바로 아래 mergeCloud가 클라우드 최신 상태를 정확히 반영한다.
+        await retryPendingDeletes(userId);
+
         const localStores = useFavorites.getState().stores;
         const cloudStores = await getCloudFavorites(userId);
         const cloudIds = new Set(cloudStores.map((s) => s.id));
