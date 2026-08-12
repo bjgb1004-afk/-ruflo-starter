@@ -10,7 +10,7 @@ import {
   Share,
   Alert,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, memo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,6 +29,9 @@ import { useAuth } from "@/features/auth/useAuth";
 import { useSelectedStores } from "@/features/geofencing/useSelectedStores";
 import { GEOFENCE_FREE_TIER_MAX } from "@/constants/config";
 import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
+import { getStoreOwnerProfile } from "@/features/storeOwner/api/storeOwnerApi";
+import { resolvePhone, resolveOwnerMessage } from "@/features/storeOwner/resolveDisplayInfo";
+import { OwnershipTransferBanner } from "@/features/storeOwner/components/OwnershipTransferBanner";
 import type { StoreWinningRow } from "@/types/database.types";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
@@ -101,6 +104,7 @@ const WinningRow = memo(function WinningRow({
 
 export default function StoreDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   // 안드로이드 엣지투엣지에서 스크롤 맨 아래 내용이 시스템 네비게이션 바에 가려지는
   // 문제 - 앱 전체 점검(design.txt) 결과 이 화면도 해당돼 하단 안전영역 여백을 더한다.
   const insets = useSafeAreaInsets();
@@ -118,6 +122,13 @@ export default function StoreDetailScreen() {
     queryFn: () => getWinningsByStore(id!),
     staleTime: 10 * 60 * 1000, // 10분 (자주 변하지 않음)
     gcTime: 30 * 60 * 1000,
+    enabled: !!id,
+  });
+
+  const { data: ownerProfile } = useQuery({
+    queryKey: ["store", id, "owner-profile"],
+    queryFn: () => getStoreOwnerProfile(id!),
+    staleTime: 60 * 1000,
     enabled: !!id,
   });
 
@@ -180,7 +191,15 @@ export default function StoreDetailScreen() {
     [stats],
   );
 
-  const formattedPhone = formatPhoneNumber(stats?.phone);
+  const formattedPhone = formatPhoneNumber(resolvePhone(ownerProfile?.phone, stats?.phone));
+  const ownerMessage = resolveOwnerMessage(ownerProfile?.owner_message);
+  const ownerBusinessHoursText = ownerProfile?.business_hours?.trim();
+  const isOwner = !!userId && ownerProfile?.owner_user_id === userId;
+  // 사장님이 입력한 값이 있으면 우선, 없으면(또는 아직 입력 안 해 null이면) 기존 stores 값으로 폴백.
+  const displayHasParking = ownerProfile?.has_parking ?? (stats as any)?.has_parking;
+  const displayHasRestroom = ownerProfile?.has_restroom ?? (stats as any)?.has_restroom;
+  const displayHasAtm = ownerProfile?.has_atm ?? (stats as any)?.has_atm;
+  const displayAmenities: string[] = ownerProfile?.amenities ?? (stats as any)?.amenities ?? [];
 
   const handleShowScoreInfo = useCallback(() => {
     Alert.alert(
@@ -280,31 +299,35 @@ export default function StoreDetailScreen() {
       {/* 편의시설 정보 - 매장 자체 정보가 없어도 항상 동일한 레이아웃으로 표시하고,
           주변 시설 찾기 버튼은 자체 API 연동 없이 지도 앱 검색으로 위임한다. */}
       <View style={styles.amenitiesSection}>
-        <Text style={styles.sectionTitle}>편의시설</Text>
-        {(stats as any).has_parking ||
-        (stats as any).has_restroom ||
-        (stats as any).has_atm ||
-        (stats as any).amenities?.length > 0 ? (
+        <View style={styles.amenitiesHeaderRow}>
+          <Text style={styles.sectionTitle}>편의시설</Text>
+          {isOwner && (
+            <Pressable onPress={() => router.push(`/store-owner/manage?storeId=${id}`)}>
+              <Text style={styles.amenitiesEditLink}>수정</Text>
+            </Pressable>
+          )}
+        </View>
+        {displayHasParking || displayHasRestroom || displayHasAtm || displayAmenities.length > 0 ? (
           <View style={styles.amenitiesGrid}>
-            {(stats as any).has_parking && (
+            {displayHasParking && (
               <View style={styles.amenityTag}>
                 <Text style={styles.amenityIcon}>🅿️</Text>
                 <Text style={styles.amenityText}>주차</Text>
               </View>
             )}
-            {(stats as any).has_restroom && (
+            {displayHasRestroom && (
               <View style={styles.amenityTag}>
                 <Text style={styles.amenityIcon}>🚻</Text>
                 <Text style={styles.amenityText}>화장실</Text>
               </View>
             )}
-            {(stats as any).has_atm && (
+            {displayHasAtm && (
               <View style={styles.amenityTag}>
                 <Text style={styles.amenityIcon}>💳</Text>
                 <Text style={styles.amenityText}>ATM</Text>
               </View>
             )}
-            {(stats as any).amenities?.map((amenity: string, idx: number) => (
+            {displayAmenities.map((amenity: string, idx: number) => (
               <View key={idx} style={styles.amenityTag}>
                 <Text style={styles.amenityText}>{amenity}</Text>
               </View>
@@ -336,15 +359,40 @@ export default function StoreDetailScreen() {
         )}
       </View>
 
-      {/* 영업시간 */}
-      {(stats as any).business_hours && (
+      {/* 영업시간: 사장님이 직접 입력한 값이 있으면 우선 표시, 없으면 공공데이터 값으로 폴백 */}
+      {(ownerBusinessHoursText || (stats as any).business_hours) && (
         <View style={styles.businessHoursSection}>
           <Text style={styles.sectionTitle}>영업시간</Text>
           <Text style={styles.businessHoursSummary}>
-            {summarizeBusinessHours((stats as any).business_hours as Record<string, string>)}
+            {ownerBusinessHoursText || summarizeBusinessHours((stats as any).business_hours as Record<string, string>)}
           </Text>
         </View>
       )}
+
+      {/* 사장님 한마디 */}
+      {ownerMessage && (
+        <View style={styles.businessHoursSection}>
+          <Text style={styles.sectionTitle}>사장님 한마디</Text>
+          <Text style={styles.businessHoursSummary}>💬 {ownerMessage}</Text>
+        </View>
+      )}
+
+      {/* 소유권 이전 대기 배너 */}
+      <OwnershipTransferBanner storeId={id!} />
+
+      {/* 사장님 인증/관리 CTA */}
+      <Pressable
+        style={styles.ownerCtaRow}
+        onPress={() =>
+          isOwner
+            ? router.push(`/store-owner/manage?storeId=${id}`)
+            : router.push(`/store-owner/signup?storeId=${id}`)
+        }
+      >
+        <Text style={styles.ownerCtaText}>
+          {isOwner ? "🔧 매장 정보 수정하기" : "🏪 이 매장 사장님이신가요? 인증하고 정보 수정하기"}
+        </Text>
+      </Pressable>
 
       {/* 점수 및 순위 */}
       <View style={styles.scoreSection}>
@@ -593,6 +641,8 @@ const styles = StyleSheet.create({
 
   // 편의시설
   amenitiesSection: { gap: spacing.md },
+  amenitiesHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  amenitiesEditLink: { fontSize: 13, fontWeight: "600", color: colors.primary },
   amenitiesGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -636,4 +686,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     lineHeight: 20,
   },
+
+  // 사장님 인증/관리 CTA
+  ownerCtaRow: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  ownerCtaText: { fontSize: 13, fontWeight: "600", color: colors.primary, textAlign: "center" },
 });
