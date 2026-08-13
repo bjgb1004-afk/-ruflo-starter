@@ -389,16 +389,28 @@ export default function StoreDetailScreen() {
         <Text style={styles.sectionTitle}>당첨 통계</Text>
         <View style={styles.statsGrid}>
           <View style={styles.statItem}>
-            <Text style={styles.statText}><Text style={styles.statLabel}>1등 배출</Text> <Text style={styles.statCount}>{stats.first_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
+            <View style={styles.statRow}>
+              <Text style={styles.statLabel}>1등 배출</Text>
+              <Text style={styles.statText}><Text style={styles.statCount}>{stats.first_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
+            </View>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statText}><Text style={styles.statLabel}>2등 배출</Text> <Text style={styles.statCount}>{stats.second_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
+            <View style={styles.statRow}>
+              <Text style={styles.statLabel}>2등 배출</Text>
+              <Text style={styles.statText}><Text style={styles.statCount}>{stats.second_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
+            </View>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statText}><Text style={styles.statLabel}>1년 내 1등</Text> <Text style={styles.statCount}>{stats.first_prize_1yr}</Text><Text style={styles.statUnit}>회</Text></Text>
+            <View style={styles.statRow}>
+              <Text style={styles.statLabel}>1년 내 1등</Text>
+              <Text style={styles.statText}><Text style={styles.statCount}>{stats.first_prize_1yr}</Text><Text style={styles.statUnit}>회</Text></Text>
+            </View>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statText}><Text style={styles.statLabel}>5년 내 1등</Text> <Text style={styles.statCount}>{stats.first_prize_5yr}</Text><Text style={styles.statUnit}>회</Text></Text>
+            <View style={styles.statRow}>
+              <Text style={styles.statLabel}>5년 내 1등</Text>
+              <Text style={styles.statText}><Text style={styles.statCount}>{stats.first_prize_5yr}</Text><Text style={styles.statUnit}>회</Text></Text>
+            </View>
           </View>
         </View>
         <Text style={styles.statsFootnote}>
@@ -535,8 +547,9 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radius.md,
   },
+  statRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   statText: { fontSize: 13, color: colors.textPrimary, lineHeight: 22 },
-  statLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: "600", lineHeight: 22 },
+  statLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: "600", lineHeight: 22, flex: 1 },
   statCount: {
     fontSize: 18,
     fontWeight: "800",

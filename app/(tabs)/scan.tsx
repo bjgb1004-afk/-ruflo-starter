@@ -11,7 +11,7 @@ import { parseLottoQr, type ParsedLottoGame } from "@/features/qr/parseLottoQr";
 import { computeWinRank, getPrizeAmount, type WinRank } from "@/features/qr/checkWinnings";
 import { useMyLottoTickets, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
 import { scheduleDrawReminder } from "@/features/mylotto/drawReminders";
-import { colors, spacing, radius, cardShadow } from "@/constants/theme";
+import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 // 같은 용지를 계속 카메라에 비추고 있을 때 Bottom Sheet를 닫자마자 동일 QR이
 // 즉시 재인식되어 다시 열리는 "깜빡임"을 막기 위한 잠금 해제 지연 시간.
@@ -304,7 +304,13 @@ export default function ScanScreen() {
             )}
             {result?.status === "pending" && (
               <>
-                <Text style={styles.sheetTitle}>{result.drawNo}회 추첨 전이에요</Text>
+                <View style={styles.drawInfoCard}>
+                  <View style={styles.drawInfoHeader}>
+                    <Text style={styles.drawNumber}>{result.drawNo}회</Text>
+                    <Text style={styles.drawMeta}>추첨 전</Text>
+                  </View>
+                  <Text style={styles.drawMeta}>{result.games.length}게임</Text>
+                </View>
                 <Text style={styles.sheetSubtitle}>
                   보관함에 저장하면 추첨일에 알림을 보내드리고, 결과가 나오면 자동으로 당첨을 확인해요.
                 </Text>
@@ -341,7 +347,12 @@ export default function ScanScreen() {
             )}
             {result?.status === "ok" && (
               <>
-                <Text style={styles.sheetTitle}>{result.drawNo}회 당첨 확인</Text>
+                <View style={styles.drawInfoCard}>
+                  <View style={styles.drawInfoHeader}>
+                    <Text style={styles.drawNumber}>{result.drawNo}회</Text>
+                  </View>
+                  <Text style={styles.drawMeta}>{result.games.length}게임</Text>
+                </View>
                 <View style={styles.gamesList}>
                   {result.games.map((game, idx) => (
                     <View key={idx} style={styles.gameRowLarge}>
@@ -500,7 +511,12 @@ const styles = StyleSheet.create({
   },
   sheetTitle: { fontSize: 18, fontWeight: "800", color: colors.textPrimary },
   sheetSubtitle: { fontSize: 13, color: colors.textSecondary },
-  gamesList: { gap: spacing.sm, flexShrink: 0 },
+  gamesList: { gap: spacing.md, flexShrink: 0, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md },
+  drawInfoCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.sm },
+  drawInfoHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  drawNumber: { fontSize: 22, fontWeight: "800", color: colors.textPrimary, fontFamily: numericFont.bold },
+  deleteIconText: { fontSize: 20 },
+  drawMeta: { fontSize: 12, color: colors.textSecondary },
   gameRow: {
     flexDirection: "row",
     alignItems: "center",
