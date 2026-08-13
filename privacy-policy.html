@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>개인정보처리방침 - 복권명당</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            color: #1a1a1a;
+        }
+        .meta {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        h2 {
+            font-size: 18px;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            color: #1a1a1a;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #007AFF;
+        }
+        p {
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+        ul, ol {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        strong {
+            color: #1a1a1a;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 15px;
+            border-left: 4px solid #ffc107;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        @media (prefers-color-scheme: dark) {
+            body { background: #1e1e1e; color: #e0e0e0; }
+            .container { background: #2d2d2d; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+            h1, h2 { color: #e0e0e0; }
+            .meta { color: #999; border-bottom-color: #444; }
+            h2 { border-bottom-color: #0a84ff; }
+            .highlight { background: #3d3d00; color: #e0e0e0; border-left-color: #ffb800; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>개인정보처리방침</h1>
+        <div class="meta">
+            <strong>복권명당 (로또 명당 추천 서비스)</strong><br>
+            최종 수정일: 2026년 8월 13일
+        </div>
+
+        <h2>1. 개요</h2>
+        <p>복권명당("회사")은 사용자의 위치 정보를 기반으로 주변 로또 판매점을 추천하고 명당 정보를 제공하는 서비스입니다. 본 개인정보처리방침은 회사가 수집, 사용, 관리하는 개인정보에 관한 정책을 명시합니다.</p>
+
+        <h2>2. 수집하는 개인정보</h2>
+        <p><strong>필수 수집 정보:</strong></p>
+        <ul>
+            <li><strong>위치 정보</strong> - 사용자의 GPS 위치 (위도, 경도)</li>
+            <li><strong>기기 정보</strong> - 기기 고유 식별자, OS 버전, 앱 버전</li>
+            <li><strong>사용 통계</strong> - 앱 사용 시간, 검색 기록, 클릭 데이터</li>
+        </ul>
+
+        <p><strong>선택 수집 정보:</strong></p>
+        <ul>
+            <li>즐겨찾기 (사용자가 저장한 판매점 목록)</li>
+            <li>알림 설정 (위치 기반 알림 허용 여부)</li>
+        </ul>
+
+        <div class="highlight">
+            <strong>⚠️ 주의:</strong> 위치 권한 없이는 서비스 이용이 불가능합니다. 앱 첫 실행 시 위치 권한을 요청하며, 거부할 경우 앱 사용이 제한됩니다.
+        </div>
+
+        <h2>3. 정보 수집 방법</h2>
+        <ul>
+            <li><strong>능동적 수집:</strong> 사용자가 앱을 실행할 때 위치 권한 요청</li>
+            <li><strong>자동 수집:</strong> 지도 조회, 검색 기록, 앱 클릭 이벤트</li>
+            <li><strong>외부 파트너:</strong> Google Maps (위치 표시), Supabase (데이터 저장)</li>
+        </ul>
+
+        <h2>4. 정보 사용 목적</h2>
+        <ul>
+            <li>사용자 위치 기반 주변 로또 판매점 추천</li>
+            <li>명당 정보 제공 및 순위 표시</li>
+            <li>위치 기반 알림 서비스</li>
+            <li>앱 서비스 개선 및 사용자 분석</li>
+            <li>오류 모니터링 및 성능 개선</li>
+        </ul>
+
+        <h2>5. 정보 저장 및 보관</h2>
+        <ul>
+            <li><strong>위치 정보:</strong> 실시간 처리만 하며, 서버에 저장하지 않습니다 (단, 알림 설정 시 필요한 좌표만 저장)</li>
+            <li><strong>즐겨찾기:</strong> 사용자 단말기 로컬 저장소에서 저장</li>
+            <li><strong>사용 통계:</strong> PostHog 분석 플랫폼에 30일간 저장 후 삭제</li>
+            <li><strong>오류 로그:</strong> Sentry 서비스에 저장, 최대 90일 보관</li>
+        </ul>
+
+        <h2>6. 제3자 정보 공유</h2>
+        <p>사용자 개인정보는 다음과 같은 외부 파트너 서비스에 공유됩니다:</p>
+        <ul>
+            <li><strong>Google Maps:</strong> 위치 표시 및 지도 렌더링</li>
+            <li><strong>Supabase:</strong> 판매점 정보 및 알림 설정 저장</li>
+            <li><strong>PostHog:</strong> 앱 사용 분석 및 통계</li>
+            <li><strong>Sentry:</strong> 오류 모니터링 및 성능 추적</li>
+        </ul>
+
+        <p><strong>공유하지 않는 정보:</strong> 개인 신원, 연락처, 결제 정보 등은 수집하지 않으며 제3자에 공유하지 않습니다.</p>
+
+        <h2>7. 개인정보 보호</h2>
+        <ul>
+            <li>모든 통신은 HTTPS를 통해 암호화됩니다</li>
+            <li>API 키는 환경 변수로 관리되며, 소스 코드에 노출되지 않습니다</li>
+            <li>사용자 데이터는 접근 권한이 제한된 Supabase에만 저장됩니다</li>
+            <li>주기적인 보안 업데이트로 취약점을 점검합니다</li>
+        </ul>
+
+        <h2>8. 사용자 권리</h2>
+        <p>사용자는 다음의 권리를 행사할 수 있습니다:</p>
+        <ul>
+            <li><strong>접근권:</strong> 본인 정보 조회 요청</li>
+            <li><strong>수정권:</strong> 부정확한 정보 수정 요청</li>
+            <li><strong>삭제권:</strong> 개인정보 삭제 요청</li>
+            <li><strong>거부권:</strong> 권한 설정을 통해 위치 공유 거부 가능</li>
+        </ul>
+
+        <p>권리 행사는 앱 내 설정 메뉴에서 "지원" 또는 이메일로 요청할 수 있습니다.</p>
+
+        <h2>9. 개인정보 보유 기간</h2>
+        <ul>
+            <li><strong>위치 정보:</strong> 실시간만 사용, 서버 저장 제한</li>
+            <li><strong>즐겨찾기:</strong> 사용자가 삭제할 때까지 보유</li>
+            <li><strong>사용 통계:</strong> 30일 후 자동 삭제</li>
+            <li><strong>오류 로그:</strong> 90일 후 자동 삭제</li>
+        </ul>
+
+        <p>사용자가 앱을 제거하면 관련 개인정보는 즉시 삭제됩니다.</p>
+
+        <h2>10. 미성년자 개인정보</h2>
+        <p>본 앱은 만 14세 미만의 미성년에게 도움을 얻을 수 없습니다. 부모/보호자와 동의 없이 미성년의 정보를 수집하지 않습니다.</p>
+
+        <h2>11. 정책 변경</h2>
+        <p>본 개인정보처리방침은 법률 변경 또는 서비스 개선 일로 인해 사전 고지 없이 변경될 수 있습니다. 변경 시 정책 내 공지 또는 이메일 알림을 드립니다.</p>
+
+        <h2>12. 문의</h2>
+        <p>개인정보 처리에 관련하여 질문이나 요청사항이 있으실 경우:</p>
+        <ul>
+            <li><strong>이메일:</strong> bjgb1004@gmail.com</li>
+            <li><strong>앱 내:</strong> 설정 → 개인정보처리방침 → "문의하기"</li>
+        </ul>
+
+        <div style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999; text-align: center;">
+            <p>© 2026 복권명당. All rights reserved.</p>
+            <p>본 개인정보처리방침은 한국의 개인정보보호법을 따릅니다.</p>
+        </div>
+    </div>
+</body>
+</html>

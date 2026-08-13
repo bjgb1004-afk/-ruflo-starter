@@ -160,7 +160,7 @@ export default function StoreOwnerManageScreen() {
         <KeyboardAvoidingView
           style={styles.container}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "android" ? 100 : 0}
+          keyboardVerticalOffset={Platform.OS === "android" ? 300 : 80}
         >
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>매장 검색 및 관리</Text>
@@ -176,18 +176,20 @@ export default function StoreOwnerManageScreen() {
               {searching && <ActivityIndicator />}
             </View>
             {searchResults.length > 0 && (
-              <View style={styles.section}>
+              <View style={[styles.section, styles.searchResultsSection]}>
                 <Text style={styles.label}>검색 결과 ({searchResults.length}개)</Text>
-                {searchResults.map((store) => (
-                  <Pressable
-                    key={store.id}
-                    style={styles.storeRow}
-                    onPress={() => handleSelectStore(store.id)}
-                  >
-                    <Text style={styles.storeRowName}>{store.name}</Text>
-                    <Text style={styles.storeRowAddress}>{store.address}</Text>
-                  </Pressable>
-                ))}
+                <View style={styles.searchResultsList}>
+                  {searchResults.map((store) => (
+                    <Pressable
+                      key={store.id}
+                      style={styles.storeRow}
+                      onPress={() => handleSelectStore(store.id)}
+                    >
+                      <Text style={styles.storeRowName}>{store.name}</Text>
+                      <Text style={styles.storeRowAddress}>{store.address}</Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
             )}
             {searchQuery.trim() && !searching && searchResults.length === 0 && (
@@ -320,6 +322,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: "800", color: colors.textPrimary },
   emptyText: { fontSize: 13, color: colors.textMuted, lineHeight: 19 },
   section: { gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg },
+  searchResultsSection: { flex: 0, maxHeight: 300 },
+  searchResultsList: { gap: spacing.sm },
   label: { fontSize: 12, color: colors.textSecondary, marginTop: spacing.xs },
   input: {
     borderWidth: 1,
