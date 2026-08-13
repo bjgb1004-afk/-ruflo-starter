@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+web-build/
+ios/
+android/
+.claude-flow/
+.swarm/
+.worktrees/
+supabase/.branches/
+supabase/.temp/
+src/types/database.types.ts
+# Deno 런타임 코드 (Supabase Edge Functions) - Node/ESLint 리졸버 대상이 아님
+supabase/functions/
