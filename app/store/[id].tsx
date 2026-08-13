@@ -341,25 +341,27 @@ export default function StoreDetailScreen() {
         </View>
       )}
 
-      {/* 주변 시설 찾기 버튼 */}
+      {/* 주변 시설 찾기 카드 */}
       {stats.latitude != null && stats.longitude != null && (
-        <View style={styles.nearbySearchRow}>
-          {[
-            { keyword: "화장실", icon: "🚻" },
-            { keyword: "ATM", icon: "💳" },
-            { keyword: "편의점", icon: "🏪" },
-            { keyword: "카페", icon: "☕" },
-          ].map((item) => (
-            <Pressable
-              key={item.keyword}
-              style={styles.nearbySearchButton}
-              onPress={() => handleNearbySearch(item.keyword)}
-            >
-              <Text style={styles.nearbySearchButtonText}>
-                {item.icon} 주변 {item.keyword}
-              </Text>
-            </Pressable>
-          ))}
+        <View style={styles.nearbySearchCard}>
+          <Text style={styles.nearbySearchCardTitle}>주변시설</Text>
+          <View style={styles.nearbySearchRow}>
+            {[
+              { keyword: "화장실", icon: "🚻" },
+              { keyword: "ATM", icon: "💳" },
+              { keyword: "편의점", icon: "🏪" },
+              { keyword: "카페", icon: "☕" },
+            ].map((item) => (
+              <Pressable
+                key={item.keyword}
+                style={styles.nearbySearchButton}
+                onPress={() => handleNearbySearch(item.keyword)}
+              >
+                <Text style={styles.nearbySearchButtonIcon}>{item.icon}</Text>
+                <Text style={styles.nearbySearchButtonText}>{item.keyword}</Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
       )}
 
@@ -628,21 +630,32 @@ const styles = StyleSheet.create({
   amenityIcon: { fontSize: 14 },
   amenityText: { fontSize: 12, color: colors.primaryDark, fontWeight: "600" },
   amenitiesEmptyText: { fontSize: 13, color: colors.textMuted },
+  nearbySearchCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
+    ...cardShadow,
+  },
+  nearbySearchCardTitle: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
   nearbySearchRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: spacing.xs,
+    gap: spacing.md,
+    justifyContent: "space-between",
   },
   nearbySearchButton: {
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
+    flex: 1,
+    minWidth: "45%",
+    backgroundColor: colors.primaryLight,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    alignItems: "center",
+    gap: spacing.xs,
   },
-  nearbySearchButtonText: { fontSize: 12, color: colors.textPrimary, fontWeight: "600" },
+  nearbySearchButtonIcon: { fontSize: 24 },
+  nearbySearchButtonText: { fontSize: 12, color: colors.primaryDark, fontWeight: "600" },
 
   // 영업시간
   businessHoursSection: { gap: spacing.md },
