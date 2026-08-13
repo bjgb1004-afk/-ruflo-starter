@@ -640,22 +640,18 @@ const styles = StyleSheet.create({
   nearbySearchCardTitle: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
   nearbySearchRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.md,
-    justifyContent: "space-between",
+    gap: spacing.xs,
   },
   nearbySearchButton: {
     flex: 1,
-    minWidth: "45%",
     backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
     alignItems: "center",
-    gap: spacing.xs,
+    gap: 2,
   },
-  nearbySearchButtonIcon: { fontSize: 24 },
-  nearbySearchButtonText: { fontSize: 12, color: colors.primaryDark, fontWeight: "600" },
+  nearbySearchButtonIcon: { fontSize: 18 },
+  nearbySearchButtonText: { fontSize: 10, color: colors.primaryDark, fontWeight: "600" },
 
   // 영업시간
   businessHoursSection: { gap: spacing.md },
