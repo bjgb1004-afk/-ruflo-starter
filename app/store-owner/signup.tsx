@@ -76,13 +76,12 @@ export default function StoreOwnerSignupScreen() {
     [email, password, signIn, signUp],
   );
 
-  const rejectReasonText: Record<string, string> = {
-    hometax_mismatch: "국세청에 등록된 사업자정보와 일치하지 않습니다. 사업자등록번호/개업일자/대표자명을 다시 확인해주세요.",
-    business_closed: "휴업 또는 폐업 상태의 사업자로 확인됩니다.",
-    name_mismatch: "입력하신 상호명이 선택하신 매장 정보와 너무 다릅니다. 매장을 다시 선택하거나 상호명을 확인해주세요.",
-  };
-
   const handleVerifySubmit = useCallback(async () => {
+    const rejectReasonText: Record<string, string> = {
+      hometax_mismatch: "국세청에 등록된 사업자정보와 일치하지 않습니다. 사업자등록번호/개업일자/대표자명을 다시 확인해주세요.",
+      business_closed: "휴업 또는 폐업 상태의 사업자로 확인됩니다.",
+      name_mismatch: "입력하신 상호명이 선택하신 매장 정보와 너무 다릅니다. 매장을 다시 선택하거나 상호명을 확인해주세요.",
+    };
     if (!selectedStore || !bizName || !bizRegNumber || !repName || !openDate) return;
     setVerifySubmitting(true);
     setVerifyError(null);
@@ -118,8 +117,12 @@ export default function StoreOwnerSignupScreen() {
   }, [selectedStore, bizName, bizRegNumber, repName, openDate, router]);
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "android" ? 24 : 0}
+    >
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>복권 판매점 사장님 인증</Text>
         <Text style={styles.subtitle}>
           사업자 정보를 입력하시면 국세청 확인을 거쳐 매장 정보를 직접 수정하실 수 있어요.

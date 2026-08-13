@@ -10,11 +10,25 @@ import {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// 네이티브 앱(RN fetch)은 CORS를 강제하지 않지만, 웹(Expo web)에서 호출하거나 관리자가
+// 브라우저에서 직접 테스트할 때는 프리플라이트(OPTIONS)에 CORS 헤더가 없으면 브라우저가
+// 실제 POST를 아예 보내지 않고 조용히 막아버린다 - 이 때문에 클라이언트에는 원인 불명의
+// "인증 처리 중 오류"로만 보였다.
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+  });
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");

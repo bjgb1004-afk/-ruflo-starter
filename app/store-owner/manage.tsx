@@ -13,7 +13,6 @@ import {
 import { colors, spacing, radius } from "@/constants/theme";
 
 export default function StoreOwnerManageScreen() {
-  const router = useRouter();
   const { storeId: paramStoreId } = useLocalSearchParams<{ storeId?: string }>();
   const userId = useAuth((s) => s.user?.id);
 

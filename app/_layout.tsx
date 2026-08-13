@@ -95,6 +95,8 @@ export default function RootLayout() {
           <Stack.Screen name="draw/[drawNo]" options={{ title: "회차 배출업소" }} />
           <Stack.Screen name="mylotto" options={{ title: "내 복권 보관함" }} />
           <Stack.Screen name="admin" options={{ title: "관리자" }} />
+          <Stack.Screen name="store-owner/signup" options={{ title: "사장님 인증" }} />
+          <Stack.Screen name="store-owner/manage" options={{ title: "매장 관리" }} />
         </Stack>
       </PersistQueryClientProvider>
     </SafeAreaProvider>
