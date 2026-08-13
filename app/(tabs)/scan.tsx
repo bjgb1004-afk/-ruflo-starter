@@ -304,25 +304,17 @@ export default function ScanScreen() {
             )}
             {result?.status === "pending" && (
               <>
-                <View style={styles.drawInfoCard}>
-                  <View style={styles.drawInfoHeader}>
-                    <Text style={styles.drawNumber}>{result.drawNo}회</Text>
-                    <Text style={styles.drawMeta}>추첨 전</Text>
-                  </View>
-                  <Text style={styles.drawMeta}>{result.games.length}게임</Text>
-                </View>
+                <Text style={styles.sheetTitle}>{result.drawNo}회 추첨 전이에요</Text>
                 <Text style={styles.sheetSubtitle}>
                   보관함에 저장하면 추첨일에 알림을 보내드리고, 결과가 나오면 자동으로 당첨을 확인해요.
                 </Text>
                 <View style={styles.gamesList}>
                   {result.games.map((game, idx) => (
-                    <View key={idx} style={styles.gameRowLarge}>
-                      <Text style={styles.gameIndexLarge}>{String.fromCharCode(97 + idx)}</Text>
-                      <View style={styles.gamesBallsLarge}>
+                    <View key={idx} style={styles.gameRow}>
+                      <Text style={styles.gameIndex}>{String.fromCharCode(97 + idx)}</Text>
+                      <View style={styles.gameBalls}>
                         {game.numbers.map((n) => (
-                          <View key={n} style={styles.gameBallContainer}>
-                            <LottoBall number={n} size="large" />
-                          </View>
+                          <LottoBall key={n} number={n} size="small" />
                         ))}
                       </View>
                     </View>
@@ -347,25 +339,17 @@ export default function ScanScreen() {
             )}
             {result?.status === "ok" && (
               <>
-                <View style={styles.drawInfoCard}>
-                  <View style={styles.drawInfoHeader}>
-                    <Text style={styles.drawNumber}>{result.drawNo}회</Text>
-                  </View>
-                  <Text style={styles.drawMeta}>{result.games.length}게임</Text>
-                </View>
                 <View style={styles.gamesList}>
                   {result.games.map((game, idx) => (
-                    <View key={idx} style={styles.gameRowLarge}>
-                      <Text style={styles.gameIndexLarge}>{String.fromCharCode(97 + idx)}</Text>
-                      <View style={styles.gamesBallsLarge}>
+                    <View key={idx} style={styles.gameRow}>
+                      <Text style={styles.gameIndex}>{String.fromCharCode(97 + idx)}</Text>
+                      <View style={styles.gameBalls}>
                         {game.numbers.map((n) => (
-                          <View key={n} style={styles.gameBallContainer}>
-                            <LottoBall number={n} size="large" />
-                          </View>
+                          <LottoBall key={n} number={n} size="small" />
                         ))}
                       </View>
-                      <View style={[styles.rankBadgeLarge, game.rank ? styles.rankBadgeWinLarge : styles.rankBadgeLoseLarge]}>
-                        <Text style={styles.rankBadgeTextLarge}>
+                      <View style={[styles.rankBadge, game.rank ? styles.rankBadgeWin : styles.rankBadgeLose]}>
+                        <Text style={styles.rankBadgeText}>
                           {game.rank ? RANK_LABEL[game.rank] : "낙첨"}
                         </Text>
                       </View>
