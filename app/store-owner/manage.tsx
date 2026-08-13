@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: "800", color: colors.textPrimary },
   emptyText: { fontSize: 13, color: colors.textMuted, lineHeight: 19 },
   section: { gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg },
-  searchResultsSection: { flex: 0, maxHeight: 300 },
+  searchResultsSection: { flex: 0, maxHeight: "50%" },
   searchResultsList: { gap: spacing.sm },
   label: { fontSize: 12, color: colors.textSecondary, marginTop: spacing.xs },
   hint: { fontSize: 11, color: colors.textMuted, marginTop: spacing.xs },
