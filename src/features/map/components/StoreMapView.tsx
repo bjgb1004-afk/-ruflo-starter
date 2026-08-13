@@ -246,7 +246,7 @@ export const StoreMapView = memo(function StoreMapView({
         onPress={handleToggleTracking}
         hitSlop={8}
       >
-        <Text style={styles.locationButtonIcon}>{isTracking ? "🎯" : "📍"}</Text>
+        <Text style={styles.locationButtonIcon}>{isTracking ? "◉" : "●"}</Text>
       </Pressable>
     </View>
   );

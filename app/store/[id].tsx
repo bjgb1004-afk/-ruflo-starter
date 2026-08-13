@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, memo } from "react";
+import { useCallback, useEffect, memo, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useStoreWithStats } from "@/features/stores/useStoreWithStats";
 import {
@@ -22,7 +22,6 @@ import {
 } from "@/features/draws/api/drawHistoryApi";
 import { openDirections } from "@/features/stores/utils/openDirections";
 import { openNearbySearch } from "@/features/stores/utils/openNearbySearch";
-import { toLuckyIndex, toStarRating, starRatingText, computeSmartBadges } from "@/features/stores/utils/luckyIndex";
 import { useFavorites } from "@/features/favorites/useFavorites";
 import { useRecentlyViewed } from "@/features/favorites/useRecentlyViewed";
 import { useAuth } from "@/features/auth/useAuth";
@@ -108,6 +107,9 @@ export default function StoreDetailScreen() {
   // 안드로이드 엣지투엣지에서 스크롤 맨 아래 내용이 시스템 네비게이션 바에 가려지는
   // 문제 - 앱 전체 점검(design.txt) 결과 이 화면도 해당돼 하단 안전영역 여백을 더한다.
   const insets = useSafeAreaInsets();
+
+  // 최근 당첨 이력 접기/펼치기 - 기본값은 접음
+  const [winningsExpanded, setWinningsExpanded] = useState(false);
 
   const { data: stats, isLoading } = useStoreWithStats(id);
 
@@ -356,7 +358,7 @@ export default function StoreDetailScreen() {
       {/* 영업시간: 사장님이 직접 입력한 값이 있으면 우선 표시, 없으면 공공데이터 값으로 폴백 */}
       {(ownerBusinessHoursText || (stats as any).business_hours) && (
         <View style={styles.businessHoursSection}>
-          <Text style={styles.sectionTitle}>영업시간</Text>
+          <Text style={styles.sectionTitle}>🕐 영업시간</Text>
           <Text style={styles.businessHoursSummary}>
             {ownerBusinessHoursText || summarizeBusinessHours((stats as any).business_hours as Record<string, string>)}
           </Text>
@@ -384,25 +386,12 @@ export default function StoreDetailScreen() {
         }
       >
         <Text style={styles.ownerCtaText}>
-          {isOwner ? "🔧 매장 정보 수정하기" : "🏪 이 매장 사장님이신가요? 인증하고 정보 수정하기"}
+          {isOwner ? "🔧 매장 정보 수정하기" : "🏪 이 매장 사장님이신가요?"}
         </Text>
       </Pressable>
 
       {/* 점수 및 순위 */}
       <View style={styles.scoreSection}>
-        <View style={styles.scoreCard}>
-          <Pressable style={styles.scoreLabelRow} onPress={handleShowScoreInfo} hitSlop={8}>
-            <Text style={styles.scoreLabel}>명당지수</Text>
-            <Text style={styles.scoreInfoIcon}>ⓘ</Text>
-          </Pressable>
-          <Text style={styles.scoreValue}>{toLuckyIndex(stats.store_score)}</Text>
-          <Text style={styles.scoreStars}>{starRatingText(toStarRating(toLuckyIndex(stats.store_score)))}</Text>
-          {winnings[0] && (
-            <Text style={styles.scoreRecentWin}>
-              📅 최근 당첨 {winnings[0].draw_date.slice(0, 7).replace("-", ".")}
-            </Text>
-          )}
-        </View>
         <View style={styles.rankGrid}>
           <View style={styles.rankCell}>
             <Text style={styles.rankLabel}>전국</Text>
@@ -417,26 +406,6 @@ export default function StoreDetailScreen() {
             <Text style={styles.rankValue}>{stats.city_rank ?? "-"}위</Text>
           </View>
         </View>
-        {(() => {
-          const badges = computeSmartBadges({
-            nationRank: stats.nation_rank,
-            isRecentWinner: (latestWinners?.stores ?? []).some((w) => w.storeId === id),
-            first_prize_1yr: stats.first_prize_1yr,
-            first_prize_count: stats.first_prize_count,
-          });
-          if (badges.length === 0) return null;
-          return (
-            <View style={styles.smartBadgeRow}>
-              {badges.map((b) => (
-                <View key={b.key} style={styles.smartBadge}>
-                  <Text style={styles.smartBadgeText}>
-                    {b.emoji} {b.label}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          );
-        })()}
       </View>
 
       {/* 당첨 통계 */}
@@ -471,16 +440,23 @@ export default function StoreDetailScreen() {
 
       {/* 최근 당첨 이력 */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>최근 당첨 이력</Text>
-        {winnings.length === 0 ? (
-          <Text style={styles.emptyText}>당첨 이력이 없습니다.</Text>
-        ) : (
-          <FlatList
-            scrollEnabled={false}
-            data={winnings}
-            keyExtractor={winningKeyExtractor}
-            renderItem={renderWinning}
-          />
+        <Pressable style={styles.sectionHeaderRow} onPress={() => setWinningsExpanded(!winningsExpanded)}>
+          <Text style={styles.sectionTitle}>최근 당첨 이력</Text>
+          <Text style={styles.sectionToggle}>{winningsExpanded ? "▲" : "▼"}</Text>
+        </Pressable>
+        {winningsExpanded && (
+          <>
+            {winnings.length === 0 ? (
+              <Text style={styles.emptyText}>당첨 이력이 없습니다.</Text>
+            ) : (
+              <FlatList
+                scrollEnabled={false}
+                data={winnings}
+                keyExtractor={winningKeyExtractor}
+                renderItem={renderWinning}
+              />
+            )}
+          </>
         )}
       </View>
     </ScrollView>
@@ -569,6 +545,8 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
+  sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  sectionToggle: { fontSize: 12, color: colors.textMuted },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",

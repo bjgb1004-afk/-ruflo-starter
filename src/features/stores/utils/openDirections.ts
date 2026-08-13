@@ -12,13 +12,13 @@ import * as WebBrowser from "expo-web-browser";
 // 시그니처 호환을 위해 인자로는 계속 받는다.
 export async function openDirections(latitude: number, longitude: number, _name: string) {
   const p = `${latitude},${longitude}`;
-  const appUrl = `kakaomap://route?ep=${p}&by=foot`;
+  const appUrl = `kakaomap://route?ep=${p}&by=car`;
 
   if (await Linking.canOpenURL(appUrl)) {
     await Linking.openURL(appUrl);
     return;
   }
 
-  const webUrl = `https://m.map.kakao.com/scheme/route?ep=${p}&by=foot`;
+  const webUrl = `https://m.map.kakao.com/scheme/route?ep=${p}&by=car`;
   await WebBrowser.openBrowserAsync(webUrl);
 }

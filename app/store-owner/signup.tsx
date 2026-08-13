@@ -1,5 +1,5 @@
 // app/store-owner/signup.tsx
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,19 +12,21 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@/features/auth/useAuth";
-import { searchStores, type StoreSearchResult } from "@/features/stores/api/storesApi";
+import { searchStores, type StoreSearchResult, getStoreById } from "@/features/stores/api/storesApi";
 import { verifyStoreOwner } from "@/features/storeOwner/api/storeOwnerApi";
 import { colors, spacing, radius } from "@/constants/theme";
 
 export default function StoreOwnerSignupScreen() {
   const router = useRouter();
+  const { storeId } = useLocalSearchParams<{ storeId?: string }>();
   const user = useAuth((s) => s.user);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<StoreSearchResult[]>([]);
   const [selectedStore, setSelectedStore] = useState<StoreSearchResult | null>(null);
+  const [isLoadingStore, setIsLoadingStore] = useState(false);
 
   const [bizName, setBizName] = useState("");
   const [bizRegNumber, setBizRegNumber] = useState("");
@@ -32,6 +34,33 @@ export default function StoreOwnerSignupScreen() {
   const [openDate, setOpenDate] = useState("");
   const [verifySubmitting, setVerifySubmitting] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
+
+  // storeId가 전달되면 해당 매장을 자동으로 선택 (상세페이지에서 "사장님이신가요?" 누른 경우)
+  useEffect(() => {
+    if (!storeId || selectedStore) return;
+    const loadStore = async () => {
+      try {
+        setIsLoadingStore(true);
+        const store = await getStoreById(storeId);
+        if (store) {
+          setSelectedStore({
+            id: store.id,
+            name: store.name,
+            address: store.address,
+            sido: "",
+            sigungu: "",
+            latitude: store.latitude ?? 0,
+            longitude: store.longitude ?? 0,
+          });
+        }
+      } catch {
+        // 오류시 수동 검색 흐름으로 진행
+      } finally {
+        setIsLoadingStore(false);
+      }
+    };
+    loadStore();
+  }, [storeId, selectedStore]);
 
   const handleSearch = useCallback(async (text: string) => {
     setSearchQuery(text);
@@ -128,34 +157,37 @@ export default function StoreOwnerSignupScreen() {
               </View>
             </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>내 매장 찾기</Text>
-              {selectedStore ? (
-                <View style={styles.selectedStoreCard}>
-                  <Text style={styles.selectedStoreName}>{selectedStore.name}</Text>
-                  <Text style={styles.selectedStoreAddress}>{selectedStore.address}</Text>
-                  <Pressable onPress={() => setSelectedStore(null)}>
-                    <Text style={styles.changeStoreText}>다시 검색</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="매장명 또는 주소로 검색"
-                    placeholderTextColor="#999"
-                    value={searchQuery}
-                    onChangeText={handleSearch}
-                  />
-                  {searchResults.map((store) => (
-                    <Pressable key={store.id} style={styles.searchResultRow} onPress={() => setSelectedStore(store)}>
-                      <Text style={styles.searchResultName}>{store.name}</Text>
-                      <Text style={styles.searchResultAddress}>{store.address}</Text>
+            {/* 내 매장 찾기 - storeId로 이미 선택된 경우 이 섹션 생략 */}
+            {!storeId && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>내 매장 찾기</Text>
+                {selectedStore ? (
+                  <View style={styles.selectedStoreCard}>
+                    <Text style={styles.selectedStoreName}>{selectedStore.name}</Text>
+                    <Text style={styles.selectedStoreAddress}>{selectedStore.address}</Text>
+                    <Pressable onPress={() => setSelectedStore(null)}>
+                      <Text style={styles.changeStoreText}>다시 검색</Text>
                     </Pressable>
-                  ))}
-                </>
-              )}
-            </View>
+                  </View>
+                ) : (
+                  <>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="매장명 또는 주소로 검색"
+                      placeholderTextColor="#999"
+                      value={searchQuery}
+                      onChangeText={handleSearch}
+                    />
+                    {searchResults.map((store) => (
+                      <Pressable key={store.id} style={styles.searchResultRow} onPress={() => setSelectedStore(store)}>
+                        <Text style={styles.searchResultName}>{store.name}</Text>
+                        <Text style={styles.searchResultAddress}>{store.address}</Text>
+                      </Pressable>
+                    ))}
+                  </>
+                )}
+              </View>
+            )}
 
             {selectedStore && (
               <View style={styles.section}>
