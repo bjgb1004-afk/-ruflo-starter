@@ -287,8 +287,7 @@ export default function ScanScreen() {
             renderItem={({ item: [drawNo, tickets] }) => <VaultDrawCard drawNo={drawNo} tickets={tickets} />}
             contentContainerStyle={styles.vaultList}
             scrollEnabled={true}
-            snapToInterval={260}
-            decelerationRate="fast"
+            pagingEnabled={true}
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -428,7 +427,7 @@ const styles = StyleSheet.create({
   },
   vaultPanelTitle: { fontSize: 15, fontWeight: "800", color: colors.textPrimary },
   vaultPanelMore: { fontSize: 12, fontWeight: "700", color: colors.primary },
-  vaultList: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.md },
+  vaultList: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.lg },
   vaultEmpty: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.lg },
   vaultEmptyText: { fontSize: 13, color: colors.textMuted },
   vaultCard: {
