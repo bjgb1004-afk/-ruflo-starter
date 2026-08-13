@@ -246,7 +246,9 @@ export const StoreMapView = memo(function StoreMapView({
         onPress={handleToggleTracking}
         hitSlop={8}
       >
-        <Text style={styles.locationButtonIcon}>+</Text>
+        <View style={styles.locationButtonIconBorder}>
+          <Text style={styles.locationButtonIcon}>+</Text>
+        </View>
       </Pressable>
     </View>
   );
@@ -274,6 +276,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 4,
+  },
+  locationButtonIconBorder: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: colors.goldBright,
+    alignItems: "center",
+    justifyContent: "center",
   },
   locationButtonIcon: { fontSize: 24, fontWeight: "700", color: colors.goldBright },
   // 순위 1~3위: 랭킹 탭과 같은 언어(금/은/동 사각 배지)로 지도 위에도 표시해서
