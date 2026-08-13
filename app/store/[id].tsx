@@ -460,7 +460,7 @@ export default function StoreDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { padding: spacing.lg, gap: spacing.xl },
+  scrollContent: { padding: spacing.lg, gap: spacing.md },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
     gap: spacing.md,
@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   shareButtonText: { fontSize: 13, color: colors.textSecondary, fontWeight: "700" },
-  scoreSection: { gap: spacing.md },
+  scoreSection: { gap: spacing.sm },
   scoreCard: {
     backgroundColor: colors.primaryLight,
     padding: spacing.lg,
@@ -522,31 +522,31 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   smartBadgeText: { fontSize: 12, fontWeight: "600", color: colors.textPrimary },
-  rankGrid: { flexDirection: "row", gap: spacing.md, justifyContent: "space-between" },
+  rankGrid: { flexDirection: "row", gap: spacing.sm, justifyContent: "space-between" },
   rankCell: {
     flex: 1,
     backgroundColor: colors.surface,
-    padding: spacing.md,
+    padding: spacing.sm,
     borderRadius: radius.md,
     alignItems: "center",
     ...cardShadow,
   },
-  rankLabel: { fontSize: 12, color: colors.textMuted },
+  rankLabel: { fontSize: 11, color: colors.textMuted },
   rankValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "800",
     color: colors.textPrimary,
-    marginTop: spacing.xs,
+    marginTop: 2,
     fontFamily: numericFont.bold,
   },
   section: {
-    gap: spacing.md,
+    gap: spacing.sm,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    padding: spacing.lg,
+    padding: spacing.md,
     ...cardShadow,
   },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
+  sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary },
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   sectionToggle: { fontSize: 12, color: colors.textMuted },
   statsGrid: {
@@ -602,16 +602,16 @@ const styles = StyleSheet.create({
   winBadgeText2nd: { color: "#fff" },
 
   // 평점 및 리뷰
-  ratingSection: { gap: spacing.md },
+  ratingSection: { gap: spacing.sm },
   ratingCard: {
     backgroundColor: colors.goldLight,
-    padding: spacing.lg,
+    padding: spacing.md,
     borderRadius: radius.lg,
     alignItems: "center",
   },
-  ratingValue: { fontSize: 24, fontWeight: "800", color: colors.gold, fontFamily: numericFont.bold },
-  ratingCount: { fontSize: 12, color: colors.textMuted, marginTop: spacing.xs },
-  latestReview: { fontSize: 13, color: colors.textSecondary, fontStyle: "italic", lineHeight: 20 },
+  ratingValue: { fontSize: 20, fontWeight: "800", color: colors.gold, fontFamily: numericFont.bold },
+  ratingCount: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  latestReview: { fontSize: 12, color: colors.textSecondary, fontStyle: "italic", lineHeight: 18 },
 
   // 편의시설
   amenitiesSection: { gap: spacing.md },
@@ -619,20 +619,19 @@ const styles = StyleSheet.create({
   amenitiesEditLink: { fontSize: 13, fontWeight: "600", color: colors.primary },
   amenitiesGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   amenityTag: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
     borderRadius: radius.pill,
-    gap: spacing.xs + 2,
+    gap: 3,
   },
-  amenityIcon: { fontSize: 14 },
-  amenityText: { fontSize: 12, color: colors.primaryDark, fontWeight: "600" },
+  amenityIcon: { fontSize: 12 },
+  amenityText: { fontSize: 10, color: colors.primaryDark, fontWeight: "600" },
   amenitiesEmptyText: { fontSize: 13, color: colors.textMuted },
   nearbySearchCard: {
     backgroundColor: colors.surface,
