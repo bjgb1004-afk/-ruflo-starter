@@ -49,16 +49,8 @@ const StoreMarker = memo(function StoreMarker({
   onPress?: (storeId: string) => void;
   badge: MarkerBadge;
 }) {
-  const markerRef = useRef<any>(null);
-
-  // 마커를 누르면 먼저 말풍선을 표시하고, 말풍선을 누르면 상세페이지로 이동한다.
-  // showCallout()은 프로그래매틱하게 callout을 표시하는 방법이다.
-  const handleMarkerPress = useCallback(() => {
-    markerRef.current?.showCallout?.();
-  }, []);
-
-  const handleCalloutPress = useCallback(() => onPress?.(store.store_id), [onPress, store.store_id]);
-  const walkMinutes = Math.round(store.distance_m / 80);
+  // 마커를 누르면 바로 상세페이지로 이동한다 (한 단계 축약).
+  const handleMarkerPress = useCallback(() => onPress?.(store.store_id), [onPress, store.store_id]);
   const pin =
     badge.type === "rank" ? (
       <View style={[styles.pinRank, { backgroundColor: RANK_BADGE_COLOR[badge.rank] }]}>
@@ -78,7 +70,6 @@ const StoreMarker = memo(function StoreMarker({
 
   return (
     <Marker
-      ref={markerRef}
       coordinate={{ latitude: store.latitude, longitude: store.longitude }}
       anchor={{ x: 0.5, y: 0.5 }}
       onPress={handleMarkerPress}
@@ -97,18 +88,6 @@ const StoreMarker = memo(function StoreMarker({
       {...({ cluster: badge.type !== "rank" } as any)}
     >
       {pin}
-      <Callout tooltip onPress={handleCalloutPress}>
-        <View style={styles.callout}>
-          <Text style={styles.calloutName} numberOfLines={1}>
-            {store.name}
-          </Text>
-          <Text style={styles.calloutAddress} numberOfLines={1}>
-            {store.address}
-          </Text>
-          {walkMinutes <= 5 && <Text style={styles.calloutWalk}>🚶 도보 {Math.max(1, walkMinutes)}분</Text>}
-          <Text style={styles.calloutHint}>탭하면 상세정보</Text>
-        </View>
-      </Callout>
     </Marker>
   );
 });
