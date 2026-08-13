@@ -11,6 +11,7 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<{ error: string | null }>;
 }
 
 export const useAuth = create<AuthState>()((set) => ({
@@ -43,5 +44,21 @@ export const useAuth = create<AuthState>()((set) => ({
 
   signOut: async () => {
     await supabase.auth.signOut();
+  },
+
+  deleteAccount: async () => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData?.session?.access_token) {
+      return { error: "로그인이 필요합니다." };
+    }
+
+    const { error } = await supabase.functions.invoke("delete-account", {
+      headers: { Authorization: `Bearer ${sessionData.session.access_token}` },
+    });
+
+    if (error) return { error: error.message ?? "탈퇴 처리 중 오류가 발생했습니다." };
+
+    await supabase.auth.signOut();
+    return { error: null };
   },
 }));

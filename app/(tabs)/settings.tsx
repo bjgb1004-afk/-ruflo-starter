@@ -33,6 +33,7 @@ export default function SettingsScreen() {
   const signOut = useAuth((s) => s.signOut);
   const signIn = useAuth((s) => s.signIn);
   const signUp = useAuth((s) => s.signUp);
+  const deleteAccount = useAuth((s) => s.deleteAccount);
 
   // 카운트는 useState로 둬서 로직을 명시적으로 추적 가능하게 하고, 매 탭마다 setTimeout으로
   // 리셋 타이머를 다시 예약한다 - 2초 안에 다음 탭이 없으면 자동으로 0으로 되돌아간다.
@@ -50,6 +51,8 @@ export default function SettingsScreen() {
   const [accountAuthSubmitting, setAccountAuthSubmitting] = useState(false);
   const [accountAuthError, setAccountAuthError] = useState<string | null>(null);
   const [ownedStoreCount, setOwnedStoreCount] = useState<number | null>(null);
+  const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false);
+  const [deleteAccountSubmitting, setDeleteAccountSubmitting] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -103,6 +106,18 @@ export default function SettingsScreen() {
       { text: "로그아웃", style: "destructive", onPress: signOut },
     ]);
   };
+
+  const handleDeleteAccount = useCallback(async () => {
+    setDeleteAccountSubmitting(true);
+    const { error } = await deleteAccount();
+    setDeleteAccountSubmitting(false);
+    if (error) {
+      Alert.alert("오류", error);
+    } else {
+      setDeleteAccountModalOpen(false);
+      Alert.alert("완료", "계정이 삭제되었습니다. 앱을 재시작해주세요.");
+    }
+  }, [deleteAccount]);
 
   // 앱 버전 텍스트를 짧은 시간 안에 5번 연속 누르면 관리자 전용 비밀번호 입력창을 띄운다.
   // 일반 사용자에게는 로그인/회원가입 진입점 자체가 보이지 않는다.
@@ -192,7 +207,15 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>계정</Text>
         {user ? (
           <View style={styles.accountCard}>
-            <Text style={styles.accountEmail}>{user.email}</Text>
+            <View>
+              <Text style={styles.accountEmail}>{user.email}</Text>
+              <Pressable
+                style={[styles.deleteAccountButton]}
+                onPress={() => setDeleteAccountModalOpen(true)}
+              >
+                <Text style={styles.deleteAccountButtonText}>계정 삭제</Text>
+              </Pressable>
+            </View>
             <Pressable style={styles.logoutButton} onPress={handleLogout}>
               <Text style={styles.logoutButtonText}>로그아웃</Text>
             </Pressable>
@@ -297,6 +320,47 @@ export default function SettingsScreen() {
       </View>
 
       <Modal
+        visible={deleteAccountModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteAccountModalOpen(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <Pressable style={styles.modalBackdropTouchable} onPress={() => setDeleteAccountModalOpen(false)} />
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>계정 삭제</Text>
+            <Text style={styles.modalDescription}>
+              이 작업은 되돌릴 수 없습니다.{"\n"}
+              계정과 관련된 모든 데이터가 삭제됩니다.
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                style={[styles.modalSubmitButton, { flex: 1, backgroundColor: "#999" }]}
+                onPress={() => setDeleteAccountModalOpen(false)}
+                disabled={deleteAccountSubmitting}
+              >
+                <Text style={styles.modalSubmitButtonText}>취소</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalSubmitButton, { flex: 1, backgroundColor: "#FF3B30" }]}
+                onPress={handleDeleteAccount}
+                disabled={deleteAccountSubmitting}
+              >
+                {deleteAccountSubmitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.modalSubmitButtonText}>삭제</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
         visible={masterKeyModalOpen}
         transparent
         animationType="fade"
@@ -361,8 +425,17 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     padding: 16,
     borderRadius: 10,
+    gap: 12,
   },
   accountEmail: { fontSize: 14, fontWeight: "600", color: "#000" },
+  deleteAccountButton: {
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: "#ffe6e6",
+  },
+  deleteAccountButtonText: { fontSize: 12, color: "#FF3B30", fontWeight: "600" },
   authCard: {
     marginHorizontal: 16,
     backgroundColor: "#f9f9f9",
@@ -428,6 +501,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   modalTitle: { fontSize: 16, fontWeight: "700", color: "#000", textAlign: "center" },
+  modalDescription: { fontSize: 13, color: "#666", textAlign: "center", lineHeight: 19 },
   modalErrorText: { fontSize: 12, color: "#FF3B30", textAlign: "center" },
   modalInput: {
     borderWidth: 1,
