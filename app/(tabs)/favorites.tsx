@@ -2,19 +2,16 @@ import { Text, FlatList, Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useMemo, useCallback } from "react";
 import { useFavorites, type FavoriteStore } from "@/features/favorites/useFavorites";
-import { useRecentlyViewed, type RecentStore } from "@/features/favorites/useRecentlyViewed";
 import { useAuth } from "@/features/auth/useAuth";
 
 type Section =
   | { type: "header"; title: string }
   | { type: "favorite"; store: FavoriteStore }
-  | { type: "recent"; store: RecentStore }
   | { type: "empty"; message: string };
 
 export default function FavoritesScreen() {
   const router = useRouter();
   const favoriteMap = useFavorites((s) => s.stores);
-  const recentStores = useRecentlyViewed((s) => s.stores);
   const isLoggedIn = useAuth((s) => !!s.user);
 
   const favorites = useMemo(() => Object.values(favoriteMap), [favoriteMap]);
@@ -39,15 +36,8 @@ export default function FavoritesScreen() {
       favorites.forEach((store) => result.push({ type: "favorite", store }));
     }
 
-    result.push({ type: "header", title: "📜 최근 본 판매점" });
-    if (recentStores.length === 0) {
-      result.push({ type: "empty", message: "최근 본 판매점이 여기에 표시됩니다." });
-    } else {
-      recentStores.forEach((store) => result.push({ type: "recent", store }));
-    }
-
     return result;
-  }, [favorites, recentStores, isLoggedIn]);
+  }, [favorites, isLoggedIn]);
 
   return (
     <FlatList
@@ -72,7 +62,7 @@ export default function FavoritesScreen() {
       }}
       ListFooterComponent={
         <Text style={styles.dataLossNotice}>
-          ⚠️ 즐겨찾기·최근본 목록은 이 기기에만 저장돼요. 앱을 삭제하면 함께 사라질 수 있어요.
+          ⚠️ 즐겨찾기는 {isLoggedIn ? "클라우드에 저장돼요." : "이 기기에만 저장돼요. 앱을 삭제하면 함께 사라질 수 있어요."}
         </Text>
       }
     />
