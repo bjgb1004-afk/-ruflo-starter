@@ -109,6 +109,26 @@ export default function StoreOwnerSignupScreen() {
         ) : (
           <>
             <View style={styles.section}>
+              <Text style={styles.sectionTitle}>인증 안내</Text>
+              <View style={styles.guideRow}>
+                <Text style={styles.guideBullet}>✓</Text>
+                <Text style={styles.guideText}>사업자등록증 정보로 국세청 확인을 거칩니다</Text>
+              </View>
+              <View style={styles.guideRow}>
+                <Text style={styles.guideBullet}>✓</Text>
+                <Text style={styles.guideText}>인증 실패 5회 이후 24시간 동안 재시도가 불가능합니다</Text>
+              </View>
+              <View style={styles.guideRow}>
+                <Text style={styles.guideBullet}>✓</Text>
+                <Text style={styles.guideText}>기존 사장님이 있으면 7일간 이의제기 기간을 거칩니다</Text>
+              </View>
+              <View style={styles.guideRow}>
+                <Text style={styles.guideBullet}>✓</Text>
+                <Text style={styles.guideText}>인증 후 매장 정보를 직접 수정할 수 있습니다</Text>
+              </View>
+            </View>
+
+            <View style={styles.section}>
               <Text style={styles.sectionTitle}>내 매장 찾기</Text>
               {selectedStore ? (
                 <View style={styles.selectedStoreCard}>
@@ -194,7 +214,9 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 13, color: colors.textSecondary, lineHeight: 19 },
   section: { gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg },
   sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginBottom: spacing.xs },
-  guideText: { fontSize: 13, color: colors.textSecondary, lineHeight: 19 },
+  guideRow: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
+  guideBullet: { fontSize: 13, color: colors.primary, fontWeight: "700", width: 20 },
+  guideText: { fontSize: 13, color: colors.textSecondary, lineHeight: 19, flex: 1 },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
