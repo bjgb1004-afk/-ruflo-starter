@@ -526,11 +526,11 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.md,
+    gap: spacing.sm,
     justifyContent: "space-between",
   },
   statItem: {
-    width: "48%",
+    width: "49%",
     backgroundColor: colors.background,
     padding: spacing.md,
     borderRadius: radius.md,

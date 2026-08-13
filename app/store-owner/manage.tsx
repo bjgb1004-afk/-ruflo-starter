@@ -160,7 +160,7 @@ export default function StoreOwnerManageScreen() {
         <KeyboardAvoidingView
           style={styles.container}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "android" ? 300 : 80}
+          keyboardVerticalOffset={Platform.OS === "android" ? 100 : 0}
         >
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>매장 검색 및 관리</Text>
