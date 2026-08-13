@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#fff",
+    backgroundColor: "#E74C3C",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  locationButtonIcon: { fontSize: 24, fontWeight: "700", color: "#000" },
+  locationButtonIcon: { fontSize: 24, fontWeight: "700", color: colors.goldBright },
   // 순위 1~3위: 랭킹 탭과 같은 언어(금/은/동 사각 배지)로 지도 위에도 표시해서
   // "추천순이 뭘 기준으로 하는지" 설명 문구 없이도 바로 눈에 보이게 한다.
   pinRank: {
