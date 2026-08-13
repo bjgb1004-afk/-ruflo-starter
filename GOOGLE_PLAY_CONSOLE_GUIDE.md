@@ -6,8 +6,8 @@
 - 앱 이름: **복권명당**
 - 패키지명: **com.bookwonmap.lotto**
 - 앱 설명: ✓ docs/google-play-metadata.json
-- 개인정보정책: ✓ https://raw.githubusercontent.com/bjgb1004-afk/-ruflo-starter/main/docs/privacy-policy.html
-- 서비스약관: ✓ https://raw.githubusercontent.com/bjgb1004-afk/-ruflo-starter/main/docs/terms-of-service.html
+- 개인정보정책: ✓ https://raw.githubusercontent.com/bjgb1004-afk/ruflo-starter/main/docs/privacy-policy.html
+- 서비스약관: ✓ https://raw.githubusercontent.com/bjgb1004-afk/ruflo-starter/main/docs/terms-of-service.html
 - 앱 아이콘: ✓ 1024x1024px
 - 스크린샷: ✓ 4-8개 (사용자 촬영)
 
@@ -16,6 +16,8 @@
 ## 🔧 Google Play Console 절차
 
 ### **Step 1: 개발자 계정 생성**
+
+⚠️ **중요:** Google Play는 새 개발자 계정 생성 후 **18일 이상 경과해야** 첫 앱 제출이 가능합니다. 계정 생성 후 충분히 기다린 후 진행하세요.
 
 1. https://play.google.com/console 접속
 2. **"회원가입"** 클릭
@@ -27,7 +29,7 @@
    - 연락처 이메일: bjgb1004@gmail.com
    - 국가: 대한민국
 
-**예상 시간:** 5-10분 + 결제
+**예상 시간:** 5-10분 + 결제 + **18일 대기**
 
 ---
 
@@ -68,7 +70,7 @@ bjgb1004@gmail.com
 (생략 또는 URL 입력)
 
 개인정보보호정책:
-https://raw.githubusercontent.com/bjgb1004-afk/-ruflo-starter/main/docs/privacy-policy.html
+https://raw.githubusercontent.com/bjgb1004-afk/ruflo-starter/main/docs/privacy-policy.html
 ```
 
 #### 🎨 **"설정" → "앱 아이콘"**
@@ -141,7 +143,9 @@ assets/images/icon.png 업로드
 
 ```
 타겟 Android API 레벨:
-→ 현재 설정 확인 (일반적으로 API 31 이상)
+→ ⚠️ MUST SET: 34 (Expo SDK 54 기준)
+→ Google Play 최소 요구사항: API 33 이상
+→ 복권명당: API 34 필수
 
 타겟 고객층:
 → 18+ 설정
@@ -159,6 +163,8 @@ assets/images/icon.png 업로드
 
 #### 🔧 **"출시" → "프로덕션"**
 
+⚠️ **중요:** 이 단계에서 업로드하는 AAB의 타겟 Android API 레벨이 Step 6에서 설정한 것과 **일치해야 합니다** (복권명당: API 34, Expo SDK 54).
+
 1. **"새로운 출시 만들기"** 클릭
 2. **"APK 또는 번들 추가"** 클릭
 3. **AAB 파일 업로드** (EAS 빌드로 생성):
@@ -171,8 +177,9 @@ assets/images/icon.png 업로드
 ```
 옵션 A: EAS Build 사용 (현재 설정됨)
   1. eas build --platform android --profile production
+     → Expo SDK 54 기반, 타겟 API 34 자동 설정
   2. 빌드 완료 후 AAB 다운로드
-  3. Google Play Console에 업로드
+  3. Google Play Console에 업로드 (API 레벨 일치 확인)
 
 옵션 B: 로컬 빌드
   1. eas build-local --platform android
