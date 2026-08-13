@@ -277,6 +277,55 @@ export default function StoreDetailScreen() {
             <Text style={styles.shareButtonText}>📤 공유</Text>
           </Pressable>
         </View>
+
+        {/* 편의시설 */}
+        {(displayHasParking || displayHasRestroom || displayHasAtm || displayAmenities.length > 0) && (
+          <View style={styles.headerAmenitiesSection}>
+            <View style={styles.amenitiesGrid}>
+              {displayHasParking && (
+                <View style={styles.amenityTag}>
+                  <Text style={styles.amenityIcon}>🅿️</Text>
+                  <Text style={styles.amenityText}>주차</Text>
+                </View>
+              )}
+              {displayHasRestroom && (
+                <View style={styles.amenityTag}>
+                  <Text style={styles.amenityIcon}>🚻</Text>
+                  <Text style={styles.amenityText}>화장실</Text>
+                </View>
+              )}
+              {displayHasAtm && (
+                <View style={styles.amenityTag}>
+                  <Text style={styles.amenityIcon}>💳</Text>
+                  <Text style={styles.amenityText}>ATM</Text>
+                </View>
+              )}
+              {displayAmenities.map((amenity: string, idx: number) => (
+                <View key={idx} style={styles.amenityTag}>
+                  <Text style={styles.amenityText}>{amenity}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 영업시간 */}
+        {(ownerBusinessHoursText || (stats as any).business_hours) && (
+          <View style={styles.headerBusinessHoursSection}>
+            <Text style={styles.headerSectionLabel}>🕐 영업시간</Text>
+            <Text style={styles.headerBusinessHoursText}>
+              {ownerBusinessHoursText || summarizeBusinessHours((stats as any).business_hours as Record<string, string>)}
+            </Text>
+          </View>
+        )}
+
+        {/* 사장님 한마디 */}
+        {ownerMessage && (
+          <View style={styles.headerOwnerMessageSection}>
+            <Text style={styles.headerSectionLabel}>사장님 한마디</Text>
+            <Text style={styles.headerOwnerMessageText}>💬 {ownerMessage}</Text>
+          </View>
+        )}
       </View>
 
       {/* 평점 및 리뷰 */}
@@ -292,84 +341,25 @@ export default function StoreDetailScreen() {
         </View>
       )}
 
-      {/* 편의시설 정보 - 매장 자체 정보가 없어도 항상 동일한 레이아웃으로 표시하고,
-          주변 시설 찾기 버튼은 자체 API 연동 없이 지도 앱 검색으로 위임한다. */}
-      <View style={styles.amenitiesSection}>
-        <View style={styles.amenitiesHeaderRow}>
-          <Text style={styles.sectionTitle}>편의시설</Text>
-          {isOwner && (
-            <Pressable onPress={() => router.push(`/store-owner/manage?storeId=${id}`)}>
-              <Text style={styles.amenitiesEditLink}>수정</Text>
+      {/* 주변 시설 찾기 버튼 */}
+      {stats.latitude != null && stats.longitude != null && (
+        <View style={styles.nearbySearchRow}>
+          {[
+            { keyword: "화장실", icon: "🚻" },
+            { keyword: "ATM", icon: "💳" },
+            { keyword: "편의점", icon: "🏪" },
+            { keyword: "카페", icon: "☕" },
+          ].map((item) => (
+            <Pressable
+              key={item.keyword}
+              style={styles.nearbySearchButton}
+              onPress={() => handleNearbySearch(item.keyword)}
+            >
+              <Text style={styles.nearbySearchButtonText}>
+                {item.icon} 주변 {item.keyword}
+              </Text>
             </Pressable>
-          )}
-        </View>
-        {displayHasParking || displayHasRestroom || displayHasAtm || displayAmenities.length > 0 ? (
-          <View style={styles.amenitiesGrid}>
-            {displayHasParking && (
-              <View style={styles.amenityTag}>
-                <Text style={styles.amenityIcon}>🅿️</Text>
-                <Text style={styles.amenityText}>주차</Text>
-              </View>
-            )}
-            {displayHasRestroom && (
-              <View style={styles.amenityTag}>
-                <Text style={styles.amenityIcon}>🚻</Text>
-                <Text style={styles.amenityText}>화장실</Text>
-              </View>
-            )}
-            {displayHasAtm && (
-              <View style={styles.amenityTag}>
-                <Text style={styles.amenityIcon}>💳</Text>
-                <Text style={styles.amenityText}>ATM</Text>
-              </View>
-            )}
-            {displayAmenities.map((amenity: string, idx: number) => (
-              <View key={idx} style={styles.amenityTag}>
-                <Text style={styles.amenityText}>{amenity}</Text>
-              </View>
-            ))}
-          </View>
-        ) : (
-          <Text style={styles.amenitiesEmptyText}>등록된 편의시설 정보가 아직 없어요.</Text>
-        )}
-
-        {stats.latitude != null && stats.longitude != null && (
-          <View style={styles.nearbySearchRow}>
-            {[
-              { keyword: "화장실", icon: "🚻" },
-              { keyword: "ATM", icon: "💳" },
-              { keyword: "편의점", icon: "🏪" },
-              { keyword: "카페", icon: "☕" },
-            ].map((item) => (
-              <Pressable
-                key={item.keyword}
-                style={styles.nearbySearchButton}
-                onPress={() => handleNearbySearch(item.keyword)}
-              >
-                <Text style={styles.nearbySearchButtonText}>
-                  {item.icon} 주변 {item.keyword}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
-      </View>
-
-      {/* 영업시간: 사장님이 직접 입력한 값이 있으면 우선 표시, 없으면 공공데이터 값으로 폴백 */}
-      {(ownerBusinessHoursText || (stats as any).business_hours) && (
-        <View style={styles.businessHoursSection}>
-          <Text style={styles.sectionTitle}>🕐 영업시간</Text>
-          <Text style={styles.businessHoursSummary}>
-            {ownerBusinessHoursText || summarizeBusinessHours((stats as any).business_hours as Record<string, string>)}
-          </Text>
-        </View>
-      )}
-
-      {/* 사장님 한마디 */}
-      {ownerMessage && (
-        <View style={styles.businessHoursSection}>
-          <Text style={styles.sectionTitle}>사장님 한마디</Text>
-          <Text style={styles.businessHoursSummary}>💬 {ownerMessage}</Text>
+          ))}
         </View>
       )}
 
@@ -468,12 +458,18 @@ const styles = StyleSheet.create({
   scrollContent: { padding: spacing.lg, gap: spacing.xl },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
-    gap: spacing.sm,
+    gap: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.lg,
     ...cardShadow,
   },
+  headerAmenitiesSection: { gap: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
+  headerBusinessHoursSection: { gap: spacing.xs, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
+  headerOwnerMessageSection: { gap: spacing.xs, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
+  headerSectionLabel: { fontSize: 13, fontWeight: "600", color: colors.textSecondary },
+  headerBusinessHoursText: { fontSize: 13, color: colors.textPrimary, lineHeight: 18 },
+  headerOwnerMessageText: { fontSize: 13, color: colors.textPrimary, lineHeight: 18 },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   name: { fontSize: 22, fontWeight: "800", color: colors.textPrimary },
   actionButtons: { flexDirection: "row", alignItems: "center", gap: spacing.md },
