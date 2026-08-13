@@ -37,28 +37,36 @@ const RANK_LABEL: Record<Exclude<WinRank, null>, string> = {
   5: "5등",
 };
 
-// 하단 보관함 패널의 한 줄 - 방금 저장한 티켓이 여기 실시간으로 나타나는 것으로
-// "찍으면 보관함에 들어간다"는 걸 화면 전환 없이 체감시킨다.
-function VaultTicketRow({ ticket }: { ticket: MyLottoTicket }) {
+// 회차별로 게임 그룹화
+function groupTicketsByDraw(tickets: MyLottoTicket[]): Map<number, MyLottoTicket[]> {
+  const map = new Map<number, MyLottoTicket[]>();
+  tickets.forEach((ticket) => {
+    if (!map.has(ticket.drawNo)) map.set(ticket.drawNo, []);
+    map.get(ticket.drawNo)!.push(ticket);
+  });
+  return map;
+}
+
+// 회차별 카드 컴포넌트
+function VaultDrawCard({ drawNo, tickets }: { drawNo: number; tickets: MyLottoTicket[] }) {
   return (
-    <View style={styles.vaultRow}>
-      <View style={styles.vaultRowInfo}>
-        <Text style={styles.vaultRowDraw}>{ticket.drawNo}회</Text>
-        <View style={styles.vaultRowBalls}>
-          {ticket.numbers.map((n) => (
-            <LottoBall key={n} number={n} size="xs" />
-          ))}
+    <View style={styles.vaultCard}>
+      <Text style={styles.vaultCardTitle}>{drawNo}회</Text>
+      {tickets.map((ticket, idx) => (
+        <View key={ticket.id} style={styles.vaultCardGame}>
+          <Text style={styles.vaultCardGameIndex}>{String.fromCharCode(97 + idx)}</Text>
+          <View style={styles.vaultCardBalls}>
+            {ticket.numbers.map((n) => (
+              <LottoBall key={n} number={n} size="xs" />
+            ))}
+          </View>
+          <View style={[styles.vaultCardBadge, ticket.checked ? (ticket.rank ? styles.vaultCardBadgeWin : styles.vaultCardBadgeLose) : styles.vaultCardBadgePending]}>
+            <Text style={styles.vaultCardBadgeText}>
+              {ticket.checked ? (ticket.rank ? RANK_LABEL[ticket.rank] : "낙첨") : "추첨 전"}
+            </Text>
+          </View>
         </View>
-      </View>
-      {ticket.checked ? (
-        <View style={[styles.vaultRowBadge, styles.vaultRowBadgeWin]}>
-          <Text style={styles.vaultRowBadgeText}>{ticket.rank ? RANK_LABEL[ticket.rank] : "낙첨"}</Text>
-        </View>
-      ) : (
-        <View style={[styles.vaultRowBadge, styles.vaultRowBadgePending]}>
-          <Text style={styles.vaultRowBadgeText}>추첨 전</Text>
-        </View>
-      )}
+      ))}
     </View>
   );
 }
@@ -274,10 +282,11 @@ export default function ScanScreen() {
           </View>
         ) : (
           <FlatList
-            data={recentTickets}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <VaultTicketRow ticket={item} />}
+            data={Array.from(groupTicketsByDraw(recentTickets).entries())}
+            keyExtractor={(item) => `draw-${item[0]}`}
+            renderItem={({ item: [drawNo, tickets] }) => <VaultDrawCard drawNo={drawNo} tickets={tickets} />}
             contentContainerStyle={styles.vaultList}
+            scrollEnabled={true}
           />
         )}
       </View>
@@ -300,6 +309,7 @@ export default function ScanScreen() {
                 <View style={styles.gamesList}>
                   {result.games.map((game, idx) => (
                     <View key={idx} style={styles.gameRow}>
+                      <Text style={styles.gameIndex}>{String.fromCharCode(97 + idx)}</Text>
                       <View style={styles.gameBalls}>
                         {game.numbers.map((n) => (
                           <LottoBall key={n} number={n} size="small" />
@@ -331,6 +341,7 @@ export default function ScanScreen() {
                 <View style={styles.gamesList}>
                   {result.games.map((game, idx) => (
                     <View key={idx} style={styles.gameRow}>
+                      <Text style={styles.gameIndex}>{String.fromCharCode(97 + idx)}</Text>
                       <View style={styles.gameBalls}>
                         {game.numbers.map((n) => (
                           <LottoBall key={n} number={n} size="small" />
@@ -414,9 +425,33 @@ const styles = StyleSheet.create({
   },
   vaultPanelTitle: { fontSize: 15, fontWeight: "800", color: colors.textPrimary },
   vaultPanelMore: { fontSize: 12, fontWeight: "700", color: colors.primary },
-  vaultList: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
+  vaultList: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.md },
   vaultEmpty: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.lg },
   vaultEmptyText: { fontSize: 13, color: colors.textMuted },
+  vaultCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+    ...cardShadow,
+  },
+  vaultCardTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary },
+  vaultCardGame: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.background,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    gap: spacing.sm,
+  },
+  vaultCardGameIndex: { fontSize: 11, fontWeight: "700", color: colors.textSecondary, minWidth: 14 },
+  vaultCardBalls: { flexDirection: "row", gap: 2 },
+  vaultCardBadge: { paddingHorizontal: spacing.xs, paddingVertical: 2, borderRadius: radius.pill },
+  vaultCardBadgeWin: { backgroundColor: colors.gold },
+  vaultCardBadgeLose: { backgroundColor: colors.rankNeutral },
+  vaultCardBadgePending: { backgroundColor: colors.rankNeutral },
+  vaultCardBadgeText: { color: "#fff", fontWeight: "700", fontSize: 10 },
   vaultRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -462,13 +497,13 @@ const styles = StyleSheet.create({
   gameRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     backgroundColor: colors.background,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    minHeight: 56,
+    gap: spacing.sm,
   },
+  gameIndex: { fontSize: 12, fontWeight: "700", color: colors.textSecondary, minWidth: 18 },
   gameBalls: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 6 },
   rankBadge: { paddingHorizontal: spacing.md - 2, paddingVertical: spacing.sm - 2, borderRadius: radius.pill },
   rankBadgeWin: { backgroundColor: colors.gold },
