@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   primaryButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  storeRow: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, gap: 4 },
-  storeRowName: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
-  storeRowAddress: { fontSize: 12, color: colors.textSecondary },
+  storeRow: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, gap: 4, marginBottom: spacing.sm },
+  storeRowName: { fontSize: 15, fontWeight: "700", color: colors.textPrimary, flexWrap: "wrap" },
+  storeRowAddress: { fontSize: 12, color: colors.textSecondary, flexWrap: "wrap" },
 });
