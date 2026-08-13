@@ -250,7 +250,11 @@ export default function SettingsScreen() {
       {/* 판매점 사장님 진입점 - 아직 인증된 매장이 없으면 인증 시작, 있으면 관리 화면으로 */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>판매점 사장님이신가요?</Text>
-        {ownedStoreCount && ownedStoreCount > 0 ? (
+        {!user ? (
+          <Text style={styles.guideText}>
+            계정을 만든 후 사장님 인증을 통해 매장 정보를 수정할 수 있어요.
+          </Text>
+        ) : ownedStoreCount && ownedStoreCount > 0 ? (
           <Pressable style={styles.linkRow} onPress={() => router.push("/store-owner/manage")}>
             <Text style={styles.linkRowText}>내 매장 관리</Text>
           </Pressable>
@@ -333,6 +337,12 @@ const styles = StyleSheet.create({
     color: "#999",
     paddingHorizontal: 16,
     marginBottom: 8,
+  },
+  guideText: {
+    fontSize: 13,
+    color: "#999",
+    paddingHorizontal: 16,
+    lineHeight: 19,
   },
   accountCard: {
     flexDirection: "row",

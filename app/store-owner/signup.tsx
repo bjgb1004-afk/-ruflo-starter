@@ -1,5 +1,5 @@
 // app/store-owner/signup.tsx
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useAuth } from "@/features/auth/useAuth";
 import { searchStores, type StoreSearchResult } from "@/features/stores/api/storesApi";
 import { verifyStoreOwner } from "@/features/storeOwner/api/storeOwnerApi";
@@ -20,15 +20,7 @@ import { colors, spacing, radius } from "@/constants/theme";
 
 export default function StoreOwnerSignupScreen() {
   const router = useRouter();
-  const { storeId: prefilledStoreId } = useLocalSearchParams<{ storeId?: string }>();
   const user = useAuth((s) => s.user);
-  const signIn = useAuth((s) => s.signIn);
-  const signUp = useAuth((s) => s.signUp);
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [authSubmitting, setAuthSubmitting] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<StoreSearchResult[]>([]);
@@ -40,12 +32,6 @@ export default function StoreOwnerSignupScreen() {
   const [openDate, setOpenDate] = useState("");
   const [verifySubmitting, setVerifySubmitting] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!prefilledStoreId) return;
-    // storeId만 있고 이름/주소가 없으면 검색 결과 선택 단계는 스킵하지 않고, 검색창에
-    // 미리 채워두는 정도로만 돕는다(정확한 매장 객체는 사용자가 검색·선택해야 함).
-  }, [prefilledStoreId]);
 
   const handleSearch = useCallback(async (text: string) => {
     setSearchQuery(text);
@@ -60,21 +46,6 @@ export default function StoreOwnerSignupScreen() {
       setSearchResults([]);
     }
   }, []);
-
-  const handleAuthSubmit = useCallback(
-    async (mode: "signup" | "signin") => {
-      if (!email || !password) {
-        setAuthError("이메일과 비밀번호를 모두 입력해주세요.");
-        return;
-      }
-      setAuthSubmitting(true);
-      setAuthError(null);
-      const { error } = mode === "signup" ? await signUp(email, password) : await signIn(email, password);
-      setAuthSubmitting(false);
-      if (error) setAuthError(error);
-    },
-    [email, password, signIn, signUp],
-  );
 
   const handleVerifySubmit = useCallback(async () => {
     const rejectReasonText: Record<string, string> = {
@@ -128,39 +99,14 @@ export default function StoreOwnerSignupScreen() {
           사업자 정보를 입력하시면 국세청 확인을 거쳐 매장 정보를 직접 수정하실 수 있어요.
         </Text>
 
-        {!user && (
+        {!user ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>계정</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="이메일"
-              placeholderTextColor="#999"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={email}
-              onChangeText={setEmail}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="비밀번호"
-              placeholderTextColor="#999"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
-            {authError && <Text style={styles.errorText}>{authError}</Text>}
-            <View style={styles.authButtonRow}>
-              <Pressable style={styles.secondaryButton} onPress={() => handleAuthSubmit("signin")} disabled={authSubmitting}>
-                <Text style={styles.secondaryButtonText}>이미 계정 있어요</Text>
-              </Pressable>
-              <Pressable style={styles.primaryButton} onPress={() => handleAuthSubmit("signup")} disabled={authSubmitting}>
-                {authSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>처음이에요(가입)</Text>}
-              </Pressable>
-            </View>
+            <Text style={styles.sectionTitle}>로그인 필요</Text>
+            <Text style={styles.guideText}>
+              사장님 인증은 계정이 필요합니다. 설정 화면의 "계정" 섹션에서 로그인 또는 가입해주세요.
+            </Text>
           </View>
-        )}
-
-        {user && (
+        ) : (
           <>
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>내 매장 찾기</Text>
@@ -248,6 +194,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 13, color: colors.textSecondary, lineHeight: 19 },
   section: { gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg },
   sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginBottom: spacing.xs },
+  guideText: { fontSize: 13, color: colors.textSecondary, lineHeight: 19 },
   input: {
     borderWidth: 1,
     borderColor: colors.border,

@@ -1,7 +1,7 @@
 // app/store-owner/manage.tsx
 import { useCallback, useEffect, useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useAuth } from "@/features/auth/useAuth";
 import {
   getMyOwnedStores,
