@@ -1,6 +1,17 @@
 // app/store-owner/manage.tsx
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useAuth } from "@/features/auth/useAuth";
 import {
@@ -128,7 +139,12 @@ export default function StoreOwnerManageScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "android" ? 100 : 0}
+    >
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>매장 정보 수정</Text>
       {!isTestMode && profile?.owner_user_id !== userId ? (
         <Text style={styles.emptyText}>이 매장의 사장님 권한이 없습니다.</Text>
@@ -194,7 +210,8 @@ export default function StoreOwnerManageScreen() {
           </Pressable>
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
