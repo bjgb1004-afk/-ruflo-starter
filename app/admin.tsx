@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import { getAdminOverview, getDisputedTransfers, resolveDisputedTransfer } from "@/features/admin/api/adminApi";
@@ -21,6 +22,7 @@ function isDrawStale(dateStr: string): boolean {
 }
 
 export default function AdminScreen() {
+  const router = useRouter();
   const user = useAuth((s) => s.user);
   const isAdmin = useMemo(() => !!user?.email && ADMIN_EMAILS.includes(user.email), [user?.email]);
   // 안드로이드 엣지투엣지에서 스크롤 맨 아래 내용이 시스템 네비게이션 바에 가려지는
@@ -155,6 +157,17 @@ export default function AdminScreen() {
           ))
         )}
       </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>테스트: 사업자 인증</Text>
+        <Text style={styles.emptyText}>관리자용 사업자 인증 기능을 테스트합니다.</Text>
+        <Pressable
+          style={[styles.testButton, { backgroundColor: colors.primary }]}
+          onPress={() => router.push("/store-owner/signup")}
+        >
+          <Text style={styles.testButtonText}>사업자 인증 페이지 보기</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
@@ -182,4 +195,11 @@ const styles = StyleSheet.create({
   rowValue: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, fontFamily: numericFont.medium },
   rowValueWarn: { color: colors.orange },
   emptyText: { fontSize: 13, color: colors.textMuted },
+  testButton: {
+    borderRadius: radius.sm,
+    paddingVertical: spacing.sm + 2,
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  testButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
 });
