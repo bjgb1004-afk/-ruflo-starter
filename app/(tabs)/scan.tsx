@@ -310,11 +310,13 @@ export default function ScanScreen() {
                 </Text>
                 <View style={styles.gamesList}>
                   {result.games.map((game, idx) => (
-                    <View key={idx} style={styles.gameRow}>
-                      <Text style={styles.gameIndex}>{String.fromCharCode(97 + idx)}</Text>
-                      <View style={styles.gameBalls}>
+                    <View key={idx} style={styles.gameRowLarge}>
+                      <Text style={styles.gameIndexLarge}>{String.fromCharCode(97 + idx)}</Text>
+                      <View style={styles.gamesBallsLarge}>
                         {game.numbers.map((n) => (
-                          <LottoBall key={n} number={n} size="small" />
+                          <View key={n} style={styles.gameBallContainer}>
+                            <LottoBall number={n} size="large" />
+                          </View>
                         ))}
                       </View>
                     </View>
@@ -342,15 +344,17 @@ export default function ScanScreen() {
                 <Text style={styles.sheetTitle}>{result.drawNo}회 당첨 확인</Text>
                 <View style={styles.gamesList}>
                   {result.games.map((game, idx) => (
-                    <View key={idx} style={styles.gameRow}>
-                      <Text style={styles.gameIndex}>{String.fromCharCode(97 + idx)}</Text>
-                      <View style={styles.gameBalls}>
+                    <View key={idx} style={styles.gameRowLarge}>
+                      <Text style={styles.gameIndexLarge}>{String.fromCharCode(97 + idx)}</Text>
+                      <View style={styles.gamesBallsLarge}>
                         {game.numbers.map((n) => (
-                          <LottoBall key={n} number={n} size="small" />
+                          <View key={n} style={styles.gameBallContainer}>
+                            <LottoBall number={n} size="large" />
+                          </View>
                         ))}
                       </View>
-                      <View style={[styles.rankBadge, game.rank ? styles.rankBadgeWin : styles.rankBadgeLose]}>
-                        <Text style={styles.rankBadgeText}>
+                      <View style={[styles.rankBadgeLarge, game.rank ? styles.rankBadgeWinLarge : styles.rankBadgeLoseLarge]}>
+                        <Text style={styles.rankBadgeTextLarge}>
                           {game.rank ? RANK_LABEL[game.rank] : "낙첨"}
                         </Text>
                       </View>
@@ -512,6 +516,23 @@ const styles = StyleSheet.create({
   rankBadgeWin: { backgroundColor: colors.gold },
   rankBadgeLose: { backgroundColor: colors.rankNeutral },
   rankBadgeText: { color: "#fff", fontWeight: "700", fontSize: 12 },
+  gameRowLarge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    gap: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  gameIndexLarge: { fontSize: 14, fontWeight: "700", color: colors.textSecondary, minWidth: 24 },
+  gamesBallsLarge: { flex: 1, flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+  gameBallContainer: { alignItems: "center", justifyContent: "center" },
+  rankBadgeLarge: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.pill },
+  rankBadgeWinLarge: { backgroundColor: colors.gold },
+  rankBadgeLoseLarge: { backgroundColor: colors.rankNeutral },
+  rankBadgeTextLarge: { color: "#fff", fontWeight: "700", fontSize: 13 },
   closeButton: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,

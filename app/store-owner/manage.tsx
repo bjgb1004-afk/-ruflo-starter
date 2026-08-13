@@ -178,7 +178,11 @@ export default function StoreOwnerManageScreen() {
             {searchResults.length > 0 && (
               <View style={[styles.section, styles.searchResultsSection]}>
                 <Text style={styles.label}>검색 결과 ({searchResults.length}개)</Text>
-                <View style={styles.searchResultsList}>
+                <ScrollView
+                  scrollEnabled={true}
+                  nestedScrollEnabled={true}
+                  style={styles.searchResultsList}
+                >
                   {searchResults.map((store) => (
                     <Pressable
                       key={store.id}
@@ -189,7 +193,7 @@ export default function StoreOwnerManageScreen() {
                       <Text style={styles.storeRowAddress}>{store.address}</Text>
                     </Pressable>
                   ))}
-                </View>
+                </ScrollView>
               </View>
             )}
             {searchQuery.trim() && !searching && searchResults.length === 0 && (
