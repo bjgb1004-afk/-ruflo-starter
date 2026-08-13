@@ -295,9 +295,10 @@ export default function StoreOwnerManageScreen() {
                 <Text style={[styles.amenityChipText, hasAtm && styles.amenityChipTextActive]}>💳 ATM</Text>
               </Pressable>
             </View>
+            <Text style={styles.hint}>기타 편의시설 (쉼표로 구분)</Text>
             <TextInput
               style={styles.input}
-              placeholder="기타 편의시설 (쉼표로 구분, 예: 흡연구역, 포토부스)"
+              placeholder="예: WiFi, 커피, 편의점, 휴게실, 포토부스"
               placeholderTextColor="#999"
               value={amenitiesText}
               onChangeText={setAmenitiesText}
@@ -325,6 +326,7 @@ const styles = StyleSheet.create({
   searchResultsSection: { flex: 0, maxHeight: 300 },
   searchResultsList: { gap: spacing.sm },
   label: { fontSize: 12, color: colors.textSecondary, marginTop: spacing.xs },
+  hint: { fontSize: 11, color: colors.textMuted, marginTop: spacing.xs },
   input: {
     borderWidth: 1,
     borderColor: colors.border,

@@ -282,31 +282,12 @@ export default function StoreDetailScreen() {
         <View style={styles.headerAmenitiesSection}>
           <Text style={styles.headerSectionLabel}>판매점 제공 편의시설</Text>
           {displayHasParking || displayHasRestroom || displayHasAtm || displayAmenities.length > 0 ? (
-            <View style={styles.amenitiesGrid}>
-              {displayHasParking && (
-                <View style={styles.amenityTag}>
-                  <Text style={styles.amenityIcon}>🅿️</Text>
-                  <Text style={styles.amenityText}>주차</Text>
-                </View>
-              )}
-              {displayHasRestroom && (
-                <View style={styles.amenityTag}>
-                  <Text style={styles.amenityIcon}>🚻</Text>
-                  <Text style={styles.amenityText}>화장실</Text>
-                </View>
-              )}
-              {displayHasAtm && (
-                <View style={styles.amenityTag}>
-                  <Text style={styles.amenityIcon}>💳</Text>
-                  <Text style={styles.amenityText}>ATM</Text>
-                </View>
-              )}
-              {displayAmenities.map((amenity: string, idx: number) => (
-                <View key={idx} style={styles.amenityTag}>
-                  <Text style={styles.amenityText}>{amenity}</Text>
-                </View>
-              ))}
-            </View>
+            <Text style={styles.amenitiesEmojiRow}>
+              {displayHasParking && "🅿️ "}
+              {displayHasRestroom && "🚻 "}
+              {displayHasAtm && "💳 "}
+              {displayAmenities.map((amenity: string) => `${amenity} `).join("")}
+            </Text>
           ) : (
             <Text style={styles.headerInfoEmpty}>정보없음</Text>
           )}
@@ -617,21 +598,7 @@ const styles = StyleSheet.create({
   amenitiesSection: { gap: spacing.md },
   amenitiesHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   amenitiesEditLink: { fontSize: 13, fontWeight: "600", color: colors.primary },
-  amenitiesGrid: {
-    flexDirection: "row",
-    gap: spacing.xs,
-  },
-  amenityTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-    gap: 3,
-  },
-  amenityIcon: { fontSize: 12 },
-  amenityText: { fontSize: 10, color: colors.primaryDark, fontWeight: "600" },
+  amenitiesEmojiRow: { fontSize: 16, color: colors.textPrimary, letterSpacing: 2 },
   amenitiesEmptyText: { fontSize: 13, color: colors.textMuted },
   nearbySearchCard: {
     backgroundColor: colors.surface,
