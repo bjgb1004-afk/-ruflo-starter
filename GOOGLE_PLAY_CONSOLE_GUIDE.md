@@ -4,10 +4,10 @@
 
 ### ✅ 이미 준비된 것
 - 앱 이름: **복권명당**
-- 패키지명: **com.bookwonmap.lotto**
+- 패키지명: **com.lottomap.app**
 - 앱 설명: ✓ docs/google-play-metadata.json
-- 개인정보정책: ✓ https://raw.githubusercontent.com/bjgb1004-afk/ruflo-starter/main/docs/privacy-policy.html
-- 서비스약관: ✓ https://raw.githubusercontent.com/bjgb1004-afk/ruflo-starter/main/docs/terms-of-service.html
+- 개인정보정책: ✓ https://kpjpemkojykuqzhddsjl.supabase.co/storage/v1/object/public/legal/privacy-policy.html
+- 서비스약관: ✓ https://kpjpemkojykuqzhddsjl.supabase.co/storage/v1/object/public/legal/terms-of-service.html
 - 앱 아이콘: ✓ 1024x1024px
 - 스크린샷: ✓ 4-8개 (사용자 촬영)
 
@@ -70,7 +70,7 @@ bjgb1004@gmail.com
 (생략 또는 URL 입력)
 
 개인정보보호정책:
-https://raw.githubusercontent.com/bjgb1004-afk/ruflo-starter/main/docs/privacy-policy.html
+https://kpjpemkojykuqzhddsjl.supabase.co/storage/v1/object/public/legal/privacy-policy.html
 ```
 
 #### 🎨 **"설정" → "앱 아이콘"**

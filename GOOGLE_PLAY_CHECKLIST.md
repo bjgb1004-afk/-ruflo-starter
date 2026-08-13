@@ -3,8 +3,8 @@
 ## ✅ 완료된 항목
 
 ### 1. 앱 설정
-- ✅ app.json 생성 (복권명당)
-- ✅ 패키지명: com.bookwonmap.lotto
+- ✅ app.config.ts (기존 프로젝트 설정, 복권명당)
+- ✅ 패키지명: com.lottomap.app
 - ✅ 앱 버전: 1.0.0
 - ✅ 권한 설정 (위치, 카메라, 저장소)
 
@@ -57,17 +57,13 @@
 ## 🔗 배포 전 체크사항
 
 ### 개인정보정책 URL 설정
-현재: `docs/privacy-policy.html` (로컬 파일)
-필요: 공개 URL (Google Play 요구사항)
-
-**옵션:**
-1. **Supabase Storage** (권장) — 데이터베이스와 연동
-2. **GitHub Pages** — 무료 정적 호스팅
-3. **GitHub의 raw URL** 
-   ```
-   https://raw.githubusercontent.com/{username}/ruflo-starter/main/docs/privacy-policy.html
-   ```
-4. **실제 도메인** (bookwonmap.com 등)
+✅ 완료 — GitHub 저장소가 private라 GitHub Pages/raw URL은 외부 접근 불가하다는 게 확인되어,
+Supabase Storage 공개 버킷(`legal`)에 호스팅함:
+```
+https://kpjpemkojykuqzhddsjl.supabase.co/storage/v1/object/public/legal/privacy-policy.html
+https://kpjpemkojykuqzhddsjl.supabase.co/storage/v1/object/public/legal/terms-of-service.html
+```
+(앱 내 설정 화면의 `src/constants/config.ts`도 동일 URL로 연결됨)
 
 ### Google Play Console 준비
 - [ ] Google Play 개발자 계정 생성 ($25 일회 등록)

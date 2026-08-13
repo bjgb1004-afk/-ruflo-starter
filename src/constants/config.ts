@@ -21,5 +21,7 @@ export const GEOFENCE_FREE_TIER_MAX = 2;
 // 수준으로 민감하지 않은 것을 전제로 한다. 관리자를 추가/변경하려면 이 배열만 수정하면 된다.
 export const ADMIN_EMAILS = ["bjgb1004@gmail.com"];
 
-export const PRIVACY_POLICY_URL = "https://bjgb1004-afk.github.io/-ruflo-starter/privacy-policy.html";
-export const TERMS_OF_SERVICE_URL = "https://bjgb1004-afk.github.io/-ruflo-starter/terms-of-service.html";
+// GitHub 저장소가 private라 GitHub Pages/raw.githubusercontent.com은 외부에서 접근 불가 -
+// 이미 쓰고 있는 Supabase Storage(공개 버킷)로 서빙한다(추가 비용/서비스 없이 해결).
+export const PRIVACY_POLICY_URL = "https://kpjpemkojykuqzhddsjl.supabase.co/storage/v1/object/public/legal/privacy-policy.html";
+export const TERMS_OF_SERVICE_URL = "https://kpjpemkojykuqzhddsjl.supabase.co/storage/v1/object/public/legal/terms-of-service.html";

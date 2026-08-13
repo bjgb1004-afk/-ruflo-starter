@@ -1,8 +1,8 @@
 {
   "appName": "복권명당",
-  "packageName": "com.bookwonmap.lotto",
+  "packageName": "com.lottomap.app",
   "shortDescription": "로또 판매점 검색 & 명당 랭킹 앱",
-  "fullDescription": "복권명당은 전국 로또 판매점을 지도에서 검색하고, 명당 판매점 랭킹을 확인할 수 있는 앱입니다.\n\n🎯 주요 기능:\n• 지도에서 근처 로또 판매점 검색 (위치 기반)\n• 판매점별 당첨 현황 & 통계 조회\n• 지역별 명당 랭킹 (시도/시군구/전국)\n• 판매점 상세정보 (전화번호, 영업시간, 편의시설)\n• 즐겨찾기 & 명당알림 (프리미엄)\n• 회차별 당첨번호 조회\n\n💡 로또 명당 찾기가 이제 더 쉬워집니다!\n\n개인정보보호정책: https://raw.githubusercontent.com/bjgb1004-afk/ruflo-starter/main/docs/privacy-policy.html\n서비스약관: https://raw.githubusercontent.com/bjgb1004-afk/ruflo-starter/main/docs/terms-of-service.html\n문의: bjgb1004@gmail.com",
+  "fullDescription": "복권명당은 전국 로또 판매점을 지도에서 검색하고, 명당 판매점 랭킹을 확인할 수 있는 앱입니다.\n\n🎯 주요 기능:\n• 지도에서 근처 로또 판매점 검색 (위치 기반)\n• 판매점별 당첨 현황 & 통계 조회\n• 지역별 명당 랭킹 (시도/시군구/전국)\n• 판매점 상세정보 (전화번호, 영업시간, 편의시설)\n• 즐겨찾기 & 명당알림 (프리미엄)\n• 회차별 당첨번호 조회\n\n💡 로또 명당 찾기가 이제 더 쉬워집니다!\n\n개인정보보호정책: https://kpjpemkojykuqzhddsjl.supabase.co/storage/v1/object/public/legal/privacy-policy.html\n서비스약관: https://kpjpemkojykuqzhddsjl.supabase.co/storage/v1/object/public/legal/terms-of-service.html\n문의: bjgb1004@gmail.com",
   "keywords": [
     "로또",
     "로또판매점",
