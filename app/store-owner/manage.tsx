@@ -54,8 +54,8 @@ export default function StoreOwnerManageScreen() {
 
   const handleSave = useCallback(async () => {
     if (!activeStoreId) return;
-    if (ownerMessage.length > 100) {
-      Alert.alert("입력 오류", "한마디는 최대 100자까지 입력할 수 있어요.");
+    if (ownerMessage.length > 30) {
+      Alert.alert("입력 오류", "한마디는 최대 30자까지 입력할 수 있어요.");
       return;
     }
     setSubmitting(true);
@@ -151,13 +151,13 @@ export default function StoreOwnerManageScreen() {
             value={businessHours}
             onChangeText={setBusinessHours}
           />
-          <Text style={styles.label}>한마디 ({ownerMessage.length}/100)</Text>
+          <Text style={styles.label}>한마디 ({ownerMessage.length}/30)</Text>
           <TextInput
             style={[styles.input, styles.messageInput]}
             placeholder="손님들께 전하고 싶은 한마디"
             placeholderTextColor="#999"
             multiline
-            maxLength={100}
+            maxLength={30}
             value={ownerMessage}
             onChangeText={setOwnerMessage}
           />
