@@ -60,7 +60,7 @@ const TicketRow = ({ ticket, index, onShare }: { ticket: MyLottoTicket; index: n
       )}
       <View style={styles.ticketBalls}>
         {ticket.numbers.map((n) => (
-          <LottoBall key={n} number={n} size="xs" />
+          <LottoBall key={n} number={n} size="small" />
         ))}
       </View>
     </View>
