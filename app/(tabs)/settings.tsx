@@ -265,6 +265,15 @@ export default function SettingsScreen() {
         )}
       </View>
 
+      {/* 관리자 빠른 진입 - settings.tsx에서만 보임 */}
+      {user?.email && ADMIN_EMAILS.includes(user.email) && (
+        <View style={styles.section}>
+          <Pressable style={styles.linkRow} onPress={() => router.push("/admin")}>
+            <Text style={styles.linkRowText}>👨‍💼 관리자 대시보드</Text>
+          </Pressable>
+        </View>
+      )}
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>정보</Text>
         <Pressable

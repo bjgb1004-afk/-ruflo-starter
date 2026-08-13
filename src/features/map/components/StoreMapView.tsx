@@ -49,11 +49,14 @@ const StoreMarker = memo(function StoreMarker({
   onPress?: (storeId: string) => void;
   badge: MarkerBadge;
 }) {
-  // 마커를 누르면 바로 상세페이지로 넘어가면 이름을 확인할 새도 없이 화면이 전환돼버린다.
-  // 먼저 이름/주소가 담긴 말풍선을 보여주고, 그 말풍선을 한 번 더 누르면 그때 상세페이지로
-  // 이동하도록 한 단계 나눈다. Android에서 기본(title/description) 콜아웃의 onCalloutPress는
-  // 마커 탭과 동시에 발생해버리는 알려진 문제가 있어, 직접 그리는 tooltip 콜아웃 + onPress로
-  // 대체한다(이 조합이 안정적으로 동작한다).
+  const markerRef = useRef<any>(null);
+
+  // 마커를 누르면 먼저 말풍선을 표시하고, 말풍선을 누르면 상세페이지로 이동한다.
+  // showCallout()은 프로그래매틱하게 callout을 표시하는 방법이다.
+  const handleMarkerPress = useCallback(() => {
+    markerRef.current?.showCallout?.();
+  }, []);
+
   const handleCalloutPress = useCallback(() => onPress?.(store.store_id), [onPress, store.store_id]);
   const walkMinutes = Math.round(store.distance_m / 80);
   const pin =
@@ -75,8 +78,10 @@ const StoreMarker = memo(function StoreMarker({
 
   return (
     <Marker
+      ref={markerRef}
       coordinate={{ latitude: store.latitude, longitude: store.longitude }}
       anchor={{ x: 0.5, y: 0.5 }}
+      onPress={handleMarkerPress}
       // react-native-maps의 잘 알려진 함정: tracksViewChanges=false인 커스텀 View 마커는
       // 레이아웃이 끝나기 전에 스냅샷이 찍히면 그대로 "빈 마커"로 굳어버릴 수 있다.
       // cluster={false}로 클러스터링에서 제외해도 배지가 안 보인다는 재현 보고를 받고 나서
