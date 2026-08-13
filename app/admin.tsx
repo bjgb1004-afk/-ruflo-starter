@@ -159,13 +159,19 @@ export default function AdminScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>테스트: 사업자 인증</Text>
-        <Text style={styles.emptyText}>관리자용 사업자 인증 기능을 테스트합니다.</Text>
+        <Text style={styles.sectionTitle}>테스트: 사업자 기능</Text>
+        <Text style={styles.emptyText}>관리자용 사업자 기능을 테스트합니다.</Text>
         <Pressable
           style={[styles.testButton, { backgroundColor: colors.primary }]}
           onPress={() => router.push("/store-owner/signup")}
         >
-          <Text style={styles.testButtonText}>사업자 인증 페이지 보기</Text>
+          <Text style={styles.testButtonText}>인증 페이지 보기</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.testButton, { backgroundColor: colors.primary, marginTop: 8 }]}
+          onPress={() => router.push("/store-owner/manage?testMode=true")}
+        >
+          <Text style={styles.testButtonText}>관리 페이지 보기</Text>
         </Pressable>
       </View>
     </ScrollView>

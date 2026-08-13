@@ -13,8 +13,9 @@ import {
 import { colors, spacing, radius } from "@/constants/theme";
 
 export default function StoreOwnerManageScreen() {
-  const { storeId: paramStoreId } = useLocalSearchParams<{ storeId?: string }>();
+  const { storeId: paramStoreId, testMode } = useLocalSearchParams<{ storeId?: string; testMode?: string }>();
   const userId = useAuth((s) => s.user?.id);
+  const isTestMode = testMode === "true";
 
   const [loading, setLoading] = useState(true);
   const [ownedStores, setOwnedStores] = useState<OwnedStoreSummary[]>([]);
@@ -79,7 +80,7 @@ export default function StoreOwnerManageScreen() {
     }
   }, [activeStoreId, phone, businessHours, ownerMessage, hasParking, hasRestroom, hasAtm, amenitiesText]);
 
-  if (!userId) {
+  if (!userId && !isTestMode) {
     return (
       <View style={styles.center}>
         <Text style={styles.emptyText}>로그인이 필요합니다.</Text>
@@ -96,15 +97,26 @@ export default function StoreOwnerManageScreen() {
   }
 
   if (!activeStoreId) {
+    const storesToShow = isTestMode
+      ? [
+          {
+            storeId: "test-store-001",
+            name: "[테스트] 로또 판매점",
+            address: "서울시 강남구 테헤란로",
+          },
+        ]
+      : ownedStores;
+
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <Text style={styles.title}>내 매장 관리</Text>
-        {ownedStores.length === 0 ? (
+        {isTestMode && <Text style={styles.emptyText}>테스트 모드: 샘플 매장입니다.</Text>}
+        {storesToShow.length === 0 ? (
           <Text style={styles.emptyText}>
             아직 인증된 매장이 없어요. 매장 상세 화면에서 "사장님이신가요?"를 눌러 인증을 신청해보세요.
           </Text>
         ) : (
-          ownedStores.map((store) => (
+          storesToShow.map((store) => (
             <Pressable key={store.storeId} style={styles.storeRow} onPress={() => setActiveStoreId(store.storeId)}>
               <Text style={styles.storeRowName}>{store.name}</Text>
               <Text style={styles.storeRowAddress}>{store.address}</Text>
@@ -118,7 +130,7 @@ export default function StoreOwnerManageScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>매장 정보 수정</Text>
-      {profile?.owner_user_id !== userId ? (
+      {!isTestMode && profile?.owner_user_id !== userId ? (
         <Text style={styles.emptyText}>이 매장의 사장님 권한이 없습니다.</Text>
       ) : (
         <View style={styles.section}>
