@@ -118,6 +118,18 @@ export default function StoreOwnerManageScreen() {
           .map((tag) => tag.trim())
           .filter((tag) => tag.length > 0),
       });
+      // 저장 후 프로필 다시 로드해서 UI 동기화
+      const updated = await getStoreOwnerProfile(activeStoreId);
+      if (updated) {
+        setProfile(updated);
+        setPhone(updated.phone ?? "");
+        setBusinessHours(updated.business_hours ?? "");
+        setOwnerMessage(updated.owner_message ?? "");
+        setHasParking(updated.has_parking ?? false);
+        setHasRestroom(updated.has_restroom ?? false);
+        setHasAtm(updated.has_atm ?? false);
+        setAmenitiesText((updated.amenities ?? []).join(", "));
+      }
       Alert.alert("저장 완료", "매장 정보가 저장되었습니다.");
     } catch {
       Alert.alert("오류", "저장에 실패했습니다. 잠시 후 다시 시도해주세요.");
