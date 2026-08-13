@@ -18,7 +18,7 @@ interface MirrorDrawResponse {
   numbers: number[];
   bonus_no: number;
   date: string; // ISO, 예: "2026-08-08T00:00:00Z"
-  divisions: Array<{ prize: number; winners: number }>;
+  divisions: { prize: number; winners: number }[];
   total_sales_amount: number;
 }
 

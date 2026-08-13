@@ -37,6 +37,8 @@ export default function SettingsScreen() {
 
   // 카운트는 useState로 둬서 로직을 명시적으로 추적 가능하게 하고, 매 탭마다 setTimeout으로
   // 리셋 타이머를 다시 예약한다 - 2초 안에 다음 탭이 없으면 자동으로 0으로 되돌아간다.
+  // (setTapCount의 prev 클로저에서 사용되므로 필요)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [tapCount, setTapCount] = useState(0);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [masterKeyModalOpen, setMasterKeyModalOpen] = useState(false);

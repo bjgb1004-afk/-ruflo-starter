@@ -1,4 +1,10 @@
 // React Native 환경에서만 URL 폴리필이 필요 (웹은 기본 URL API 사용)
+import { createClient } from "@supabase/supabase-js";
+import Constants from "expo-constants";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AppState } from "react-native";
+import type { Database } from "@/types/database.types";
+
 if (typeof window === "undefined") {
   try {
     require("react-native-url-polyfill/auto");
@@ -6,12 +12,6 @@ if (typeof window === "undefined") {
     // 폴리필이 없으면 무시 (웹 환경에서는 필요 없음)
   }
 }
-
-import { createClient } from "@supabase/supabase-js";
-import Constants from "expo-constants";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppState } from "react-native";
-import type { Database } from "@/types/database.types";
 
 const { supabaseUrl, supabaseAnonKey } = Constants.expoConfig?.extra ?? {};
 

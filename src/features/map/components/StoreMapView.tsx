@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
-import MapView, { Callout, Marker, type Region } from "react-native-maps";
+import MapView, { Marker, type Region } from "react-native-maps";
 import ClusteredMapView from "react-native-map-clustering";
 import * as Location from "expo-location";
 import { reportError } from "@/lib/errorLog";

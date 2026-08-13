@@ -85,7 +85,7 @@ async function main() {
   }
 
   const toDelete = new Set<string>();
-  const merges: Array<{ keep: StoreRow; remove: StoreRow }> = [];
+  const merges: { keep: StoreRow; remove: StoreRow }[] = [];
 
   for (const row of rows) {
     if (toDelete.has(row.id)) continue;

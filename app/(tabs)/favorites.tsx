@@ -1,4 +1,4 @@
-import { View, Text, FlatList, Pressable, StyleSheet } from "react-native";
+import { Text, FlatList, Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useMemo, useCallback } from "react";
 import { useFavorites, type FavoriteStore } from "@/features/favorites/useFavorites";

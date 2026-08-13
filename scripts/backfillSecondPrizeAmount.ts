@@ -4,7 +4,7 @@
 import { supabaseAdmin } from "./ingest/lib/supabaseAdmin";
 
 interface OpenLottoResult {
-  divisions: Array<{ prize: number; winners: number }>;
+  divisions: { prize: number; winners: number }[];
 }
 
 async function fetchSecondPrizeInfo(drwNo: number) {

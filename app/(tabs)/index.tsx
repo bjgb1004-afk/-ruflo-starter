@@ -1,4 +1,4 @@
-import { StyleSheet, View, ActivityIndicator, Text, TextInput, Pressable, FlatList, Modal, Alert } from "react-native";
+import { StyleSheet, View, ActivityIndicator, Text, TextInput, Pressable, FlatList, Modal } from "react-native";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";

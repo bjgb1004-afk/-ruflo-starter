@@ -36,5 +36,5 @@ export function useFavoritesCloudSync() {
         reportError(err, "favorites-cloud-sync");
       }
     })();
-  }, [userId, mergeCloud]);
+  }, [userId, mergeCloud, retryPendingDeletes]);
 }
