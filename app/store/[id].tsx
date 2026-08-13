@@ -389,24 +389,16 @@ export default function StoreDetailScreen() {
         <Text style={styles.sectionTitle}>당첨 통계</Text>
         <View style={styles.statsGrid}>
           <View style={styles.statItem}>
-            <Text style={styles.statLabel}>1등 배출</Text>
-            <Text style={styles.statCount}>{stats.first_prize_count}</Text>
-            <Text style={styles.statUnit}>회</Text>
+            <Text style={styles.statText}><Text style={styles.statLabel}>1등 배출</Text> <Text style={styles.statCount}>{stats.first_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statLabel}>2등 배출</Text>
-            <Text style={styles.statCount}>{stats.second_prize_count}</Text>
-            <Text style={styles.statUnit}>회</Text>
+            <Text style={styles.statText}><Text style={styles.statLabel}>2등 배출</Text> <Text style={styles.statCount}>{stats.second_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statLabel}>1년 내 1등</Text>
-            <Text style={styles.statCount}>{stats.first_prize_1yr}</Text>
-            <Text style={styles.statUnit}>회</Text>
+            <Text style={styles.statText}><Text style={styles.statLabel}>1년 내 1등</Text> <Text style={styles.statCount}>{stats.first_prize_1yr}</Text><Text style={styles.statUnit}>회</Text></Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statLabel}>5년 내 1등</Text>
-            <Text style={styles.statCount}>{stats.first_prize_5yr}</Text>
-            <Text style={styles.statUnit}>회</Text>
+            <Text style={styles.statText}><Text style={styles.statLabel}>5년 내 1등</Text> <Text style={styles.statCount}>{stats.first_prize_5yr}</Text><Text style={styles.statUnit}>회</Text></Text>
           </View>
         </View>
         <Text style={styles.statsFootnote}>
@@ -541,14 +533,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     padding: spacing.sm,
     borderRadius: radius.md,
-    alignItems: "center",
   },
-  statLabel: { fontSize: 11, color: colors.textSecondary },
+  statText: { fontSize: 12, color: colors.textPrimary, lineHeight: 18 },
+  statLabel: { fontSize: 11, color: colors.textSecondary, fontWeight: "600" },
   statCount: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "800",
     color: colors.textPrimary,
-    marginTop: 2,
     fontFamily: numericFont.bold,
   },
   statUnit: { fontSize: 11, color: colors.textMuted },
