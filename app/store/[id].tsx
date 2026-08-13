@@ -279,8 +279,9 @@ export default function StoreDetailScreen() {
         </View>
 
         {/* 편의시설 */}
-        {(displayHasParking || displayHasRestroom || displayHasAtm || displayAmenities.length > 0) && (
-          <View style={styles.headerAmenitiesSection}>
+        <View style={styles.headerAmenitiesSection}>
+          <Text style={styles.headerSectionLabel}>판매점 제공 편의시설</Text>
+          {displayHasParking || displayHasRestroom || displayHasAtm || displayAmenities.length > 0 ? (
             <View style={styles.amenitiesGrid}>
               {displayHasParking && (
                 <View style={styles.amenityTag}>
@@ -306,8 +307,10 @@ export default function StoreDetailScreen() {
                 </View>
               ))}
             </View>
-          </View>
-        )}
+          ) : (
+            <Text style={styles.headerInfoEmpty}>정보없음</Text>
+          )}
+        </View>
 
         {/* 영업시간 */}
         {(ownerBusinessHoursText || (stats as any).business_hours) && (
@@ -320,12 +323,12 @@ export default function StoreDetailScreen() {
         )}
 
         {/* 사장님 한마디 */}
-        {ownerMessage && (
-          <View style={styles.headerOwnerMessageSection}>
-            <Text style={styles.headerSectionLabel}>사장님 한마디</Text>
-            <Text style={styles.headerOwnerMessageText}>💬 {ownerMessage}</Text>
-          </View>
-        )}
+        <View style={styles.headerOwnerMessageSection}>
+          <Text style={styles.headerSectionLabel}>사장님 한마디</Text>
+          <Text style={styles.headerOwnerMessageText}>
+            {ownerMessage ? `💬 ${ownerMessage}` : "아직없음"}
+          </Text>
+        </View>
       </View>
 
       {/* 평점 및 리뷰 */}
@@ -472,6 +475,7 @@ const styles = StyleSheet.create({
   headerSectionLabel: { fontSize: 13, fontWeight: "600", color: colors.textSecondary },
   headerBusinessHoursText: { fontSize: 13, color: colors.textPrimary, lineHeight: 18 },
   headerOwnerMessageText: { fontSize: 13, color: colors.textPrimary, lineHeight: 18 },
+  headerInfoEmpty: { fontSize: 13, color: colors.textMuted },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   name: { fontSize: 22, fontWeight: "800", color: colors.textPrimary },
   actionButtons: { flexDirection: "row", alignItems: "center", gap: spacing.md },
@@ -548,26 +552,26 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.md,
+    gap: spacing.sm,
     justifyContent: "space-between",
   },
   statItem: {
     width: "48%",
     backgroundColor: colors.background,
-    padding: spacing.md,
+    padding: spacing.sm,
     borderRadius: radius.md,
     alignItems: "center",
   },
-  statLabel: { fontSize: 12, color: colors.textSecondary },
+  statLabel: { fontSize: 11, color: colors.textSecondary },
   statCount: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: "800",
     color: colors.textPrimary,
-    marginTop: spacing.xs,
+    marginTop: 2,
     fontFamily: numericFont.bold,
   },
-  statUnit: { fontSize: 12, color: colors.textMuted },
-  statsFootnote: { fontSize: 11, color: colors.textMuted, lineHeight: 16, marginTop: spacing.xs },
+  statUnit: { fontSize: 11, color: colors.textMuted },
+  statsFootnote: { fontSize: 10, color: colors.textMuted, lineHeight: 14, marginTop: spacing.xs },
   emptyText: { color: colors.textMuted, textAlign: "center", paddingVertical: spacing.lg },
   winRow: {
     flexDirection: "row",
@@ -633,11 +637,12 @@ const styles = StyleSheet.create({
   nearbySearchCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    padding: spacing.md,
-    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.xs,
     ...cardShadow,
   },
-  nearbySearchCardTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary },
+  nearbySearchCardTitle: { fontSize: 13, fontWeight: "600", color: colors.textSecondary },
   nearbySearchRow: {
     flexDirection: "row",
     gap: spacing.xs,
