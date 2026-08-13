@@ -9,7 +9,7 @@ import { LottoBall } from "@/components/LottoBall";
 import { getDrawByNo } from "@/features/draws/api/drawHistoryApi";
 import { parseLottoQr, type ParsedLottoGame } from "@/features/qr/parseLottoQr";
 import { computeWinRank, getPrizeAmount, type WinRank } from "@/features/qr/checkWinnings";
-import { useMyLottoTickets, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
+import { useMyLottoTickets, LOTTO_UNIT_PRICE, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
 import { scheduleDrawReminder } from "@/features/mylotto/drawReminders";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
@@ -309,13 +309,24 @@ export default function ScanScreen() {
                   보관함에 저장하면 추첨일에 알림을 보내드리고, 결과가 나오면 자동으로 당첨을 확인해요.
                 </Text>
                 <View style={styles.gamesList}>
+                  <View style={styles.groupHeaderRow}>
+                    <Text style={styles.groupDraw}>{result.drawNo}회</Text>
+                    <Text style={styles.groupSpent}>
+                      {(LOTTO_UNIT_PRICE * result.games.length).toLocaleString()}원치 · {result.games.length}게임
+                    </Text>
+                  </View>
                   {result.games.map((game, idx) => (
                     <View key={idx} style={styles.gameRow}>
-                      <Text style={styles.gameIndex}>{String.fromCharCode(97 + idx)}</Text>
+                      <View style={styles.gameIndexBox}>
+                        <Text style={styles.gameIndex}>{String.fromCharCode(97 + idx)}</Text>
+                      </View>
                       <View style={styles.gameBalls}>
                         {game.numbers.map((n) => (
                           <LottoBall key={n} number={n} size="small" />
                         ))}
+                      </View>
+                      <View style={styles.pendingBadge}>
+                        <Text style={styles.pendingBadgeText}>추첨 전</Text>
                       </View>
                     </View>
                   ))}
@@ -340,18 +351,29 @@ export default function ScanScreen() {
             {result?.status === "ok" && (
               <>
                 <View style={styles.gamesList}>
+                  <View style={styles.groupHeaderRow}>
+                    <Text style={styles.groupDraw}>{result.drawNo}회</Text>
+                    <Text style={styles.groupSpent}>
+                      {(LOTTO_UNIT_PRICE * result.games.length).toLocaleString()}원치 · {result.games.length}게임
+                    </Text>
+                  </View>
                   {result.games.map((game, idx) => (
                     <View key={idx} style={styles.gameRow}>
-                      <Text style={styles.gameIndex}>{String.fromCharCode(97 + idx)}</Text>
+                      <View style={styles.gameIndexBox}>
+                        <Text style={styles.gameIndex}>{String.fromCharCode(97 + idx)}</Text>
+                      </View>
                       <View style={styles.gameBalls}>
                         {game.numbers.map((n) => (
                           <LottoBall key={n} number={n} size="small" />
                         ))}
                       </View>
-                      <View style={[styles.rankBadge, game.rank ? styles.rankBadgeWin : styles.rankBadgeLose]}>
-                        <Text style={styles.rankBadgeText}>
-                          {game.rank ? RANK_LABEL[game.rank] : "낙첨"}
-                        </Text>
+                      <View style={styles.gameRight}>
+                        <View style={[styles.rankBadge, game.rank ? styles.rankBadgeWin : styles.rankBadgeLose]}>
+                          <Text style={styles.rankBadgeText}>
+                            {game.rank ? RANK_LABEL[game.rank] : "낙첨"}
+                          </Text>
+                        </View>
+                        {game.rank && <Text style={styles.winAmount}>{game.prizeAmount.toLocaleString()}원</Text>}
                       </View>
                     </View>
                   ))}
@@ -495,7 +517,16 @@ const styles = StyleSheet.create({
   },
   sheetTitle: { fontSize: 18, fontWeight: "800", color: colors.textPrimary },
   sheetSubtitle: { fontSize: 13, color: colors.textSecondary },
-  gamesList: { gap: spacing.md, flexShrink: 0, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md },
+  gamesList: { flexShrink: 0, backgroundColor: colors.background, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
+  groupHeaderRow: {
+    paddingBottom: spacing.sm,
+    marginBottom: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: 2,
+  },
+  groupDraw: { fontSize: 14, fontWeight: "800", color: colors.textPrimary, fontFamily: numericFont.medium },
+  groupSpent: { fontSize: 12, color: colors.textSecondary, fontFamily: numericFont.regular },
   drawInfoCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.sm },
   drawInfoHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   drawNumber: { fontSize: 22, fontWeight: "800", color: colors.textPrimary, fontFamily: numericFont.bold },
@@ -504,18 +535,20 @@ const styles = StyleSheet.create({
   gameRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
     gap: spacing.md,
   },
-  gameIndex: { fontSize: 12, fontWeight: "700", color: colors.textSecondary, minWidth: 20 },
+  gameIndexBox: { minWidth: 20, alignItems: "center" },
+  gameIndex: { fontSize: 11, fontWeight: "700", color: colors.textSecondary },
   gameBalls: { flex: 1, flexDirection: "row", gap: 3, flexWrap: "wrap" },
+  gameRight: { alignItems: "flex-end", gap: 4 },
+  pendingBadge: { backgroundColor: colors.surface, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
+  pendingBadgeText: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
   rankBadge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
   rankBadgeWin: { backgroundColor: colors.gold },
   rankBadgeLose: { backgroundColor: colors.rankNeutral },
-  rankBadgeText: { color: "#fff", fontWeight: "700", fontSize: 12 },
+  rankBadgeText: { color: "#fff", fontWeight: "700", fontSize: 11 },
+  winAmount: { fontSize: 12, fontWeight: "700", color: colors.primary, fontFamily: numericFont.medium },
   gameRowLarge: {
     flexDirection: "row",
     alignItems: "center",
