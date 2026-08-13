@@ -385,7 +385,7 @@ export default function StoreDetailScreen() {
       </View>
 
       {/* 당첨 통계 */}
-      <View style={styles.section}>
+      <View style={[styles.section, styles.statsSection]}>
         <Text style={styles.sectionTitle}>당첨 통계</Text>
         <View style={styles.statsGrid}>
           <View style={styles.statItem}>
@@ -522,28 +522,29 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary },
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   sectionToggle: { fontSize: 12, color: colors.textMuted },
+  statsSection: { paddingVertical: spacing.lg },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.sm,
+    gap: spacing.md,
     justifyContent: "space-between",
   },
   statItem: {
     width: "48%",
     backgroundColor: colors.background,
-    padding: spacing.sm,
+    padding: spacing.md,
     borderRadius: radius.md,
   },
-  statText: { fontSize: 12, color: colors.textPrimary, lineHeight: 18 },
-  statLabel: { fontSize: 11, color: colors.textSecondary, fontWeight: "600" },
+  statText: { fontSize: 13, color: colors.textPrimary, lineHeight: 20 },
+  statLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
   statCount: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "800",
     color: colors.textPrimary,
     fontFamily: numericFont.bold,
   },
-  statUnit: { fontSize: 11, color: colors.textMuted },
-  statsFootnote: { fontSize: 10, color: colors.textMuted, lineHeight: 14, marginTop: spacing.xs },
+  statUnit: { fontSize: 12, color: colors.textMuted },
+  statsFootnote: { fontSize: 11, color: colors.textMuted, lineHeight: 16, marginTop: spacing.sm },
   emptyText: { color: colors.textMuted, textAlign: "center", paddingVertical: spacing.lg },
   winRow: {
     flexDirection: "row",
