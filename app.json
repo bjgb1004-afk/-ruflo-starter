@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "복권명당",
+    "slug": "bookwon-map",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#e74c3c"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/8a708b9c85f24b00ceaaa635a2ed2c7c"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTabletMode": true,
+      "bundleIdentifier": "com.bookwonmap.lotto"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#e74c3c"
+      },
+      "package": "com.bookwonmap.lotto",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#e74c3c"
+        }
+      ]
+    ],
+    "scheme": "bookwonmap",
+    "extra": {
+      "eas": {
+        "projectId": "8a708b9c85f24b00ceaaa635a2ed2c7c"
+      }
+    }
+  }
+}
