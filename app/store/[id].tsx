@@ -280,7 +280,7 @@ export default function StoreDetailScreen() {
 
         {/* 편의시설 */}
         <View style={styles.headerAmenitiesSection}>
-          <Text style={styles.headerSectionLabel}>판매점 제공 편의시설</Text>
+          <Text style={styles.headerSectionLabel}>편의시설</Text>
           {displayHasParking || displayHasRestroom || displayHasAtm || displayAmenities.length > 0 ? (
             <Text style={styles.amenitiesEmojiRow}>
               {displayHasParking && "🅿️ "}
@@ -289,7 +289,7 @@ export default function StoreDetailScreen() {
               {displayAmenities.map((amenity: string) => `${amenity} `).join("")}
             </Text>
           ) : (
-            <Text style={styles.headerInfoEmpty}>정보없음</Text>
+            <Text style={styles.amenitiesEmojiRow}>정보없음</Text>
           )}
         </View>
 
@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...cardShadow,
   },
-  headerAmenitiesSection: { gap: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
+  headerAmenitiesSection: { flexDirection: "row", gap: spacing.sm, alignItems: "center", paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
   headerBusinessHoursSection: { flexDirection: "row", gap: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, alignItems: "center" },
   headerOwnerMessageSection: { gap: spacing.xs, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
   headerSectionLabel: { fontSize: 12, fontWeight: "600", color: colors.textSecondary, flexShrink: 0 },
