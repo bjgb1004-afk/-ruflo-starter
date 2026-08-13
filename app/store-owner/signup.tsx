@@ -63,7 +63,10 @@ export default function StoreOwnerSignupScreen() {
 
   const handleAuthSubmit = useCallback(
     async (mode: "signup" | "signin") => {
-      if (!email || !password) return;
+      if (!email || !password) {
+        setAuthError("이메일과 비밀번호를 모두 입력해주세요.");
+        return;
+      }
       setAuthSubmitting(true);
       setAuthError(null);
       const { error } = mode === "signup" ? await signUp(email, password) : await signIn(email, password);

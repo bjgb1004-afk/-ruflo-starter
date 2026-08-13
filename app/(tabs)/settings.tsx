@@ -20,6 +20,7 @@ import { GeofenceToggle } from "@/features/geofencing/GeofenceToggle";
 import { GEOFENCE_DEBUG_LOG_KEY } from "@/features/geofencing/geofenceTask";
 import { ADMIN_EMAILS, PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from "@/constants/config";
 import { colors } from "@/constants/theme";
+import { getMyOwnedStores } from "@/features/storeOwner/api/storeOwnerApi";
 
 const SECRET_TAP_COUNT = 5;
 // 이 시간 안에 연속으로 눌러야 카운트가 이어진다 - 하루 종일 산발적으로 누른 게 우연히
@@ -43,11 +44,44 @@ export default function SettingsScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [geofenceDebugLog, setGeofenceDebugLog] = useState<string | null>(null);
 
+  // 일반 사용자용 로그인/가입 - 관리자 전용 마스터키 모달과는 별개.
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountPassword, setAccountPassword] = useState("");
+  const [accountAuthSubmitting, setAccountAuthSubmitting] = useState(false);
+  const [accountAuthError, setAccountAuthError] = useState<string | null>(null);
+  const [ownedStoreCount, setOwnedStoreCount] = useState<number | null>(null);
+
   useEffect(() => {
     return () => {
       if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
     };
   }, []);
+
+  // 이미 사장님 인증을 받은 매장이 있으면 "매장 인증하기" 대신 "내 매장 관리"를 보여준다.
+  useEffect(() => {
+    if (!user) {
+      setOwnedStoreCount(null);
+      return;
+    }
+    getMyOwnedStores(user.id)
+      .then((stores) => setOwnedStoreCount(stores.length))
+      .catch(() => setOwnedStoreCount(0));
+  }, [user]);
+
+  const handleAccountAuthSubmit = useCallback(
+    async (mode: "signup" | "signin") => {
+      if (!accountEmail || !accountPassword) {
+        setAccountAuthError("이메일과 비밀번호를 모두 입력해주세요.");
+        return;
+      }
+      setAccountAuthSubmitting(true);
+      setAccountAuthError(null);
+      const { error } = mode === "signup" ? await signUp(accountEmail, accountPassword) : await signIn(accountEmail, accountPassword);
+      setAccountAuthSubmitting(false);
+      if (error) setAccountAuthError(error);
+    },
+    [accountEmail, accountPassword, signIn, signUp],
+  );
 
   // 지오펜스 알림이 실기기에서 안 뜬다는 신고 조사용 - OS가 백그라운드 태스크를 호출했는지
   // 여부를 화면 진입 시마다 확인한다. 원인 파악되면 이 블록은 제거할 것.
@@ -153,30 +187,79 @@ export default function SettingsScreen() {
         {geofenceDebugLog && <Text style={styles.debugText}>{geofenceDebugLog}</Text>}
       </View>
 
-      {/* 판매점 사장님 진입점 - 숨겨진 관리자 제스처와 달리 누구나 볼 수 있다 */}
+      {/* 계정: 로그인 안 됐으면 이메일/비번 로그인·가입 폼, 로그인 됐으면 이메일 + 로그아웃 */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>판매점 사장님이신가요?</Text>
-        <Pressable style={styles.linkRow} onPress={() => router.push("/store-owner/signup")}>
-          <Text style={styles.linkRowText}>매장 인증하고 정보 수정하기</Text>
-        </Pressable>
-        <Pressable style={styles.linkRow} onPress={() => router.push("/store-owner/manage")}>
-          <Text style={styles.linkRowText}>내 매장 관리</Text>
-        </Pressable>
-      </View>
-
-      {/* 로그인 상태라면(관리자가 마스터키로 인증한 경우) 로그아웃만 노출 - 일반 사용자에게는
-          로그인/회원가입 진입점 자체를 보여주지 않는다. */}
-      {user && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>계정</Text>
+        <Text style={styles.sectionTitle}>계정</Text>
+        {user ? (
           <View style={styles.accountCard}>
             <Text style={styles.accountEmail}>{user.email}</Text>
             <Pressable style={styles.logoutButton} onPress={handleLogout}>
               <Text style={styles.logoutButtonText}>로그아웃</Text>
             </Pressable>
           </View>
-        </View>
-      )}
+        ) : (
+          <View style={styles.authCard}>
+            <TextInput
+              style={styles.authInput}
+              placeholder="이메일"
+              placeholderTextColor="#999"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={accountEmail}
+              onChangeText={(text) => {
+                setAccountEmail(text);
+                if (accountAuthError) setAccountAuthError(null);
+              }}
+            />
+            <TextInput
+              style={styles.authInput}
+              placeholder="비밀번호"
+              placeholderTextColor="#999"
+              secureTextEntry
+              value={accountPassword}
+              onChangeText={(text) => {
+                setAccountPassword(text);
+                if (accountAuthError) setAccountAuthError(null);
+              }}
+            />
+            {accountAuthError && <Text style={styles.modalErrorText}>{accountAuthError}</Text>}
+            <View style={styles.authButtonRow}>
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={() => handleAccountAuthSubmit("signin")}
+                disabled={accountAuthSubmitting}
+              >
+                <Text style={styles.secondaryButtonText}>이미 계정 있어요</Text>
+              </Pressable>
+              <Pressable
+                style={styles.primaryButton}
+                onPress={() => handleAccountAuthSubmit("signup")}
+                disabled={accountAuthSubmitting}
+              >
+                {accountAuthSubmitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>처음이에요(가입)</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* 판매점 사장님 진입점 - 아직 인증된 매장이 없으면 인증 시작, 있으면 관리 화면으로 */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>판매점 사장님이신가요?</Text>
+        {ownedStoreCount && ownedStoreCount > 0 ? (
+          <Pressable style={styles.linkRow} onPress={() => router.push("/store-owner/manage")}>
+            <Text style={styles.linkRowText}>내 매장 관리</Text>
+          </Pressable>
+        ) : (
+          <Pressable style={styles.linkRow} onPress={() => router.push("/store-owner/signup")}>
+            <Text style={styles.linkRowText}>매장 인증하고 정보 수정하기</Text>
+          </Pressable>
+        )}
+      </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>정보</Text>
@@ -261,6 +344,42 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   accountEmail: { fontSize: 14, fontWeight: "600", color: "#000" },
+  authCard: {
+    marginHorizontal: 16,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 10,
+    padding: 16,
+    gap: 10,
+  },
+  authInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#000",
+    backgroundColor: "#fff",
+  },
+  authButtonRow: { flexDirection: "row", gap: 8 },
+  primaryButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  primaryButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  secondaryButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  secondaryButtonText: { color: "#000", fontSize: 14, fontWeight: "700" },
   linkRow: {
     marginHorizontal: 16,
     paddingVertical: 14,
