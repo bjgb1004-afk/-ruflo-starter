@@ -633,11 +633,11 @@ const styles = StyleSheet.create({
   nearbySearchCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    padding: spacing.lg,
-    gap: spacing.md,
+    padding: spacing.md,
+    gap: spacing.sm,
     ...cardShadow,
   },
-  nearbySearchCardTitle: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
+  nearbySearchCardTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary },
   nearbySearchRow: {
     flexDirection: "row",
     gap: spacing.xs,
