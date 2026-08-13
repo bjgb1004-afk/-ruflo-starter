@@ -21,17 +21,28 @@ import {
   type OwnedStoreSummary,
   type StoreOwnerProfileSummary,
 } from "@/features/storeOwner/api/storeOwnerApi";
+import { searchStores, type StoreSearchResult } from "@/features/stores/api/storesApi";
+import { ADMIN_EMAILS } from "@/constants/config";
 import { colors, spacing, radius } from "@/constants/theme";
 
 export default function StoreOwnerManageScreen() {
-  const { storeId: paramStoreId, testMode } = useLocalSearchParams<{ storeId?: string; testMode?: string }>();
-  const userId = useAuth((s) => s.user?.id);
+  const { storeId: paramStoreId, testMode, isAdmin: isAdminParam } = useLocalSearchParams<{
+    storeId?: string;
+    testMode?: string;
+    isAdmin?: string;
+  }>();
+  const user = useAuth((s) => s.user);
+  const userId = user?.id;
   const isTestMode = testMode === "true";
+  const isAdmin = isAdminParam === "true" || (user?.email ? ADMIN_EMAILS.includes(user.email) : false);
 
   const [loading, setLoading] = useState(true);
   const [ownedStores, setOwnedStores] = useState<OwnedStoreSummary[]>([]);
   const [activeStoreId, setActiveStoreId] = useState<string | null>(paramStoreId ?? null);
   const [profile, setProfile] = useState<StoreOwnerProfileSummary | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<StoreSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
 
   const [phone, setPhone] = useState("");
   const [businessHours, setBusinessHours] = useState("");
@@ -62,6 +73,30 @@ export default function StoreOwnerManageScreen() {
       setAmenitiesText((p?.amenities ?? []).join(", "));
     });
   }, [activeStoreId]);
+
+  const handleSearch = useCallback(async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const results = await searchStores(query.trim());
+      setSearchResults(results);
+    } catch {
+      Alert.alert("검색 오류", "매장을 검색하지 못했습니다.");
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  const handleSelectStore = useCallback((storeId: string) => {
+    setActiveStoreId(storeId);
+    setSearchQuery("");
+    setSearchResults([]);
+  }, []);
 
   const handleSave = useCallback(async () => {
     if (!activeStoreId) return;
@@ -108,6 +143,49 @@ export default function StoreOwnerManageScreen() {
   }
 
   if (!activeStoreId) {
+    if (isAdmin) {
+      return (
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "android" ? 100 : 0}
+        >
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+            <Text style={styles.title}>매장 검색 및 관리</Text>
+            <Text style={styles.emptyText}>관리자 모드: 모든 매장을 검색해서 정보를 수정할 수 있습니다.</Text>
+            <View style={styles.section}>
+              <TextInput
+                style={styles.input}
+                placeholder="매장명 또는 주소로 검색..."
+                placeholderTextColor="#999"
+                value={searchQuery}
+                onChangeText={handleSearch}
+              />
+              {searching && <ActivityIndicator />}
+            </View>
+            {searchResults.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.label}>검색 결과 ({searchResults.length}개)</Text>
+                {searchResults.map((store) => (
+                  <Pressable
+                    key={store.id}
+                    style={styles.storeRow}
+                    onPress={() => handleSelectStore(store.id)}
+                  >
+                    <Text style={styles.storeRowName}>{store.name}</Text>
+                    <Text style={styles.storeRowAddress}>{store.address}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+            {searchQuery.trim() && !searching && searchResults.length === 0 && (
+              <Text style={styles.emptyText}>검색 결과가 없습니다.</Text>
+            )}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      );
+    }
+
     const storesToShow = isTestMode
       ? [
           {
@@ -145,71 +223,76 @@ export default function StoreOwnerManageScreen() {
       keyboardVerticalOffset={Platform.OS === "android" ? 100 : 0}
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text style={styles.title}>매장 정보 수정</Text>
-      {!isTestMode && profile?.owner_user_id !== userId ? (
-        <Text style={styles.emptyText}>이 매장의 사장님 권한이 없습니다.</Text>
-      ) : (
-        <View style={styles.section}>
-          <Text style={styles.label}>전화번호</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="02-1234-5678"
-            placeholderTextColor="#999"
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
-          />
-          <Text style={styles.label}>영업시간</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="예: 매일 09:00~23:00"
-            placeholderTextColor="#999"
-            value={businessHours}
-            onChangeText={setBusinessHours}
-          />
-          <Text style={styles.label}>한마디 ({ownerMessage.length}/30)</Text>
-          <TextInput
-            style={[styles.input, styles.messageInput]}
-            placeholder="손님들께 전하고 싶은 한마디"
-            placeholderTextColor="#999"
-            multiline
-            maxLength={30}
-            value={ownerMessage}
-            onChangeText={setOwnerMessage}
-          />
-          <Text style={styles.label}>편의시설</Text>
-          <View style={styles.amenityChipRow}>
-            <Pressable
-              style={[styles.amenityChip, hasParking && styles.amenityChipActive]}
-              onPress={() => setHasParking((v) => !v)}
-            >
-              <Text style={[styles.amenityChipText, hasParking && styles.amenityChipTextActive]}>🅿️ 주차</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.amenityChip, hasRestroom && styles.amenityChipActive]}
-              onPress={() => setHasRestroom((v) => !v)}
-            >
-              <Text style={[styles.amenityChipText, hasRestroom && styles.amenityChipTextActive]}>🚻 화장실</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.amenityChip, hasAtm && styles.amenityChipActive]}
-              onPress={() => setHasAtm((v) => !v)}
-            >
-              <Text style={[styles.amenityChipText, hasAtm && styles.amenityChipTextActive]}>💳 ATM</Text>
+        <View style={styles.headerRow}>
+          <Pressable onPress={() => setActiveStoreId(null)} style={styles.backButton}>
+            <Text style={styles.backButtonText}>← 돌아가기</Text>
+          </Pressable>
+          <Text style={styles.title}>매장 정보 수정</Text>
+        </View>
+        {!isTestMode && !isAdmin && profile?.owner_user_id !== userId ? (
+          <Text style={styles.emptyText}>이 매장의 사장님 권한이 없습니다.</Text>
+        ) : (
+          <View style={styles.section}>
+            <Text style={styles.label}>전화번호</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="02-1234-5678"
+              placeholderTextColor="#999"
+              keyboardType="phone-pad"
+              value={phone}
+              onChangeText={setPhone}
+            />
+            <Text style={styles.label}>영업시간</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="예: 매일 09:00~23:00"
+              placeholderTextColor="#999"
+              value={businessHours}
+              onChangeText={setBusinessHours}
+            />
+            <Text style={styles.label}>한마디 ({ownerMessage.length}/30)</Text>
+            <TextInput
+              style={[styles.input, styles.messageInput]}
+              placeholder="손님들께 전하고 싶은 한마디"
+              placeholderTextColor="#999"
+              multiline
+              maxLength={30}
+              value={ownerMessage}
+              onChangeText={setOwnerMessage}
+            />
+            <Text style={styles.label}>편의시설</Text>
+            <View style={styles.amenityChipRow}>
+              <Pressable
+                style={[styles.amenityChip, hasParking && styles.amenityChipActive]}
+                onPress={() => setHasParking((v) => !v)}
+              >
+                <Text style={[styles.amenityChipText, hasParking && styles.amenityChipTextActive]}>🅿️ 주차</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.amenityChip, hasRestroom && styles.amenityChipActive]}
+                onPress={() => setHasRestroom((v) => !v)}
+              >
+                <Text style={[styles.amenityChipText, hasRestroom && styles.amenityChipTextActive]}>🚻 화장실</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.amenityChip, hasAtm && styles.amenityChipActive]}
+                onPress={() => setHasAtm((v) => !v)}
+              >
+                <Text style={[styles.amenityChipText, hasAtm && styles.amenityChipTextActive]}>💳 ATM</Text>
+              </Pressable>
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="기타 편의시설 (쉼표로 구분, 예: 흡연구역, 포토부스)"
+              placeholderTextColor="#999"
+              value={amenitiesText}
+              onChangeText={setAmenitiesText}
+            />
+            <Pressable style={styles.primaryButton} onPress={handleSave} disabled={submitting}>
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>저장</Text>}
             </Pressable>
           </View>
-          <TextInput
-            style={styles.input}
-            placeholder="기타 편의시설 (쉼표로 구분, 예: 흡연구역, 포토부스)"
-            placeholderTextColor="#999"
-            value={amenitiesText}
-            onChangeText={setAmenitiesText}
-          />
-          <Pressable style={styles.primaryButton} onPress={handleSave} disabled={submitting}>
-            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>저장</Text>}
-          </Pressable>
-        </View>
-      )}
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -219,6 +302,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.lg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  headerRow: { gap: spacing.md, marginBottom: spacing.md },
+  backButton: { paddingVertical: spacing.sm },
+  backButtonText: { fontSize: 14, fontWeight: "600", color: colors.primary },
   title: { fontSize: 20, fontWeight: "800", color: colors.textPrimary },
   emptyText: { fontSize: 13, color: colors.textMuted, lineHeight: 19 },
   section: { gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg },

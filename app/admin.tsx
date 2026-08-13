@@ -169,9 +169,9 @@ export default function AdminScreen() {
         </Pressable>
         <Pressable
           style={[styles.testButton, { backgroundColor: colors.primary, marginTop: 8 }]}
-          onPress={() => router.push("/store-owner/manage?testMode=true")}
+          onPress={() => router.push("/store-owner/manage?isAdmin=true")}
         >
-          <Text style={styles.testButtonText}>관리 페이지 보기</Text>
+          <Text style={styles.testButtonText}>매장 검색 및 관리</Text>
         </Pressable>
       </View>
     </ScrollView>
