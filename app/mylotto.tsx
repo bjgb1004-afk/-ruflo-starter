@@ -47,8 +47,11 @@ function RoiBars({ spent, won }: { spent: number; won: number }) {
   );
 }
 
-const TicketRow = ({ ticket, onShare }: { ticket: MyLottoTicket; onShare: (t: MyLottoTicket) => void }) => (
+const TicketRow = ({ ticket, index, onShare }: { ticket: MyLottoTicket; index: number; onShare: (t: MyLottoTicket) => void }) => (
   <View style={styles.ticketRow}>
+    <View style={styles.ticketIndex}>
+      <Text style={styles.ticketIndexText}>{String.fromCharCode(97 + index)}</Text>
+    </View>
     <View style={styles.ticketInfo}>
       {ticket.purchaseType && (
         <View style={styles.methodTag}>
@@ -137,7 +140,7 @@ const TicketGroupCard = ({
         </Pressable>
       </View>
       {expanded &&
-        group.tickets.map((t) => <TicketRow key={t.id} ticket={t} onShare={onShare} />)}
+        group.tickets.map((t, idx) => <TicketRow key={t.id} ticket={t} index={idx} onShare={onShare} />)}
     </View>
   );
 };
@@ -343,11 +346,12 @@ const styles = StyleSheet.create({
   deleteButtonIcon: { fontSize: 16 },
   ticketRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: spacing.sm + 2,
     gap: spacing.md,
   },
+  ticketIndex: { minWidth: 20, alignItems: "center" },
+  ticketIndexText: { fontSize: 11, fontWeight: "700", color: colors.textSecondary },
   ticketInfo: { flex: 1, gap: 2 },
   methodTag: {
     backgroundColor: colors.background,

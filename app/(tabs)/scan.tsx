@@ -287,6 +287,9 @@ export default function ScanScreen() {
             renderItem={({ item: [drawNo, tickets] }) => <VaultDrawCard drawNo={drawNo} tickets={tickets} />}
             contentContainerStyle={styles.vaultList}
             scrollEnabled={true}
+            snapToInterval={260}
+            decelerationRate="fast"
+            showsVerticalScrollIndicator={false}
           />
         )}
       </View>
@@ -431,23 +434,24 @@ const styles = StyleSheet.create({
   vaultCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.sm,
+    padding: spacing.lg,
+    gap: spacing.md,
     ...cardShadow,
+    minHeight: 240,
   },
-  vaultCardTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary },
+  vaultCardTitle: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
   vaultCardGame: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.background,
     borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.md,
   },
-  vaultCardGameIndex: { fontSize: 11, fontWeight: "700", color: colors.textSecondary, minWidth: 14 },
-  vaultCardBalls: { flexDirection: "row", gap: 2 },
-  vaultCardBadge: { paddingHorizontal: spacing.xs, paddingVertical: 2, borderRadius: radius.pill },
+  vaultCardGameIndex: { fontSize: 12, fontWeight: "700", color: colors.textSecondary, minWidth: 16 },
+  vaultCardBalls: { flexDirection: "row", gap: 3 },
+  vaultCardBadge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
   vaultCardBadgeWin: { backgroundColor: colors.gold },
   vaultCardBadgeLose: { backgroundColor: colors.rankNeutral },
   vaultCardBadgePending: { backgroundColor: colors.rankNeutral },
