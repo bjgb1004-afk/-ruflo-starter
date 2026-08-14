@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { GEOFENCE_FREE_TIER_MAX } from "@/constants/config";
+import { ADMIN_EMAILS, GEOFENCE_FREE_TIER_MAX } from "@/constants/config";
+import { useAuth } from "@/features/auth/useAuth";
 
 export type SelectedStore = {
   id: string;
@@ -29,7 +30,9 @@ export const useSelectedStores = create<SelectedStoresState>()(
           set({ stores: next });
           return false;
         }
-        if (Object.keys(current).length >= GEOFENCE_FREE_TIER_MAX) {
+        const userEmail = useAuth.getState().user?.email;
+        const isAdmin = !!userEmail && ADMIN_EMAILS.includes(userEmail);
+        if (!isAdmin && Object.keys(current).length >= GEOFENCE_FREE_TIER_MAX) {
           return null;
         }
         set({ stores: { ...current, [store.id]: store } });

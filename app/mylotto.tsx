@@ -119,11 +119,13 @@ interface TicketGroup {
 }
 
 // 한 번의 QR 스캔(한 장의 용지)으로 함께 저장된 게임들을 하나의 카드로 묶는다. groupId가
-// 없는 옛 데이터(이 필드가 생기기 전 저장분)는 각자 자기 id를 그룹 키로 써서 개별 카드가 된다.
+// 없는 옛 데이터(이 필드가 생기기 전 저장분)는 drawNo+savedAt으로 묶는다 - addTickets()가
+// 한 번 호출될 때마다 그 안의 모든 게임이 동일한 savedAt(타임스탬프)을 공유해서 groupId와
+// 동등한 역할을 한다(자기 id로 폴백하면 같은 용지 게임들이 낱개 카드로 쪼개져버렸다).
 function groupTickets(tickets: MyLottoTicket[]): TicketGroup[] {
   const map = new Map<string, TicketGroup>();
   for (const t of tickets) {
-    const key = t.groupId ?? t.id;
+    const key = t.groupId ?? `${t.drawNo}|${t.savedAt}`;
     const existing = map.get(key);
     if (existing) existing.tickets.push(t);
     else map.set(key, { key, drawNo: t.drawNo, savedAt: t.savedAt, tickets: [t] });

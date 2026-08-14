@@ -40,7 +40,7 @@ const RankingRow = memo(function RankingRow({
       longitude: item.longitude,
     });
     if (result === null) {
-      Alert.alert("선택 제한", `무료 회원은 최대 ${GEOFENCE_FREE_TIER_MAX}개 판매점까지 등록할 수 있어요.`);
+      Alert.alert("선택 제한", `명당알림은 최대 ${GEOFENCE_FREE_TIER_MAX}개까지만 선택할 수 있어요.`);
     }
   }, [toggle, item]);
 
