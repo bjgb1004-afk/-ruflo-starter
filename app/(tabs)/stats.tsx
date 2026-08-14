@@ -5,12 +5,14 @@ import { HotspotTrendCard } from "@/features/stats/components/HotspotTrendCard";
 import { RecentDrawSummary } from "@/features/stats/components/RecentDrawSummary";
 import { LuckDensityList } from "@/features/stats/components/LuckDensityList";
 import { colors, spacing } from "@/constants/theme";
+import { useResponsive, getResponsiveSpacing } from "@/utils/responsive";
 
 // "지역별 당첨 통계"(1등/2등 막대그래프) 섹션은 명당 밀도(LuckDensityList)와 내용이
 // 상당 부분 겹쳐서 삭제 - 같은 정보를 두 군데서 다른 모양으로 또 보여줄 필요가 없다는
 // 피드백(design.txt)을 반영했다.
 export default function StatsScreen() {
   const router = useRouter();
+  const { breakpoint } = useResponsive();
   const handleRegionPress = useCallback(
     (sido: string) => {
       router.push({ pathname: "/(tabs)/ranking", params: { sido } });
@@ -19,7 +21,7 @@ export default function StatsScreen() {
   );
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.contentContainer, { padding: getResponsiveSpacing(spacing.lg, breakpoint), gap: getResponsiveSpacing(spacing.xl, breakpoint) }]}>
       {/* ⚡ 연속 당첨 지역 배지 - 🔴 이번 달 HOT은 지도 화면 마커로 옮겨서 여기선 뺐다 */}
       <HotspotTrendCard onPressSido={handleRegionPress} />
 

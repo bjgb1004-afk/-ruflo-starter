@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useMemo, useCallback } from "react";
 import { useFavorites, type FavoriteStore } from "@/features/favorites/useFavorites";
 import { useAuth } from "@/features/auth/useAuth";
+import { useResponsive, getResponsiveSpacing, getResponsiveFontSize } from "@/utils/responsive";
 
 type Section =
   | { type: "header"; title: string }
@@ -11,6 +12,7 @@ type Section =
 
 export default function FavoritesScreen() {
   const router = useRouter();
+  const { breakpoint } = useResponsive();
   const favoriteMap = useFavorites((s) => s.stores);
   const isLoggedIn = useAuth((s) => !!s.user);
 
@@ -48,15 +50,15 @@ export default function FavoritesScreen() {
       }
       renderItem={({ item }) => {
         if (item.type === "header") {
-          return <Text style={styles.sectionTitle}>{item.title}</Text>;
+          return <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(15, breakpoint), paddingHorizontal: getResponsiveSpacing(16, breakpoint) }]}>{item.title}</Text>;
         }
         if (item.type === "empty") {
-          return <Text style={styles.emptyText}>{item.message}</Text>;
+          return <Text style={[styles.emptyText, { fontSize: getResponsiveFontSize(13, breakpoint), paddingHorizontal: getResponsiveSpacing(16, breakpoint) }]}>{item.message}</Text>;
         }
         return (
-          <Pressable style={styles.row} onPress={() => handlePress(item.store.id)}>
-            <Text style={styles.rowName}>{item.store.name}</Text>
-            <Text style={styles.rowAddress}>{item.store.address}</Text>
+          <Pressable style={[styles.row, { paddingHorizontal: getResponsiveSpacing(16, breakpoint), paddingVertical: getResponsiveSpacing(14, breakpoint) }]} onPress={() => handlePress(item.store.id)}>
+            <Text style={[styles.rowName, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>{item.store.name}</Text>
+            <Text style={[styles.rowAddress, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>{item.store.address}</Text>
           </Pressable>
         );
       }}
