@@ -5,6 +5,7 @@ import { useCallback, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getDrawWinnersDetail, type DrawWinnerStore } from "@/features/draws/api/drawHistoryApi";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
+import { useResponsive, getResponsiveSpacing, getResponsiveFontSize } from "@/utils/responsive";
 
 type Row = DrawWinnerStore & { rank: 1 | 2 };
 
@@ -16,6 +17,7 @@ function formatDrawDate(dateStr: string): string {
 export default function DrawWinnersScreen() {
   const { drawNo } = useLocalSearchParams<{ drawNo: string }>();
   const router = useRouter();
+  const { breakpoint } = useResponsive();
   const drawNoNum = Number(drawNo);
   // Android 엣지-투-엣지(제스처 네비게이션 바가 콘텐츠 위에 떠 있음)에서, 리스트를 끝까지
   // 내리면 마지막 줄들이 네비게이션 바 뒤로 가려 글씨가 안 보이는 문제 - 하단 안전영역만큼
@@ -46,28 +48,40 @@ export default function DrawWinnersScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: Row }) => (
-      <Pressable style={styles.row} onPress={() => handlePressStore(item.storeId)}>
+      <Pressable
+        style={[styles.row, { padding: getResponsiveSpacing(spacing.md, breakpoint) }]}
+        onPress={() => handlePressStore(item.storeId)}
+      >
         <View style={[styles.badge, item.rank === 1 ? styles.badge1st : styles.badge2nd]}>
-          <Text style={styles.badgeText}>{item.rank}등</Text>
+          <Text style={[styles.badgeText, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
+            {item.rank}등
+          </Text>
         </View>
         <View style={styles.rowInfo}>
           <View style={styles.nameRow}>
-            <Text style={styles.storeName}>{item.storeName}</Text>
+            <Text style={[styles.storeName, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
+              {item.storeName}
+            </Text>
             {item.purchaseType && (
               <View style={styles.methodTag}>
-                <Text style={styles.methodTagText}>{item.purchaseType}</Text>
+                <Text style={[styles.methodTagText, { fontSize: getResponsiveFontSize(10, breakpoint) }]}>
+                  {item.purchaseType}
+                </Text>
               </View>
             )}
           </View>
           {item.address && (
-            <Text style={styles.storeAddress} numberOfLines={1}>
+            <Text
+              style={[styles.storeAddress, { fontSize: getResponsiveFontSize(12, breakpoint) }]}
+              numberOfLines={1}
+            >
               {item.address}
             </Text>
           )}
         </View>
       </Pressable>
     ),
-    [handlePressStore],
+    [handlePressStore, breakpoint],
   );
 
   if (isLoading) {
@@ -89,14 +103,16 @@ export default function DrawWinnersScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{data.drawNo}회 ({formatDrawDate(data.drawDate)})</Text>
-        <Text style={styles.headerSubtitle}>
+        <Text style={[styles.headerTitle, { fontSize: getResponsiveFontSize(18, breakpoint) }]}>
+          {data.drawNo}회 ({formatDrawDate(data.drawDate)})
+        </Text>
+        <Text style={[styles.headerSubtitle, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
           1등 {data.firstPrizeStores.length}곳 · 2등 {data.secondPrizeStores.length}곳
         </Text>
         {(data.purchaseTypeSummary.자동 > 0 ||
           data.purchaseTypeSummary.수동 > 0 ||
           data.purchaseTypeSummary.반자동 > 0) && (
-          <Text style={styles.methodSummary}>
+          <Text style={[styles.methodSummary, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
             1등 구매방식 · 자동 {data.purchaseTypeSummary.자동}곳 · 수동 {data.purchaseTypeSummary.수동}곳
             {data.purchaseTypeSummary.반자동 > 0 ? ` · 반자동 ${data.purchaseTypeSummary.반자동}곳` : ""}
           </Text>
@@ -123,13 +139,12 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerTitle: {
-    fontSize: 18,
     fontWeight: "800",
     color: colors.textPrimary,
     fontFamily: numericFont.bold,
   },
-  headerSubtitle: { fontSize: 13, color: colors.textSecondary, marginTop: spacing.xs },
-  methodSummary: { fontSize: 12, color: colors.textMuted, marginTop: spacing.xs },
+  headerSubtitle: { color: colors.textSecondary, marginTop: spacing.xs },
+  methodSummary: { color: colors.textMuted, marginTop: spacing.xs },
   nameRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, flexWrap: "wrap" },
   methodTag: {
     backgroundColor: colors.background,
@@ -139,7 +154,7 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     borderRadius: radius.pill,
   },
-  methodTagText: { fontSize: 10, color: colors.textSecondary, fontWeight: "600" },
+  methodTagText: { color: colors.textSecondary, fontWeight: "600" },
   listContent: { padding: spacing.lg, gap: spacing.sm },
   row: {
     flexDirection: "row",
@@ -147,7 +162,6 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    padding: spacing.md,
     ...cardShadow,
   },
   badge: {
@@ -157,8 +171,8 @@ const styles = StyleSheet.create({
   },
   badge1st: { backgroundColor: colors.gold },
   badge2nd: { backgroundColor: colors.silver },
-  badgeText: { color: "#fff", fontWeight: "700", fontSize: 12 },
+  badgeText: { color: "#fff", fontWeight: "700" },
   rowInfo: { flex: 1, gap: 2 },
-  storeName: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
-  storeAddress: { fontSize: 12, color: colors.textMuted },
+  storeName: { fontWeight: "700", color: colors.textPrimary },
+  storeAddress: { color: colors.textMuted },
 });

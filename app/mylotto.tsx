@@ -10,6 +10,7 @@ import { LottoBall } from "@/components/LottoBall";
 import { shareWinningCard, ShareCardError } from "@/features/mylotto/shareWinningCard";
 import { reportError } from "@/lib/errorLog";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
+import { useResponsive, getResponsiveSpacing, getResponsiveFontSize } from "@/utils/responsive";
 
 const RANK_LABEL: Record<1 | 2 | 3 | 4 | 5, string> = {
   1: "1등",
@@ -25,37 +26,49 @@ function formatWon(n: number): string {
 
 // 두 값(구매액/당첨금) 중 큰 쪽을 기준으로 막대 너비 비율을 계산한다. SVG 없이 flexbox 폭
 // 퍼센트만으로 충분해 새 차트 라이브러리를 추가하지 않았다.
-function RoiBars({ spent, won }: { spent: number; won: number }) {
+function RoiBars({ spent, won, breakpoint }: { spent: number; won: number; breakpoint: string }) {
   const max = Math.max(spent, won, 1);
   return (
     <View style={styles.roiContainer}>
       <View style={styles.roiRow}>
-        <Text style={styles.roiLabel}>구매액</Text>
+        <Text style={[styles.roiLabel, { fontSize: getResponsiveFontSize(12, breakpoint as any) }]}>
+          구매액
+        </Text>
         <View style={styles.roiTrack}>
           <View style={[styles.roiBar, styles.roiBarSpent, { width: `${(spent / max) * 100}%` }]} />
         </View>
-        <Text style={styles.roiValue}>{formatWon(spent)}</Text>
+        <Text style={[styles.roiValue, { fontSize: getResponsiveFontSize(12, breakpoint as any) }]}>
+          {formatWon(spent)}
+        </Text>
       </View>
       <View style={styles.roiRow}>
-        <Text style={styles.roiLabel}>당첨금</Text>
+        <Text style={[styles.roiLabel, { fontSize: getResponsiveFontSize(12, breakpoint as any) }]}>
+          당첨금
+        </Text>
         <View style={styles.roiTrack}>
           <View style={[styles.roiBar, styles.roiBarWon, { width: `${(won / max) * 100}%` }]} />
         </View>
-        <Text style={styles.roiValue}>{formatWon(won)}</Text>
+        <Text style={[styles.roiValue, { fontSize: getResponsiveFontSize(12, breakpoint as any) }]}>
+          {formatWon(won)}
+        </Text>
       </View>
     </View>
   );
 }
 
-const TicketRow = ({ ticket, index, onShare }: { ticket: MyLottoTicket; index: number; onShare: (t: MyLottoTicket) => void }) => (
+const TicketRow = ({ ticket, index, onShare, breakpoint }: { ticket: MyLottoTicket; index: number; onShare: (t: MyLottoTicket) => void; breakpoint: string }) => (
   <View style={styles.ticketRow}>
     <View style={styles.ticketIndex}>
-      <Text style={styles.ticketIndexText}>{String.fromCharCode(97 + index)}</Text>
+      <Text style={[styles.ticketIndexText, { fontSize: getResponsiveFontSize(11, breakpoint as any) }]}>
+        {String.fromCharCode(97 + index)}
+      </Text>
     </View>
     <View style={styles.ticketInfo}>
       {ticket.purchaseType && (
         <View style={styles.methodTag}>
-          <Text style={styles.methodTagText}>{ticket.purchaseType}</Text>
+          <Text style={[styles.methodTagText, { fontSize: getResponsiveFontSize(10, breakpoint as any) }]}>
+            {ticket.purchaseType}
+          </Text>
         </View>
       )}
       <View style={styles.ticketBalls}>
@@ -67,21 +80,31 @@ const TicketRow = ({ ticket, index, onShare }: { ticket: MyLottoTicket; index: n
     <View style={styles.ticketRight}>
       {!ticket.checked ? (
         <View style={styles.pendingBadge}>
-          <Text style={styles.pendingBadgeText}>추첨 대기</Text>
+          <Text style={[styles.pendingBadgeText, { fontSize: getResponsiveFontSize(11, breakpoint as any) }]}>
+            추첨 대기
+          </Text>
         </View>
       ) : ticket.rank ? (
         <>
           <View style={styles.winBadge}>
-            <Text style={styles.winBadgeText}>{RANK_LABEL[ticket.rank]}</Text>
+            <Text style={[styles.winBadgeText, { fontSize: getResponsiveFontSize(11, breakpoint as any) }]}>
+              {RANK_LABEL[ticket.rank]}
+            </Text>
           </View>
-          <Text style={styles.winAmount}>{formatWon(ticket.prizeAmount)}</Text>
+          <Text style={[styles.winAmount, { fontSize: getResponsiveFontSize(12, breakpoint as any) }]}>
+            {formatWon(ticket.prizeAmount)}
+          </Text>
           <Pressable style={styles.shareButton} onPress={() => onShare(ticket)}>
-            <Text style={styles.shareButtonText}>공유</Text>
+            <Text style={[styles.shareButtonText, { fontSize: getResponsiveFontSize(11, breakpoint as any) }]}>
+              공유
+            </Text>
           </Pressable>
         </>
       ) : (
         <View style={styles.loseBadge}>
-          <Text style={styles.loseBadgeText}>낙첨</Text>
+          <Text style={[styles.loseBadgeText, { fontSize: getResponsiveFontSize(11, breakpoint as any) }]}>
+            낙첨
+          </Text>
         </View>
       )}
     </View>
@@ -112,10 +135,12 @@ const TicketGroupCard = ({
   group,
   onShare,
   onDelete,
+  breakpoint,
 }: {
   group: TicketGroup;
   onShare: (t: MyLottoTicket) => void;
   onDelete: (group: TicketGroup) => void;
+  breakpoint: string;
 }) => {
   // 회차(그룹)마다 따로 접고 펼 수 있게 - 보관함에 여러 회차가 쌓이면 전부 펼쳐진 채로
   // 쭉 나열되어 원하는 회차를 찾기 번거롭다는 피드백. 기본은 펼침 상태로 둬서 기존
@@ -128,10 +153,14 @@ const TicketGroupCard = ({
       <View style={styles.groupHeaderRow}>
         <Pressable style={styles.groupHeaderInfo} onPress={handleToggle}>
           <View style={styles.groupDrawRow}>
-            <Text style={styles.groupDraw}>{group.drawNo}회</Text>
-            <Text style={styles.groupChevron}>{expanded ? "▲" : "▼"}</Text>
+            <Text style={[styles.groupDraw, { fontSize: getResponsiveFontSize(14, breakpoint as any) }]}>
+              {group.drawNo}회
+            </Text>
+            <Text style={[styles.groupChevron, { fontSize: getResponsiveFontSize(11, breakpoint as any) }]}>
+              {expanded ? "▲" : "▼"}
+            </Text>
           </View>
-          <Text style={styles.groupSpent}>
+          <Text style={[styles.groupSpent, { fontSize: getResponsiveFontSize(12, breakpoint as any) }]}>
             {formatWon(group.tickets.length * LOTTO_UNIT_PRICE)}치 · {group.tickets.length}게임
           </Text>
         </Pressable>
@@ -140,7 +169,9 @@ const TicketGroupCard = ({
         </Pressable>
       </View>
       {expanded &&
-        group.tickets.map((t, idx) => <TicketRow key={t.id} ticket={t} index={idx} onShare={onShare} />)}
+        group.tickets.map((t, idx) => (
+          <TicketRow key={t.id} ticket={t} index={idx} onShare={onShare} breakpoint={breakpoint} />
+        ))}
     </View>
   );
 };
@@ -148,6 +179,7 @@ const TicketGroupCard = ({
 export default function MyLottoScreen() {
   useAutoCheckTickets();
   const router = useRouter();
+  const { breakpoint } = useResponsive();
   const ticketsMap = useMyLottoTickets((s) => s.tickets);
   const removeTicket = useMyLottoTickets((s) => s.removeTicket);
   const tickets = useMemo(() => Object.values(ticketsMap).sort((a, b) => b.savedAt.localeCompare(a.savedAt)), [ticketsMap]);
@@ -207,11 +239,19 @@ export default function MyLottoScreen() {
   if (tickets.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyEmoji}>🎟️</Text>
-        <Text style={styles.emptyText}>저장된 복권이 없어요</Text>
-        <Text style={styles.emptySubtext}>QR 스캔 후 보관함에 저장하면 여기에 모여요.</Text>
+        <Text style={[styles.emptyEmoji, { fontSize: getResponsiveFontSize(40, breakpoint) }]}>
+          🎟️
+        </Text>
+        <Text style={[styles.emptyText, { fontSize: getResponsiveFontSize(16, breakpoint) }]}>
+          저장된 복권이 없어요
+        </Text>
+        <Text style={[styles.emptySubtext, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
+          QR 스캔 후 보관함에 저장하면 여기에 모여요.
+        </Text>
         <Pressable style={styles.scanButton} onPress={() => router.push("/scan")}>
-          <Text style={styles.scanButtonText}>QR 스캔하러 가기</Text>
+          <Text style={[styles.scanButtonText, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
+            QR 스캔하러 가기
+          </Text>
         </Pressable>
       </View>
     );
@@ -221,21 +261,27 @@ export default function MyLottoScreen() {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: spacing.lg + insets.bottom }]}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>수익률</Text>
-          <RoiBars spent={summary.totalSpent} won={summary.totalWon} />
-          <Text style={styles.summaryFootnote}>
+          <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
+            수익률
+          </Text>
+          <RoiBars spent={summary.totalSpent} won={summary.totalWon} breakpoint={breakpoint} />
+          <Text style={[styles.summaryFootnote, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
             총 {summary.totalTickets}게임 · 당첨 {summary.winCount}건
           </Text>
         </View>
 
         {frequentNumbers.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>내가 자주 뽑은 번호 Best{frequentNumbers.length}</Text>
+            <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
+              내가 자주 뽑은 번호 Best{frequentNumbers.length}
+            </Text>
             <View style={styles.numberRow}>
               {frequentNumbers.map((item) => (
                 <View key={item.number} style={styles.numberBubble}>
                   <LottoBall number={item.number} size="small" />
-                  <Text style={styles.numberBubbleCount}>{item.count}회</Text>
+                  <Text style={[styles.numberBubbleCount, { fontSize: getResponsiveFontSize(10, breakpoint) }]}>
+                    {item.count}회
+                  </Text>
                 </View>
               ))}
             </View>
@@ -243,13 +289,21 @@ export default function MyLottoScreen() {
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>내 복권 목록</Text>
+          <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
+            내 복권 목록
+          </Text>
           {ticketGroups.map((g) => (
-            <TicketGroupCard key={g.key} group={g} onShare={handleShare} onDelete={handleDeleteGroup} />
+            <TicketGroupCard
+              key={g.key}
+              group={g}
+              onShare={handleShare}
+              onDelete={handleDeleteGroup}
+              breakpoint={breakpoint}
+            />
           ))}
         </View>
 
-        <Text style={styles.dataLossNotice}>
+        <Text style={[styles.dataLossNotice, { fontSize: getResponsiveFontSize(11, breakpoint) }]}>
           ⚠️ 보관함은 이 기기에만 저장돼요. 앱을 삭제하면 저장된 복권 내역이 함께 사라질 수 있어요.
         </Text>
       </ScrollView>
@@ -274,9 +328,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     backgroundColor: colors.background,
   },
-  emptyEmoji: { fontSize: 40 },
-  emptyText: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
-  emptySubtext: { fontSize: 13, color: colors.textMuted, textAlign: "center" },
+  emptyEmoji: {},
+  emptyText: { fontWeight: "700", color: colors.textPrimary },
+  emptySubtext: { color: colors.textMuted, textAlign: "center" },
   scanButton: {
     marginTop: spacing.md,
     backgroundColor: colors.primary,
@@ -292,12 +346,12 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...cardShadow,
   },
-  sectionTitle: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
-  summaryFootnote: { fontSize: 12, color: colors.textMuted },
+  sectionTitle: { fontWeight: "700", color: colors.textPrimary },
+  summaryFootnote: { color: colors.textMuted },
 
   roiContainer: { gap: spacing.sm },
   roiRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  roiLabel: { width: 48, fontSize: 12, color: colors.textSecondary },
+  roiLabel: { width: 48, color: colors.textSecondary },
   roiTrack: { flex: 1, height: 14, borderRadius: radius.pill, backgroundColor: colors.background, overflow: "hidden" },
   roiBar: { height: "100%", borderRadius: radius.pill },
   roiBarSpent: { backgroundColor: colors.rankNeutral },
@@ -305,7 +359,6 @@ const styles = StyleSheet.create({
   roiValue: {
     width: 90,
     textAlign: "right",
-    fontSize: 12,
     fontWeight: "700",
     color: colors.textPrimary,
     fontFamily: numericFont.medium,
@@ -320,7 +373,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     gap: 2,
   },
-  numberBubbleCount: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
+  numberBubbleCount: { color: colors.textMuted, marginTop: 2 },
 
   groupCard: {
     backgroundColor: colors.background,
@@ -339,9 +392,9 @@ const styles = StyleSheet.create({
   },
   groupHeaderInfo: { flex: 1, gap: 2 },
   groupDrawRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  groupDraw: { fontSize: 14, fontWeight: "800", color: colors.textPrimary, fontFamily: numericFont.medium },
-  groupChevron: { fontSize: 11, color: colors.textMuted },
-  groupSpent: { fontSize: 12, color: colors.textSecondary, fontFamily: numericFont.regular },
+  groupDraw: { fontWeight: "800", color: colors.textPrimary, fontFamily: numericFont.medium },
+  groupChevron: { color: colors.textMuted },
+  groupSpent: { color: colors.textSecondary, fontFamily: numericFont.regular },
   deleteButton: { padding: spacing.xs },
   deleteButtonIcon: { fontSize: 16 },
   ticketRow: {
@@ -351,7 +404,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   ticketIndex: { minWidth: 20, alignItems: "center" },
-  ticketIndexText: { fontSize: 11, fontWeight: "700", color: colors.textSecondary },
+  ticketIndexText: { fontWeight: "700", color: colors.textSecondary },
   ticketInfo: { flex: 1, gap: 2 },
   methodTag: {
     backgroundColor: colors.background,
@@ -361,22 +414,21 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     borderRadius: radius.pill,
   },
-  methodTagText: { fontSize: 10, color: colors.textSecondary, fontWeight: "600" },
+  methodTagText: { color: colors.textSecondary, fontWeight: "600" },
   ticketBalls: { flexDirection: "row", gap: 3, flexWrap: "wrap" },
   ticketRight: { alignItems: "flex-end", gap: 4 },
   pendingBadge: { backgroundColor: colors.background, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
-  pendingBadgeText: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
+  pendingBadgeText: { color: colors.textMuted, fontWeight: "600" },
   winBadge: { backgroundColor: colors.gold, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
-  winBadgeText: { fontSize: 11, color: "#fff", fontWeight: "700" },
-  winAmount: { fontSize: 12, fontWeight: "700", color: colors.primary, fontFamily: numericFont.medium },
+  winBadgeText: { color: "#fff", fontWeight: "700" },
+  winAmount: { fontWeight: "700", color: colors.primary, fontFamily: numericFont.medium },
   loseBadge: { backgroundColor: colors.rankNeutral, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
-  loseBadgeText: { fontSize: 11, color: "#fff", fontWeight: "600" },
+  loseBadgeText: { color: "#fff", fontWeight: "600" },
   shareButton: { marginTop: 2, paddingHorizontal: spacing.sm, paddingVertical: 2 },
-  shareButtonText: { fontSize: 11, color: colors.primary, fontWeight: "700" },
+  shareButtonText: { color: colors.primary, fontWeight: "700" },
 
   captureOffscreen: { position: "absolute", top: -9999, left: -9999 },
   dataLossNotice: {
-    fontSize: 11,
     color: colors.textMuted,
     textAlign: "center",
     paddingHorizontal: spacing.lg,

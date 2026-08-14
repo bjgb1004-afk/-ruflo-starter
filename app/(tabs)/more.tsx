@@ -4,6 +4,7 @@ import { useRouter, type Href } from "expo-router";
 import { useAuth } from "@/features/auth/useAuth";
 import { ADMIN_EMAILS } from "@/constants/config";
 import { colors, spacing, radius, cardShadow } from "@/constants/theme";
+import { useResponsive, getResponsiveSpacing, getResponsiveFontSize } from "@/utils/responsive";
 
 interface MoreMenuItem {
   key: string;
@@ -22,6 +23,7 @@ const MENU_ITEMS: MoreMenuItem[] = [
 
 export default function MoreScreen() {
   const router = useRouter();
+  const { breakpoint } = useResponsive();
   const userEmail = useAuth((s) => s.user?.email);
   const isAdmin = useMemo(() => !!userEmail && ADMIN_EMAILS.includes(userEmail), [userEmail]);
 
@@ -35,13 +37,23 @@ export default function MoreScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: MoreMenuItem }) => (
-      <Pressable style={styles.row} onPress={() => router.push(item.href)}>
-        <Text style={styles.emoji}>{item.emoji}</Text>
-        <Text style={styles.label}>{item.label}</Text>
-        <Text style={styles.arrow}>›</Text>
+      <Pressable
+        style={[
+          styles.row,
+          { padding: getResponsiveSpacing(spacing.lg, breakpoint) },
+        ]}
+        onPress={() => router.push(item.href)}
+      >
+        <Text style={[styles.emoji, { fontSize: getResponsiveFontSize(20, breakpoint) }]}>
+          {item.emoji}
+        </Text>
+        <Text style={[styles.label, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
+          {item.label}
+        </Text>
+        <Text style={[styles.arrow, { fontSize: getResponsiveFontSize(18, breakpoint) }]}>›</Text>
       </Pressable>
     ),
-    [router],
+    [router, breakpoint],
   );
 
   return (
@@ -65,10 +77,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    padding: spacing.lg,
     ...cardShadow,
   },
   emoji: { fontSize: 20 },
-  label: { flex: 1, fontSize: 15, fontWeight: "600", color: colors.textPrimary },
-  arrow: { fontSize: 18, color: colors.textMuted },
+  label: { flex: 1, fontWeight: "600", color: colors.textPrimary },
+  arrow: { color: colors.textMuted },
 });

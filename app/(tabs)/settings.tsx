@@ -21,6 +21,7 @@ import { GEOFENCE_DEBUG_LOG_KEY } from "@/features/geofencing/geofenceTask";
 import { ADMIN_EMAILS, PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from "@/constants/config";
 import { colors } from "@/constants/theme";
 import { getMyOwnedStores } from "@/features/storeOwner/api/storeOwnerApi";
+import { useResponsive, getResponsiveSpacing, getResponsiveFontSize } from "@/utils/responsive";
 
 const SECRET_TAP_COUNT = 5;
 // 이 시간 안에 연속으로 눌러야 카운트가 이어진다 - 하루 종일 산발적으로 누른 게 우연히
@@ -29,6 +30,7 @@ const SECRET_TAP_WINDOW_MS = 2000;
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { breakpoint } = useResponsive();
   const user = useAuth((s) => s.user);
   const signOut = useAuth((s) => s.signOut);
   const signIn = useAuth((s) => s.signIn);
@@ -199,14 +201,22 @@ export default function SettingsScreen() {
     <View style={styles.container}>
       {/* 알림 설정 */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>알림</Text>
+        <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
+          알림
+        </Text>
         <GeofenceToggle />
-        {geofenceDebugLog && <Text style={styles.debugText}>{geofenceDebugLog}</Text>}
+        {geofenceDebugLog && (
+          <Text style={[styles.debugText, { fontSize: getResponsiveFontSize(10, breakpoint) }]}>
+            {geofenceDebugLog}
+          </Text>
+        )}
       </View>
 
       {/* 계정: 로그인 안 됐으면 이메일/비번 로그인·가입 폼, 로그인 됐으면 이메일 + 로그아웃 */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>계정</Text>
+        <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
+          계정
+        </Text>
         {user ? (
           <View style={styles.accountCard}>
             <View>
@@ -274,18 +284,24 @@ export default function SettingsScreen() {
 
       {/* 판매점 사장님 진입점 - 아직 인증된 매장이 없으면 인증 시작, 있으면 관리 화면으로 */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>판매점 사장님이신가요?</Text>
+        <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
+          판매점 사장님이신가요?
+        </Text>
         {!user ? (
-          <Text style={styles.guideText}>
+          <Text style={[styles.guideText, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
             계정을 만든 후 사장님 인증을 통해 매장 정보를 수정할 수 있어요.
           </Text>
         ) : ownedStoreCount && ownedStoreCount > 0 ? (
           <Pressable style={styles.linkRow} onPress={() => router.push("/store-owner/manage")}>
-            <Text style={styles.linkRowText}>내 매장 관리</Text>
+            <Text style={[styles.linkRowText, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
+              내 매장 관리
+            </Text>
           </Pressable>
         ) : (
           <Pressable style={styles.linkRow} onPress={() => router.push("/store-owner/signup")}>
-            <Text style={styles.linkRowText}>매장 인증하고 정보 수정하기</Text>
+            <Text style={[styles.linkRowText, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
+              매장 인증하고 정보 수정하기
+            </Text>
           </Pressable>
         )}
       </View>
@@ -294,13 +310,17 @@ export default function SettingsScreen() {
       {user?.email && ADMIN_EMAILS.includes(user.email) && (
         <View style={styles.section}>
           <Pressable style={styles.linkRow} onPress={() => router.push("/admin")}>
-            <Text style={styles.linkRowText}>👨‍💼 관리자 대시보드</Text>
+            <Text style={[styles.linkRowText, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
+              👨‍💼 관리자 대시보드
+            </Text>
           </Pressable>
         </View>
       )}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>정보</Text>
+        <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
+          정보
+        </Text>
         <Pressable
           style={styles.linkRow}
           onPress={() => WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)}
@@ -332,9 +352,11 @@ export default function SettingsScreen() {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <Pressable style={styles.modalBackdropTouchable} onPress={() => setDeleteAccountModalOpen(false)} />
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>계정 삭제</Text>
-            <Text style={styles.modalDescription}>
+          <View style={[styles.modalCard, { padding: getResponsiveSpacing(20, breakpoint) }]}>
+            <Text style={[styles.modalTitle, { fontSize: getResponsiveFontSize(16, breakpoint) }]}>
+              계정 삭제
+            </Text>
+            <Text style={[styles.modalDescription, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
               이 작업은 되돌릴 수 없습니다.{"\n"}
               계정과 관련된 모든 데이터가 삭제됩니다.
             </Text>
@@ -373,10 +395,12 @@ export default function SettingsScreen() {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <Pressable style={styles.modalBackdropTouchable} onPress={() => setMasterKeyModalOpen(false)} />
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>관리자 인증</Text>
+          <View style={[styles.modalCard, { padding: getResponsiveSpacing(20, breakpoint) }]}>
+            <Text style={[styles.modalTitle, { fontSize: getResponsiveFontSize(16, breakpoint) }]}>
+              관리자 인증
+            </Text>
             <TextInput
-              style={styles.modalInput}
+              style={[styles.modalInput, { fontSize: getResponsiveFontSize(15, breakpoint) }]}
               placeholder="비밀번호"
               placeholderTextColor="#999"
               value={masterKey}
@@ -388,7 +412,11 @@ export default function SettingsScreen() {
               autoFocus
               onSubmitEditing={handleMasterKeySubmit}
             />
-            {authError && <Text style={styles.modalErrorText}>{authError}</Text>}
+            {authError && (
+              <Text style={[styles.modalErrorText, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
+                {authError}
+              </Text>
+            )}
             <Pressable
               style={[styles.modalSubmitButton, submitting && styles.modalSubmitButtonDisabled]}
               onPress={handleMasterKeySubmit}
@@ -407,14 +435,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", paddingTop: 8 },
   section: { marginBottom: 24 },
   sectionTitle: {
-    fontSize: 13,
     fontWeight: "600",
     color: "#999",
     paddingHorizontal: 16,
     marginBottom: 8,
   },
   guideText: {
-    fontSize: 13,
     color: "#999",
     paddingHorizontal: 16,
     lineHeight: 19,
@@ -481,7 +507,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f9f9f9",
     borderRadius: 10,
   },
-  linkRowText: { fontSize: 14, fontWeight: "600", color: "#000" },
+  linkRowText: { fontWeight: "600", color: "#000" },
   logoutButton: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -489,8 +515,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
   },
-  logoutButtonText: { fontSize: 13, color: "#FF3B30", fontWeight: "600" },
-  debugText: { fontSize: 10, color: "#bbb", marginHorizontal: 16, marginTop: 6 },
+  logoutButtonText: { color: "#FF3B30", fontWeight: "600" },
+  debugText: { color: "#bbb", marginHorizontal: 16, marginTop: 6 },
   footer: { alignItems: "center", paddingVertical: 32 },
   versionText: { fontSize: 12, color: "#ccc" },
   modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },
@@ -499,19 +525,17 @@ const styles = StyleSheet.create({
     width: 280,
     backgroundColor: "#fff",
     borderRadius: 12,
-    padding: 20,
     gap: 12,
   },
-  modalTitle: { fontSize: 16, fontWeight: "700", color: "#000", textAlign: "center" },
-  modalDescription: { fontSize: 13, color: "#666", textAlign: "center", lineHeight: 19 },
-  modalErrorText: { fontSize: 12, color: "#FF3B30", textAlign: "center" },
+  modalTitle: { fontWeight: "700", color: "#000", textAlign: "center" },
+  modalDescription: { color: "#666", textAlign: "center", lineHeight: 19 },
+  modalErrorText: { color: "#FF3B30", textAlign: "center" },
   modalInput: {
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
     color: "#000",
   },
   modalSubmitButton: {
@@ -521,5 +545,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalSubmitButtonDisabled: { opacity: 0.6 },
-  modalSubmitButtonText: { color: "#fff", fontSize: 15, fontWeight: "600" },
+  modalSubmitButtonText: { color: "#fff", fontWeight: "600" },
 });
