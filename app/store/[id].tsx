@@ -308,7 +308,7 @@ export default function StoreDetailScreen() {
         {/* 사장님 한마디 */}
         <View style={styles.headerOwnerMessageSection}>
           <Text style={styles.headerOwnerMessageText}>
-            {ownerMessage ? `💬 ${ownerMessage}` : "사장님 한마디: 아직없음"}
+            {ownerMessage ? `💬 ${ownerMessage}` : "💬 사장님 한마디: 아직없음"}
           </Text>
         </View>
       </View>
@@ -455,19 +455,19 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...cardShadow,
   },
-  headerAmenitiesSection: { flexDirection: "row", gap: spacing.sm, alignItems: "center", paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
-  headerBusinessHoursSection: { flexDirection: "row", gap: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, alignItems: "center" },
+  headerAmenitiesSection: { flexDirection: "row", gap: spacing.sm, alignItems: "center", paddingTop: spacing.sm, alignItems: "center" },
+  headerBusinessHoursSection: { flexDirection: "row", gap: spacing.sm, paddingTop: spacing.sm, alignItems: "center" },
   headerOwnerMessageSection: { gap: spacing.xs, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
   headerSectionLabel: { fontSize: 12, fontWeight: "600", color: colors.textSecondary, flexShrink: 0 },
-  headerBusinessHoursText: { fontSize: 12, color: colors.textPrimary, flex: 1 },
-  headerOwnerMessageText: { fontSize: 13, color: colors.textPrimary, lineHeight: 18 },
+  headerBusinessHoursText: { fontSize: 13, color: colors.textPrimary, flex: 1, fontWeight: "600" },
+  headerOwnerMessageText: { fontSize: 13, color: colors.textPrimary, lineHeight: 18, fontWeight: "600" },
   headerInfoEmpty: { fontSize: 13, color: colors.textMuted },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   name: { fontSize: 22, fontWeight: "800", color: colors.textPrimary },
   actionButtons: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   favoriteIcon: { fontSize: 22, color: colors.gold },
   alertIcon: { fontSize: 22 },
-  address: { fontSize: 14, color: colors.textSecondary },
+  address: { fontSize: 13, color: colors.textSecondary, fontWeight: "600" },
   phone: { fontSize: 14, color: colors.primary, fontWeight: "600" },
   phoneDisabled: { color: colors.textMuted },
   headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.xs },
@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
   amenitiesSection: { gap: spacing.md },
   amenitiesHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   amenitiesEditLink: { fontSize: 13, fontWeight: "600", color: colors.primary },
-  amenitiesEmojiRow: { fontSize: 16, color: colors.textPrimary, letterSpacing: 2 },
+  amenitiesEmojiRow: { fontSize: 13, color: colors.textPrimary, letterSpacing: 2, fontWeight: "600" },
   amenitiesEmptyText: { fontSize: 13, color: colors.textMuted },
   nearbySearchCard: {
     backgroundColor: colors.surface,
