@@ -20,7 +20,6 @@ import { GeofenceToggle } from "@/features/geofencing/GeofenceToggle";
 import { GEOFENCE_DEBUG_LOG_KEY } from "@/features/geofencing/geofenceTask";
 import { ADMIN_EMAILS, PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from "@/constants/config";
 import { colors } from "@/constants/theme";
-import { getMyOwnedStores } from "@/features/storeOwner/api/storeOwnerApi";
 import { useResponsive, getResponsiveSpacing, getResponsiveFontSize } from "@/utils/responsive";
 
 const SECRET_TAP_COUNT = 5;
@@ -54,7 +53,6 @@ export default function SettingsScreen() {
   const [accountPassword, setAccountPassword] = useState("");
   const [accountAuthSubmitting, setAccountAuthSubmitting] = useState(false);
   const [accountAuthError, setAccountAuthError] = useState<string | null>(null);
-  const [ownedStoreCount, setOwnedStoreCount] = useState<number | null>(null);
   const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false);
   const [deleteAccountSubmitting, setDeleteAccountSubmitting] = useState(false);
 
@@ -64,16 +62,6 @@ export default function SettingsScreen() {
     };
   }, []);
 
-  // 이미 사장님 인증을 받은 매장이 있으면 "매장 인증하기" 대신 "내 매장 관리"를 보여준다.
-  useEffect(() => {
-    if (!user) {
-      setOwnedStoreCount(null);
-      return;
-    }
-    getMyOwnedStores(user.id)
-      .then((stores) => setOwnedStoreCount(stores.length))
-      .catch(() => setOwnedStoreCount(0));
-  }, [user]);
 
   const handleAccountAuthSubmit = useCallback(
     async (mode: "signup" | "signin") => {
@@ -282,29 +270,6 @@ export default function SettingsScreen() {
         )}
       </View>
 
-      {/* 판매점 사장님 진입점 - 아직 인증된 매장이 없으면 인증 시작, 있으면 관리 화면으로 */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
-          판매점 사장님이신가요?
-        </Text>
-        {!user ? (
-          <Text style={[styles.guideText, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
-            계정을 만든 후 사장님 인증을 통해 매장 정보를 수정할 수 있어요.
-          </Text>
-        ) : ownedStoreCount && ownedStoreCount > 0 ? (
-          <Pressable style={styles.linkRow} onPress={() => router.push("/store-owner/manage")}>
-            <Text style={[styles.linkRowText, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
-              내 매장 관리
-            </Text>
-          </Pressable>
-        ) : (
-          <Pressable style={styles.linkRow} onPress={() => router.push("/store-owner/signup")}>
-            <Text style={[styles.linkRowText, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
-              매장 인증하고 정보 수정하기
-            </Text>
-          </Pressable>
-        )}
-      </View>
 
       {/* 관리자 빠른 진입 - settings.tsx에서만 보임 */}
       {user?.email && ADMIN_EMAILS.includes(user.email) && (

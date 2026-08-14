@@ -31,7 +31,6 @@ import { GEOFENCE_FREE_TIER_MAX } from "@/constants/config";
 import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
 import { getStoreOwnerProfile } from "@/features/storeOwner/api/storeOwnerApi";
 import { resolvePhone, resolveOwnerMessage } from "@/features/storeOwner/resolveDisplayInfo";
-import { OwnershipTransferBanner } from "@/features/storeOwner/components/OwnershipTransferBanner";
 import type { StoreWinningRow } from "@/types/database.types";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
@@ -192,7 +191,6 @@ export default function StoreDetailScreen() {
   const formattedPhone = formatPhoneNumber(resolvePhone(ownerProfile?.phone, stats?.phone));
   const ownerMessage = resolveOwnerMessage(ownerProfile?.owner_message);
   const ownerBusinessHoursText = ownerProfile?.business_hours?.trim();
-  const isOwner = !!userId && ownerProfile?.owner_user_id === userId;
   // 사장님이 입력한 값이 있으면 우선, 없으면(또는 아직 입력 안 해 null이면) 기존 stores 값으로 폴백.
   const displayHasParking = ownerProfile?.has_parking ?? (stats as any)?.has_parking;
   const displayHasRestroom = ownerProfile?.has_restroom ?? (stats as any)?.has_restroom;
@@ -351,22 +349,6 @@ export default function StoreDetailScreen() {
         </View>
       )}
 
-      {/* 소유권 이전 대기 배너 */}
-      <OwnershipTransferBanner storeId={id!} />
-
-      {/* 사장님 인증/관리 CTA */}
-      <Pressable
-        style={styles.ownerCtaRow}
-        onPress={() =>
-          isOwner
-            ? router.push(`/store-owner/manage?storeId=${id}`)
-            : router.push(`/store-owner/signup?storeId=${id}`)
-        }
-      >
-        <Text style={styles.ownerCtaText}>
-          {isOwner ? "🔧 매장 정보 수정하기" : "🏪 이 매장 사장님이신가요?"}
-        </Text>
-      </Pressable>
 
       {/* 점수 및 순위 */}
       <View style={styles.scoreSection}>
@@ -643,13 +625,4 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // 사장님 인증/관리 CTA
-  ownerCtaRow: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  ownerCtaText: { fontSize: 13, fontWeight: "600", color: colors.primary, textAlign: "center" },
 });
