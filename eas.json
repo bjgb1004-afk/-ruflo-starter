@@ -18,13 +18,11 @@
       }
     },
     "production": {
-      "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
       }
     },
     "production-samsung": {
-      "autoIncrement": true,
       "android": {
         "buildType": "apk"
       }
