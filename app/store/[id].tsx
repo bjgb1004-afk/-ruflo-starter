@@ -307,9 +307,8 @@ export default function StoreDetailScreen() {
 
         {/* 사장님 한마디 */}
         <View style={styles.headerOwnerMessageSection}>
-          <Text style={styles.headerSectionLabel}>사장님 한마디</Text>
           <Text style={styles.headerOwnerMessageText}>
-            {ownerMessage ? `💬 ${ownerMessage}` : "아직없음이다"}
+            {ownerMessage ? `💬 ${ownerMessage}` : "사장님 한마디: 아직없음"}
           </Text>
         </View>
       </View>
