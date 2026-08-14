@@ -291,7 +291,7 @@ export default function StoreDetailScreen() {
               {displayAmenities.map((amenity: string) => `${amenity} `).join("")}
             </Text>
           ) : (
-            <Text style={styles.headerSectionLabel}>정보없음</Text>
+            <Text style={[styles.amenitiesEmojiRow, { color: colors.textPrimary }]}>정보없음</Text>
           )}
         </View>
 
