@@ -60,19 +60,30 @@ export async function getLatestFirstPrizeWinners(): Promise<{
   const draw = await getLatestDraw();
   if (!draw || draw.first_prize_store_ids.length === 0) return null;
 
-  const { data, error } = await supabase
+  const { data: storeData, error: storeError } = await supabase
     .from("stores")
     .select("id, name")
     .in("id", draw.first_prize_store_ids)
     .returns<{ id: string; name: string }[]>();
-  if (error) throw error;
+  if (storeError) throw storeError;
 
-  const stores: LatestWinnerStore[] = (data ?? []).map((s) => ({
-    drawNo: draw.draw_no,
-    drawDate: draw.draw_date,
-    storeId: s.id,
-    storeName: s.name,
-  }));
+  const { data: statsData, error: statsError } = await supabase
+    .from("store_ranking_stats")
+    .select("id")
+    .in("id", draw.first_prize_store_ids)
+    .returns<{ id: string }[]>();
+  if (statsError) throw statsError;
+
+  const statsIds = new Set((statsData ?? []).map((s) => s.id));
+
+  const stores: LatestWinnerStore[] = (storeData ?? [])
+    .filter((s) => statsIds.has(s.id))
+    .map((s) => ({
+      drawNo: draw.draw_no,
+      drawDate: draw.draw_date,
+      storeId: s.id,
+      storeName: s.name,
+    }));
 
   return { drawNo: draw.draw_no, drawDate: draw.draw_date, stores };
 }
