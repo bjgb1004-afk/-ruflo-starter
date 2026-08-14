@@ -118,17 +118,18 @@ interface TicketGroup {
   tickets: MyLottoTicket[];
 }
 
-// 한 번의 QR 스캔(한 장의 용지)으로 함께 저장된 게임들을 하나의 카드로 묶는다. groupId가
-// 없는 옛 데이터(이 필드가 생기기 전 저장분)는 drawNo+savedAt으로 묶는다 - addTickets()가
-// 한 번 호출될 때마다 그 안의 모든 게임이 동일한 savedAt(타임스탬프)을 공유해서 groupId와
-// 동등한 역할을 한다(자기 id로 폴백하면 같은 용지 게임들이 낱개 카드로 쪼개져버렸다).
+// 회차별로 묶는다(서로 다른 날 따로 스캔한 용지라도 같은 회차면 한 카드에 모인다).
+// 카드 정렬/표시용 savedAt은 그룹 내 가장 최근 저장 시각을 쓴다.
 function groupTickets(tickets: MyLottoTicket[]): TicketGroup[] {
-  const map = new Map<string, TicketGroup>();
+  const map = new Map<number, TicketGroup>();
   for (const t of tickets) {
-    const key = t.groupId ?? `${t.drawNo}|${t.savedAt}`;
-    const existing = map.get(key);
-    if (existing) existing.tickets.push(t);
-    else map.set(key, { key, drawNo: t.drawNo, savedAt: t.savedAt, tickets: [t] });
+    const existing = map.get(t.drawNo);
+    if (existing) {
+      existing.tickets.push(t);
+      if (t.savedAt > existing.savedAt) existing.savedAt = t.savedAt;
+    } else {
+      map.set(t.drawNo, { key: String(t.drawNo), drawNo: t.drawNo, savedAt: t.savedAt, tickets: [t] });
+    }
   }
   return [...map.values()].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
 }
@@ -187,8 +188,8 @@ export default function MyLottoScreen() {
   const tickets = useMemo(() => Object.values(ticketsMap).sort((a, b) => b.savedAt.localeCompare(a.savedAt)), [ticketsMap]);
   const ticketGroups = useMemo(() => groupTickets(tickets), [tickets]);
 
-  // 그룹(한 번에 스캔한 용지) 단위로 삭제한다 - 게임 하나만 따로 지우는 것보다
-  // "이 용지를 보관함에서 뺀다"는 사용자의 실제 의도에 더 맞는다.
+  // 그룹(회차) 단위로 삭제한다 - 게임 하나만 따로 지우는 것보다
+  // "이 회차를 보관함에서 뺀다"는 사용자의 실제 의도에 더 맞는다.
   const handleDeleteGroup = useCallback(
     (group: TicketGroup) => {
       Alert.alert("보관함에서 삭제", `${group.drawNo}회 ${group.tickets.length}게임을 삭제할까요?`, [
