@@ -35,28 +35,24 @@ export default function MoreScreen() {
     [isAdmin],
   );
 
-  const renderItem = useMemo(
-    () =>
-      useCallback(
-        ({ item }: { item: MoreMenuItem }) => (
-          <Pressable
-            style={[
-              styles.row,
-              { padding: getResponsiveSpacing(spacing.lg, breakpoint) },
-            ]}
-            onPress={() => router.push(item.href)}
-          >
-            <Text style={[styles.emoji, { fontSize: getResponsiveFontSize(20, breakpoint) }]}>
-              {item.emoji}
-            </Text>
-            <Text style={[styles.label, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
-              {item.label}
-            </Text>
-            <Text style={[styles.arrow, { fontSize: getResponsiveFontSize(18, breakpoint) }]}>›</Text>
-          </Pressable>
-        ),
-        [router, breakpoint],
-      ),
+  const renderItem = useCallback(
+    ({ item }: { item: MoreMenuItem }) => (
+      <Pressable
+        style={[
+          styles.row,
+          { padding: getResponsiveSpacing(spacing.lg, breakpoint) },
+        ]}
+        onPress={() => router.push(item.href)}
+      >
+        <Text style={[styles.emoji, { fontSize: getResponsiveFontSize(20, breakpoint) }]}>
+          {item.emoji}
+        </Text>
+        <Text style={[styles.label, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
+          {item.label}
+        </Text>
+        <Text style={[styles.arrow, { fontSize: getResponsiveFontSize(18, breakpoint) }]}>›</Text>
+      </Pressable>
+    ),
     [router, breakpoint],
   );
 
