@@ -282,7 +282,7 @@ export default function StoreDetailScreen() {
 
         {/* 편의시설 */}
         <View style={styles.headerAmenitiesSection}>
-          <Text style={styles.headerSectionLabel}>🛎️ 편의시설</Text>
+          <Text style={styles.headerSectionLabel}>편의시설</Text>
           {displayHasParking || displayHasRestroom || displayHasAtm || displayAmenities.length > 0 ? (
             <Text style={styles.amenitiesEmojiRow}>
               {displayHasParking && "🅿️ "}
@@ -291,7 +291,7 @@ export default function StoreDetailScreen() {
               {displayAmenities.map((amenity: string) => `${amenity} `).join("")}
             </Text>
           ) : (
-            <Text style={[styles.amenitiesEmojiRow, { fontSize: 13, color: colors.textMuted }]}>정보없음</Text>
+            <Text style={styles.amenitiesEmojiRow}>정보없음</Text>
           )}
         </View>
 
@@ -307,9 +307,9 @@ export default function StoreDetailScreen() {
 
         {/* 사장님 한마디 */}
         <View style={styles.headerOwnerMessageSection}>
-          <Text style={styles.headerSectionLabel}>💬 사장님 한마디</Text>
-          <Text style={[styles.headerOwnerMessageText, { flexDirection: "row" }]}>
-            {ownerMessage || "아직없음"}
+          <Text style={styles.headerSectionLabel}>사장님 한마디</Text>
+          <Text style={styles.headerOwnerMessageText}>
+            {ownerMessage ? `💬 ${ownerMessage}` : "사장님 한마디: 아직없음"}
           </Text>
         </View>
       </View>
@@ -388,34 +388,34 @@ export default function StoreDetailScreen() {
 
       {/* 당첨 통계 */}
       <View style={[styles.section, styles.statsSection]}>
-        <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>당첨 통계</Text>
+        <Text style={styles.sectionTitle}>당첨 통계</Text>
         <View style={styles.statsGrid}>
-          <View style={[styles.statItem, { width: breakpoint === "small" ? "100%" : "48%" }]}>
+          <View style={styles.statItem}>
             <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>🥇 1등 배출</Text>
-              <Text style={[styles.statText, { fontSize: getResponsiveFontSize(13, breakpoint) }]}><Text style={[styles.statCount, { fontSize: getResponsiveFontSize(18, breakpoint) }]}>{stats.first_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
+              <Text style={styles.statLabel}>1등 배출</Text>
+              <Text style={styles.statText}><Text style={styles.statCount}>{stats.first_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
             </View>
           </View>
-          <View style={[styles.statItem, { width: breakpoint === "small" ? "100%" : "48%" }]}>
+          <View style={styles.statItem}>
             <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>🥈 2등 배출</Text>
-              <Text style={[styles.statText, { fontSize: getResponsiveFontSize(13, breakpoint) }]}><Text style={[styles.statCount, { fontSize: getResponsiveFontSize(18, breakpoint) }]}>{stats.second_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
+              <Text style={styles.statLabel}>2등 배출</Text>
+              <Text style={styles.statText}><Text style={styles.statCount}>{stats.second_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
             </View>
           </View>
-          <View style={[styles.statItem, { width: breakpoint === "small" ? "100%" : "48%" }]}>
+          <View style={styles.statItem}>
             <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>1년 내 1등</Text>
-              <Text style={[styles.statText, { fontSize: getResponsiveFontSize(13, breakpoint) }]}><Text style={[styles.statCount, { fontSize: getResponsiveFontSize(18, breakpoint) }]}>{stats.first_prize_1yr}</Text><Text style={styles.statUnit}>회</Text></Text>
+              <Text style={styles.statLabel}>1년 내 1등</Text>
+              <Text style={styles.statText}><Text style={styles.statCount}>{stats.first_prize_1yr}</Text><Text style={styles.statUnit}>회</Text></Text>
             </View>
           </View>
-          <View style={[styles.statItem, { width: breakpoint === "small" ? "100%" : "48%" }]}>
+          <View style={styles.statItem}>
             <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>5년 내 1등</Text>
-              <Text style={[styles.statText, { fontSize: getResponsiveFontSize(13, breakpoint) }]}><Text style={[styles.statCount, { fontSize: getResponsiveFontSize(18, breakpoint) }]}>{stats.first_prize_5yr}</Text><Text style={styles.statUnit}>회</Text></Text>
+              <Text style={styles.statLabel}>5년 내 1등</Text>
+              <Text style={styles.statText}><Text style={styles.statCount}>{stats.first_prize_5yr}</Text><Text style={styles.statUnit}>회</Text></Text>
             </View>
           </View>
         </View>
-        <Text style={[styles.statsFootnote, { fontSize: getResponsiveFontSize(11, breakpoint) }]}>
+        <Text style={styles.statsFootnote}>
           * 1년/5년 당첨 통계는 최신 당첨 데이터 업데이트가 반영된 결과입니다.
         </Text>
       </View>

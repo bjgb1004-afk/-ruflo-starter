@@ -8,7 +8,6 @@ import { useSelectedStores } from "@/features/geofencing/useSelectedStores";
 import { Dropdown } from "@/components/Dropdown";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 import { GEOFENCE_FREE_TIER_MAX } from "@/constants/config";
-import { useResponsive, getResponsiveFontSize, getResponsiveSpacing } from "@/utils/responsive";
 
 type RankingType = "nation" | "province";
 type RankingStoreWithLocation = StoreRankingStats & { latitude: number; longitude: number };
@@ -29,7 +28,6 @@ const RankingRow = memo(function RankingRow({
   item: RankingStoreWithLocation;
   rank: number | null;
 }) {
-  const { breakpoint } = useResponsive();
   const isSelected = useSelectedStores((s) => !!s.stores[item.id]);
   const toggle = useSelectedStores((s) => s.toggle);
 
@@ -59,28 +57,28 @@ const RankingRow = memo(function RankingRow({
 
   return (
     <Link href={`/store/${item.id}`} asChild>
-      <Pressable style={[styles.row, { paddingHorizontal: getResponsiveSpacing(spacing.lg, breakpoint), paddingVertical: getResponsiveSpacing(spacing.md + 2, breakpoint) }]}>
+      <Pressable style={styles.row}>
         <View style={[styles.rankBadge, rankBadgeStyle, isTop3 && styles.rankBadgeTop3]}>
-          <Text style={[styles.rank, isTop3 && styles.rankTop3Text, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>{rank ?? "-"}</Text>
+          <Text style={[styles.rank, isTop3 && styles.rankTop3Text]}>{rank ?? "-"}</Text>
         </View>
         <View style={styles.info}>
           <View style={styles.nameRow}>
-            <Text style={[styles.name, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>{item.name}</Text>
+            <Text style={styles.name}>{item.name}</Text>
             {!isTop3 && item.nation_rank != null && item.nation_rank <= 100 && (
-              <Text style={[styles.top100Badge, { fontSize: getResponsiveFontSize(11, breakpoint) }]}>🏆 TOP100</Text>
+              <Text style={styles.top100Badge}>🏆 TOP100</Text>
             )}
           </View>
-          <Text style={[styles.address, { fontSize: getResponsiveFontSize(13, breakpoint) }]} numberOfLines={1}>
+          <Text style={styles.address} numberOfLines={1}>
             {item.address}
           </Text>
-          <Text style={[styles.meta, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
+          <Text style={styles.meta}>
             1등 {item.first_prize_count}회
             {item.second_prize_count > 0 ? ` · 2등 ${item.second_prize_count}회` : ""} · 점수{" "}
             {Math.round(item.store_score)}
           </Text>
         </View>
         <Pressable onPress={handleToggleAlert} hitSlop={10} style={styles.bellButton}>
-          <Text style={[styles.bellIcon, { fontSize: getResponsiveFontSize(20, breakpoint) }]}>{isSelected ? "🔔" : "🔕"}</Text>
+          <Text style={styles.bellIcon}>{isSelected ? "🔔" : "🔕"}</Text>
         </Pressable>
       </Pressable>
     </Link>
