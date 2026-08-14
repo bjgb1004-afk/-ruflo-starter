@@ -4,7 +4,6 @@ import {
   Text,
   Pressable,
   StyleSheet,
-  Alert,
   Modal,
   TextInput,
   ActivityIndicator,
@@ -31,10 +30,8 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { breakpoint } = useResponsive();
   const user = useAuth((s) => s.user);
-  const signOut = useAuth((s) => s.signOut);
   const signIn = useAuth((s) => s.signIn);
   const signUp = useAuth((s) => s.signUp);
-  const deleteAccount = useAuth((s) => s.deleteAccount);
 
   // 카운트는 useState로 둬서 로직을 명시적으로 추적 가능하게 하고, 매 탭마다 setTimeout으로
   // 리셋 타이머를 다시 예약한다 - 2초 안에 다음 탭이 없으면 자동으로 0으로 되돌아간다.
@@ -48,13 +45,6 @@ export default function SettingsScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [geofenceDebugLog, setGeofenceDebugLog] = useState<string | null>(null);
 
-  // 일반 사용자용 로그인/가입 - 관리자 전용 마스터키 모달과는 별개.
-  const [accountEmail, setAccountEmail] = useState("");
-  const [accountPassword, setAccountPassword] = useState("");
-  const [accountAuthSubmitting, setAccountAuthSubmitting] = useState(false);
-  const [accountAuthError, setAccountAuthError] = useState<string | null>(null);
-  const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false);
-  const [deleteAccountSubmitting, setDeleteAccountSubmitting] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -62,21 +52,6 @@ export default function SettingsScreen() {
     };
   }, []);
 
-
-  const handleAccountAuthSubmit = useCallback(
-    async (mode: "signup" | "signin") => {
-      if (!accountEmail || !accountPassword) {
-        setAccountAuthError("이메일과 비밀번호를 모두 입력해주세요.");
-        return;
-      }
-      setAccountAuthSubmitting(true);
-      setAccountAuthError(null);
-      const { error } = mode === "signup" ? await signUp(accountEmail, accountPassword) : await signIn(accountEmail, accountPassword);
-      setAccountAuthSubmitting(false);
-      if (error) setAccountAuthError(error);
-    },
-    [accountEmail, accountPassword, signIn, signUp],
-  );
 
   // 지오펜스 알림이 실기기에서 안 뜬다는 신고 조사용 - OS가 백그라운드 태스크를 호출했는지
   // 여부를 화면 진입 시마다 확인한다. 원인 파악되면 이 블록은 제거할 것.
@@ -92,24 +67,6 @@ export default function SettingsScreen() {
     });
   }, []);
 
-  const handleLogout = () => {
-    Alert.alert("로그아웃", "로그아웃 하시겠습니까?", [
-      { text: "취소", style: "cancel" },
-      { text: "로그아웃", style: "destructive", onPress: signOut },
-    ]);
-  };
-
-  const handleDeleteAccount = useCallback(async () => {
-    setDeleteAccountSubmitting(true);
-    const { error } = await deleteAccount();
-    setDeleteAccountSubmitting(false);
-    if (error) {
-      Alert.alert("오류", error);
-    } else {
-      setDeleteAccountModalOpen(false);
-      Alert.alert("완료", "계정이 삭제되었습니다. 앱을 재시작해주세요.");
-    }
-  }, [deleteAccount]);
 
   // 앱 버전 텍스트를 짧은 시간 안에 5번 연속 누르면 관리자 전용 비밀번호 입력창을 띄운다.
   // 일반 사용자에게는 로그인/회원가입 진입점 자체가 보이지 않는다.
@@ -200,75 +157,6 @@ export default function SettingsScreen() {
         )}
       </View>
 
-      {/* 계정: 로그인 안 됐으면 이메일/비번 로그인·가입 폼, 로그인 됐으면 이메일 + 로그아웃 */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
-          계정
-        </Text>
-        {user ? (
-          <View style={styles.accountCard}>
-            <View>
-              <Text style={styles.accountEmail}>{user.email}</Text>
-              <Pressable
-                style={[styles.deleteAccountButton]}
-                onPress={() => setDeleteAccountModalOpen(true)}
-              >
-                <Text style={styles.deleteAccountButtonText}>계정 삭제</Text>
-              </Pressable>
-            </View>
-            <Pressable style={styles.logoutButton} onPress={handleLogout}>
-              <Text style={styles.logoutButtonText}>로그아웃</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.authCard}>
-            <TextInput
-              style={styles.authInput}
-              placeholder="이메일"
-              placeholderTextColor="#999"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={accountEmail}
-              onChangeText={(text) => {
-                setAccountEmail(text);
-                if (accountAuthError) setAccountAuthError(null);
-              }}
-            />
-            <TextInput
-              style={styles.authInput}
-              placeholder="비밀번호"
-              placeholderTextColor="#999"
-              secureTextEntry
-              value={accountPassword}
-              onChangeText={(text) => {
-                setAccountPassword(text);
-                if (accountAuthError) setAccountAuthError(null);
-              }}
-            />
-            {accountAuthError && <Text style={styles.modalErrorText}>{accountAuthError}</Text>}
-            <View style={styles.authButtonRow}>
-              <Pressable
-                style={styles.secondaryButton}
-                onPress={() => handleAccountAuthSubmit("signin")}
-                disabled={accountAuthSubmitting}
-              >
-                <Text style={styles.secondaryButtonText}>이미 계정 있어요</Text>
-              </Pressable>
-              <Pressable
-                style={styles.primaryButton}
-                onPress={() => handleAccountAuthSubmit("signup")}
-                disabled={accountAuthSubmitting}
-              >
-                {accountAuthSubmitting ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.primaryButtonText}>처음이에요(가입)</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        )}
-      </View>
 
 
       {/* 관리자 빠른 진입 - settings.tsx에서만 보임 */}
@@ -306,50 +194,7 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
-      <Modal
-        visible={deleteAccountModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDeleteAccountModalOpen(false)}
-      >
-        <KeyboardAvoidingView
-          style={styles.modalBackdrop}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <Pressable style={styles.modalBackdropTouchable} onPress={() => setDeleteAccountModalOpen(false)} />
-          <View style={[styles.modalCard, { padding: getResponsiveSpacing(20, breakpoint) }]}>
-            <Text style={[styles.modalTitle, { fontSize: getResponsiveFontSize(16, breakpoint) }]}>
-              계정 삭제
-            </Text>
-            <Text style={[styles.modalDescription, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
-              이 작업은 되돌릴 수 없습니다.{"\n"}
-              계정과 관련된 모든 데이터가 삭제됩니다.
-            </Text>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable
-                style={[styles.modalSubmitButton, { flex: 1, backgroundColor: "#999" }]}
-                onPress={() => setDeleteAccountModalOpen(false)}
-                disabled={deleteAccountSubmitting}
-              >
-                <Text style={styles.modalSubmitButtonText}>취소</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalSubmitButton, { flex: 1, backgroundColor: "#FF3B30" }]}
-                onPress={handleDeleteAccount}
-                disabled={deleteAccountSubmitting}
-              >
-                {deleteAccountSubmitting ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.modalSubmitButtonText}>삭제</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      <Modal
+<Modal
         visible={masterKeyModalOpen}
         transparent
         animationType="fade"
@@ -405,66 +250,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 8,
   },
-  guideText: {
-    color: "#999",
-    paddingHorizontal: 16,
-    lineHeight: 19,
-  },
-  accountCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#f9f9f9",
-    marginHorizontal: 16,
-    padding: 16,
-    borderRadius: 10,
-    gap: 12,
-  },
-  accountEmail: { fontSize: 14, fontWeight: "600", color: "#000" },
-  deleteAccountButton: {
-    marginTop: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    backgroundColor: "#ffe6e6",
-  },
-  deleteAccountButtonText: { fontSize: 12, color: "#FF3B30", fontWeight: "600" },
-  authCard: {
-    marginHorizontal: 16,
-    backgroundColor: "#f9f9f9",
-    borderRadius: 10,
-    padding: 16,
-    gap: 10,
-  },
-  authInput: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: "#000",
-    backgroundColor: "#fff",
-  },
-  authButtonRow: { flexDirection: "row", gap: 8 },
-  primaryButton: {
-    flex: 1,
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  primaryButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  secondaryButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: "center",
-    backgroundColor: "#fff",
-  },
-  secondaryButtonText: { color: "#000", fontSize: 14, fontWeight: "700" },
   linkRow: {
     marginHorizontal: 16,
     paddingVertical: 14,
@@ -473,14 +258,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   linkRowText: { fontWeight: "600", color: "#000" },
-  logoutButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  logoutButtonText: { color: "#FF3B30", fontWeight: "600" },
   debugText: { color: "#bbb", marginHorizontal: 16, marginTop: 6 },
   footer: { alignItems: "center", paddingVertical: 32 },
   versionText: { fontSize: 12, color: "#ccc" },
