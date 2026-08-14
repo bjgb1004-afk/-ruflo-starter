@@ -282,7 +282,7 @@ export default function StoreDetailScreen() {
 
         {/* 편의시설 */}
         <View style={styles.headerAmenitiesSection}>
-          <Text style={styles.headerSectionLabel}>편의시설</Text>
+          <Text style={styles.headerSectionLabel}>🛎️ 편의시설</Text>
           {displayHasParking || displayHasRestroom || displayHasAtm || displayAmenities.length > 0 ? (
             <Text style={styles.amenitiesEmojiRow}>
               {displayHasParking && "🅿️ "}
@@ -291,7 +291,7 @@ export default function StoreDetailScreen() {
               {displayAmenities.map((amenity: string) => `${amenity} `).join("")}
             </Text>
           ) : (
-            <Text style={styles.amenitiesEmojiRow}>정보없음</Text>
+            <Text style={[styles.amenitiesEmojiRow, { fontSize: 13, color: colors.textMuted }]}>정보없음</Text>
           )}
         </View>
 
@@ -307,9 +307,9 @@ export default function StoreDetailScreen() {
 
         {/* 사장님 한마디 */}
         <View style={styles.headerOwnerMessageSection}>
-          <Text style={styles.headerSectionLabel}>사장님 한마디</Text>
-          <Text style={styles.headerOwnerMessageText}>
-            {ownerMessage ? `💬 ${ownerMessage}` : "아직없음"}
+          <Text style={styles.headerSectionLabel}>💬 사장님 한마디</Text>
+          <Text style={[styles.headerOwnerMessageText, { flexDirection: "row" }]}>
+            {ownerMessage || "아직없음"}
           </Text>
         </View>
       </View>
