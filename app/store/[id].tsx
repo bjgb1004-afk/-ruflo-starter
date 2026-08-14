@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, memo, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useStoreWithStats } from "@/features/stores/useStoreWithStats";
+import { useResponsive, getResponsiveSpacing, getResponsiveFontSize } from "@/utils/responsive";
 import {
   getWinningsByStore,
   getLatestFirstPrizeWinners,
@@ -104,6 +105,7 @@ const WinningRow = memo(function WinningRow({
 export default function StoreDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { breakpoint } = useResponsive();
   // 안드로이드 엣지투엣지에서 스크롤 맨 아래 내용이 시스템 네비게이션 바에 가려지는
   // 문제 - 앱 전체 점검(design.txt) 결과 이 화면도 해당돼 하단 안전영역 여백을 더한다.
   const insets = useSafeAreaInsets();
@@ -386,34 +388,34 @@ export default function StoreDetailScreen() {
 
       {/* 당첨 통계 */}
       <View style={[styles.section, styles.statsSection]}>
-        <Text style={styles.sectionTitle}>당첨 통계</Text>
+        <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>당첨 통계</Text>
         <View style={styles.statsGrid}>
-          <View style={styles.statItem}>
+          <View style={[styles.statItem, { width: breakpoint === "small" ? "100%" : "48%" }]}>
             <View style={styles.statRow}>
-              <Text style={styles.statLabel}>🥇 1등 배출</Text>
-              <Text style={styles.statText}><Text style={styles.statCount}>{stats.first_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
+              <Text style={[styles.statLabel, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>🥇 1등 배출</Text>
+              <Text style={[styles.statText, { fontSize: getResponsiveFontSize(13, breakpoint) }]}><Text style={[styles.statCount, { fontSize: getResponsiveFontSize(18, breakpoint) }]}>{stats.first_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
             </View>
           </View>
-          <View style={styles.statItem}>
+          <View style={[styles.statItem, { width: breakpoint === "small" ? "100%" : "48%" }]}>
             <View style={styles.statRow}>
-              <Text style={styles.statLabel}>🥈 2등 배출</Text>
-              <Text style={styles.statText}><Text style={styles.statCount}>{stats.second_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
+              <Text style={[styles.statLabel, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>🥈 2등 배출</Text>
+              <Text style={[styles.statText, { fontSize: getResponsiveFontSize(13, breakpoint) }]}><Text style={[styles.statCount, { fontSize: getResponsiveFontSize(18, breakpoint) }]}>{stats.second_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
             </View>
           </View>
-          <View style={styles.statItem}>
+          <View style={[styles.statItem, { width: breakpoint === "small" ? "100%" : "48%" }]}>
             <View style={styles.statRow}>
-              <Text style={styles.statLabel}>1년 내 1등</Text>
-              <Text style={styles.statText}><Text style={styles.statCount}>{stats.first_prize_1yr}</Text><Text style={styles.statUnit}>회</Text></Text>
+              <Text style={[styles.statLabel, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>1년 내 1등</Text>
+              <Text style={[styles.statText, { fontSize: getResponsiveFontSize(13, breakpoint) }]}><Text style={[styles.statCount, { fontSize: getResponsiveFontSize(18, breakpoint) }]}>{stats.first_prize_1yr}</Text><Text style={styles.statUnit}>회</Text></Text>
             </View>
           </View>
-          <View style={styles.statItem}>
+          <View style={[styles.statItem, { width: breakpoint === "small" ? "100%" : "48%" }]}>
             <View style={styles.statRow}>
-              <Text style={styles.statLabel}>5년 내 1등</Text>
-              <Text style={styles.statText}><Text style={styles.statCount}>{stats.first_prize_5yr}</Text><Text style={styles.statUnit}>회</Text></Text>
+              <Text style={[styles.statLabel, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>5년 내 1등</Text>
+              <Text style={[styles.statText, { fontSize: getResponsiveFontSize(13, breakpoint) }]}><Text style={[styles.statCount, { fontSize: getResponsiveFontSize(18, breakpoint) }]}>{stats.first_prize_5yr}</Text><Text style={styles.statUnit}>회</Text></Text>
             </View>
           </View>
         </View>
-        <Text style={styles.statsFootnote}>
+        <Text style={[styles.statsFootnote, { fontSize: getResponsiveFontSize(11, breakpoint) }]}>
           * 1년/5년 당첨 통계는 최신 당첨 데이터 업데이트가 반영된 결과입니다.
         </Text>
       </View>
