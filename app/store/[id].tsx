@@ -308,7 +308,7 @@ export default function StoreDetailScreen() {
         {/* 사장님 한마디 */}
         <View style={styles.headerOwnerMessageSection}>
           <Text style={styles.headerOwnerMessageText}>
-            {ownerMessage ? `💬 ${ownerMessage}` : "💬 사장님 한마디: 아직없음"}
+            {ownerMessage ? `💬 ${ownerMessage}` : "사장님 한마디 아직없음"}
           </Text>
         </View>
       </View>
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   headerAmenitiesSection: { flexDirection: "row", gap: spacing.sm, alignItems: "center", paddingTop: spacing.sm, alignItems: "center" },
-  headerBusinessHoursSection: { flexDirection: "row", gap: spacing.sm, paddingTop: spacing.sm, alignItems: "center" },
+  headerBusinessHoursSection: { flexDirection: "row", gap: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.sm, alignItems: "center" },
   headerOwnerMessageSection: { gap: spacing.xs, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
   headerSectionLabel: { fontSize: 12, fontWeight: "600", color: colors.textSecondary, flexShrink: 0 },
   headerBusinessHoursText: { fontSize: 13, color: colors.textPrimary, flex: 1, fontWeight: "600" },
