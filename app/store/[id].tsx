@@ -282,7 +282,7 @@ export default function StoreDetailScreen() {
 
         {/* 편의시설 */}
         <View style={styles.headerAmenitiesSection}>
-          <Text style={styles.headerSectionLabel}>ℹ️ 편의시설</Text>
+          <Text style={styles.headerSectionLabel}>ℹ️ 편의 시설</Text>
           {displayHasParking || displayHasRestroom || displayHasAtm || displayAmenities.length > 0 ? (
             <Text style={styles.amenitiesEmojiRow}>
               {displayHasParking && "🅿️ "}
@@ -291,14 +291,14 @@ export default function StoreDetailScreen() {
               {displayAmenities.map((amenity: string) => `${amenity} `).join("")}
             </Text>
           ) : (
-            <Text style={[styles.amenitiesEmojiRow, { color: colors.textPrimary }]}>정보없음</Text>
+            <Text style={[styles.amenitiesEmojiRow, { color: colors.textSecondary }]}>정보 없음</Text>
           )}
         </View>
 
         {/* 영업시간 */}
         {(ownerBusinessHoursText || (stats as any).business_hours) && (
           <View style={styles.headerBusinessHoursSection}>
-            <Text style={styles.headerSectionLabel}>🕐 영업시간</Text>
+            <Text style={styles.headerSectionLabel}>🕐 영업 시간</Text>
             <Text style={styles.headerBusinessHoursText}>
               {ownerBusinessHoursText || summarizeBusinessHours((stats as any).business_hours as Record<string, string>)}
             </Text>
@@ -308,7 +308,8 @@ export default function StoreDetailScreen() {
         {/* 사장님 한마디 */}
         <View style={styles.headerOwnerMessageSection}>
           <Text style={styles.headerOwnerMessageText}>
-            {ownerMessage ? `💬 ${ownerMessage}` : "💬 사장님 한마디 아직없음"}
+            {ownerMessage ? `💬 ${ownerMessage}` : `💬 사장님 한마디   `}
+            {!ownerMessage && <Text style={{ fontWeight: 'normal' }}>아직 없음</Text>}
           </Text>
         </View>
       </View>
@@ -329,7 +330,7 @@ export default function StoreDetailScreen() {
       {/* 주변 시설 찾기 카드 */}
       {stats.latitude != null && stats.longitude != null && (
         <View style={styles.nearbySearchCard}>
-          <Text style={styles.nearbySearchCardTitle}>주변시설</Text>
+          <Text style={styles.nearbySearchCardTitle}>주변 시설</Text>
           <View style={styles.nearbySearchRow}>
             {[
               { keyword: "화장실", icon: "🚻" },
@@ -455,12 +456,12 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...cardShadow,
   },
-  headerAmenitiesSection: { flexDirection: "row", gap: spacing.sm, alignItems: "center", paddingTop: spacing.sm, alignItems: "center" },
-  headerBusinessHoursSection: { flexDirection: "row", gap: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.sm, alignItems: "center" },
-  headerOwnerMessageSection: { gap: spacing.xs },
-  headerSectionLabel: { fontSize: 13, fontWeight: "600", color: colors.textPrimary, flexShrink: 0 },
-  headerBusinessHoursText: { fontSize: 13, color: colors.textPrimary, flex: 1, fontWeight: "600" },
-  headerOwnerMessageText: { fontSize: 13, color: colors.textPrimary, lineHeight: 18, fontWeight: "600" },
+  headerAmenitiesSection: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+  headerBusinessHoursSection: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+  headerOwnerMessageSection: { gap: spacing.xs, marginBottom: spacing.sm },
+  headerSectionLabel: { fontSize: 13, fontWeight: "600", color: colors.textSecondary, flexShrink: 0 },
+  headerBusinessHoursText: { fontSize: 13, color: colors.textSecondary, flex: 1, lineHeight: 16 },
+  headerOwnerMessageText: { fontSize: 13, color: colors.textSecondary, lineHeight: 16, fontWeight: "600" },
   headerInfoEmpty: { fontSize: 13, color: colors.textMuted },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   name: { fontSize: 22, fontWeight: "800", color: colors.textPrimary },
@@ -605,7 +606,7 @@ const styles = StyleSheet.create({
   amenitiesSection: { gap: spacing.md },
   amenitiesHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   amenitiesEditLink: { fontSize: 13, fontWeight: "600", color: colors.primary },
-  amenitiesEmojiRow: { fontSize: 13, color: colors.textPrimary, letterSpacing: 2, fontWeight: "600" },
+  amenitiesEmojiRow: { fontSize: 13, color: colors.textSecondary, letterSpacing: 0, lineHeight: 16 },
   amenitiesEmptyText: { fontSize: 13, color: colors.textMuted },
   nearbySearchCard: {
     backgroundColor: colors.surface,
