@@ -194,7 +194,7 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
-<Modal
+      <Modal
         visible={masterKeyModalOpen}
         transparent
         animationType="fade"

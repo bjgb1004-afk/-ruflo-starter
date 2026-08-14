@@ -26,29 +26,29 @@ function formatWon(n: number): string {
 
 // 두 값(구매액/당첨금) 중 큰 쪽을 기준으로 막대 너비 비율을 계산한다. SVG 없이 flexbox 폭
 // 퍼센트만으로 충분해 새 차트 라이브러리를 추가하지 않았다.
-function RoiBars({ spent, won, breakpoint }: { spent: number; won: number; breakpoint: string }) {
+function RoiBars({ spent, won, breakpoint }: { spent: number; won: number; breakpoint: "small" | "medium" | "large" }) {
   const max = Math.max(spent, won, 1);
   return (
     <View style={styles.roiContainer}>
       <View style={styles.roiRow}>
-        <Text style={[styles.roiLabel, { fontSize: getResponsiveFontSize(12, breakpoint as any) }]}>
+        <Text style={[styles.roiLabel, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
           구매액
         </Text>
         <View style={styles.roiTrack}>
           <View style={[styles.roiBar, styles.roiBarSpent, { width: `${(spent / max) * 100}%` }]} />
         </View>
-        <Text style={[styles.roiValue, { fontSize: getResponsiveFontSize(12, breakpoint as any) }]}>
+        <Text style={[styles.roiValue, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
           {formatWon(spent)}
         </Text>
       </View>
       <View style={styles.roiRow}>
-        <Text style={[styles.roiLabel, { fontSize: getResponsiveFontSize(12, breakpoint as any) }]}>
+        <Text style={[styles.roiLabel, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
           당첨금
         </Text>
         <View style={styles.roiTrack}>
           <View style={[styles.roiBar, styles.roiBarWon, { width: `${(won / max) * 100}%` }]} />
         </View>
-        <Text style={[styles.roiValue, { fontSize: getResponsiveFontSize(12, breakpoint as any) }]}>
+        <Text style={[styles.roiValue, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
           {formatWon(won)}
         </Text>
       </View>
@@ -56,17 +56,17 @@ function RoiBars({ spent, won, breakpoint }: { spent: number; won: number; break
   );
 }
 
-const TicketRow = ({ ticket, index, onShare, breakpoint }: { ticket: MyLottoTicket; index: number; onShare: (t: MyLottoTicket) => void; breakpoint: string }) => (
+const TicketRow = ({ ticket, index, onShare, breakpoint }: { ticket: MyLottoTicket; index: number; onShare: (t: MyLottoTicket) => void; breakpoint: "small" | "medium" | "large" }) => (
   <View style={styles.ticketRow}>
     <View style={styles.ticketIndex}>
-      <Text style={[styles.ticketIndexText, { fontSize: getResponsiveFontSize(11, breakpoint as any) }]}>
+      <Text style={[styles.ticketIndexText, { fontSize: getResponsiveFontSize(11, breakpoint) }]}>
         {String.fromCharCode(97 + index)}
       </Text>
     </View>
     <View style={styles.ticketInfo}>
       {ticket.purchaseType && (
         <View style={styles.methodTag}>
-          <Text style={[styles.methodTagText, { fontSize: getResponsiveFontSize(10, breakpoint as any) }]}>
+          <Text style={[styles.methodTagText, { fontSize: getResponsiveFontSize(10, breakpoint) }]}>
             {ticket.purchaseType}
           </Text>
         </View>
@@ -80,29 +80,29 @@ const TicketRow = ({ ticket, index, onShare, breakpoint }: { ticket: MyLottoTick
     <View style={styles.ticketRight}>
       {!ticket.checked ? (
         <View style={styles.pendingBadge}>
-          <Text style={[styles.pendingBadgeText, { fontSize: getResponsiveFontSize(11, breakpoint as any) }]}>
+          <Text style={[styles.pendingBadgeText, { fontSize: getResponsiveFontSize(11, breakpoint) }]}>
             추첨 대기
           </Text>
         </View>
       ) : ticket.rank ? (
         <>
           <View style={styles.winBadge}>
-            <Text style={[styles.winBadgeText, { fontSize: getResponsiveFontSize(11, breakpoint as any) }]}>
+            <Text style={[styles.winBadgeText, { fontSize: getResponsiveFontSize(11, breakpoint) }]}>
               {RANK_LABEL[ticket.rank]}
             </Text>
           </View>
-          <Text style={[styles.winAmount, { fontSize: getResponsiveFontSize(12, breakpoint as any) }]}>
+          <Text style={[styles.winAmount, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
             {formatWon(ticket.prizeAmount)}
           </Text>
           <Pressable style={styles.shareButton} onPress={() => onShare(ticket)}>
-            <Text style={[styles.shareButtonText, { fontSize: getResponsiveFontSize(11, breakpoint as any) }]}>
+            <Text style={[styles.shareButtonText, { fontSize: getResponsiveFontSize(11, breakpoint) }]}>
               공유
             </Text>
           </Pressable>
         </>
       ) : (
         <View style={styles.loseBadge}>
-          <Text style={[styles.loseBadgeText, { fontSize: getResponsiveFontSize(11, breakpoint as any) }]}>
+          <Text style={[styles.loseBadgeText, { fontSize: getResponsiveFontSize(11, breakpoint) }]}>
             낙첨
           </Text>
         </View>
@@ -140,7 +140,7 @@ const TicketGroupCard = ({
   group: TicketGroup;
   onShare: (t: MyLottoTicket) => void;
   onDelete: (group: TicketGroup) => void;
-  breakpoint: string;
+  breakpoint: "small" | "medium" | "large";
 }) => {
   // 회차(그룹)마다 따로 접고 펼 수 있게 - 보관함에 여러 회차가 쌓이면 전부 펼쳐진 채로
   // 쭉 나열되어 원하는 회차를 찾기 번거롭다는 피드백. 기본은 펼침 상태로 둬서 기존
@@ -153,14 +153,14 @@ const TicketGroupCard = ({
       <View style={styles.groupHeaderRow}>
         <Pressable style={styles.groupHeaderInfo} onPress={handleToggle}>
           <View style={styles.groupDrawRow}>
-            <Text style={[styles.groupDraw, { fontSize: getResponsiveFontSize(14, breakpoint as any) }]}>
+            <Text style={[styles.groupDraw, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
               {group.drawNo}회
             </Text>
-            <Text style={[styles.groupChevron, { fontSize: getResponsiveFontSize(11, breakpoint as any) }]}>
+            <Text style={[styles.groupChevron, { fontSize: getResponsiveFontSize(11, breakpoint) }]}>
               {expanded ? "▲" : "▼"}
             </Text>
           </View>
-          <Text style={[styles.groupSpent, { fontSize: getResponsiveFontSize(12, breakpoint as any) }]}>
+          <Text style={[styles.groupSpent, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
             {formatWon(group.tickets.length * LOTTO_UNIT_PRICE)}치 · {group.tickets.length}게임
           </Text>
         </Pressable>

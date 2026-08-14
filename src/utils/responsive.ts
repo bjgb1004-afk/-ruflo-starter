@@ -36,7 +36,7 @@ export function useResponsive(): ResponsiveValue {
 export function getResponsiveSpacing(token: number, breakpoint: Breakpoint): number {
   if (breakpoint === "small") return Math.round(token * 0.85);
   if (breakpoint === "medium") return token;
-  return token;
+  return Math.round(token * 1.1);
 }
 
 export function getResponsiveFontSize(size: number, breakpoint: Breakpoint): number {
