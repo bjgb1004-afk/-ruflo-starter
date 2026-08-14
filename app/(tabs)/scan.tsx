@@ -286,8 +286,8 @@ export default function ScanScreen() {
             keyExtractor={(item) => `draw-${item[0]}`}
             renderItem={({ item: [drawNo, tickets] }) => <VaultDrawCard drawNo={drawNo} tickets={tickets} />}
             contentContainerStyle={styles.vaultList}
-            scrollEnabled={true}
-            pagingEnabled={true}
+            scrollEnabled={false}
+            pagingEnabled={false}
             showsVerticalScrollIndicator={false}
           />
         )}

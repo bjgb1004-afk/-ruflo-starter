@@ -14,6 +14,7 @@ import { getLatestFirstPrizeWinners } from "@/features/draws/api/drawHistoryApi"
 import { useFavorites } from "@/features/favorites/useFavorites";
 import { DEFAULT_SEARCH_RADIUS_M } from "@/constants/config";
 import { colors, spacing, radius, cardShadow } from "@/constants/theme";
+import { useResponsive, getResponsiveSpacing, getResponsiveFontSize } from "@/utils/responsive";
 
 type SortMode = "recommend" | "distance";
 
@@ -26,6 +27,7 @@ const SearchResultRow = ({ item, onPress }: { item: StoreSearchResult; onPress: 
 
 export default function MapScreen() {
   const router = useRouter();
+  const { breakpoint } = useResponsive();
   const [showLocationPermissionGuide, setShowLocationPermissionGuide] = useState(false);
   const [hasShownLocationGuide, setHasShownLocationGuide] = useState(false);
   const { location, error: locationError } = useCurrentLocation();
@@ -243,9 +245,9 @@ export default function MapScreen() {
         </>
       )}
 
-      <View style={styles.searchBar}>
+      <View style={[styles.searchBar, { marginHorizontal: getResponsiveSpacing(spacing.md, breakpoint) }]}>
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { fontSize: getResponsiveFontSize(15, breakpoint) }]}
           placeholder="판매점 이름 또는 주소 검색"
           placeholderTextColor="#999"
           value={searchInput}
@@ -261,20 +263,20 @@ export default function MapScreen() {
       </View>
 
       {!isSearchMode && (
-        <View style={styles.sortBar}>
+        <View style={[styles.sortBar, { paddingHorizontal: getResponsiveSpacing(spacing.md, breakpoint) }]}>
           <Pressable
-            style={[styles.sortButton, sortMode === "recommend" && styles.sortButtonActive]}
+            style={[styles.sortButton, sortMode === "recommend" && styles.sortButtonActive, { paddingHorizontal: getResponsiveSpacing(spacing.md + 2, breakpoint) }]}
             onPress={handleSortRecommend}
           >
-            <Text style={[styles.sortButtonText, sortMode === "recommend" && styles.sortButtonTextActive]}>
+            <Text style={[styles.sortButtonText, sortMode === "recommend" && styles.sortButtonTextActive, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
               추천순
             </Text>
           </Pressable>
           <Pressable
-            style={[styles.sortButton, sortMode === "distance" && styles.sortButtonActive]}
+            style={[styles.sortButton, sortMode === "distance" && styles.sortButtonActive, { paddingHorizontal: getResponsiveSpacing(spacing.md + 2, breakpoint) }]}
             onPress={handleSortDistance}
           >
-            <Text style={[styles.sortButtonText, sortMode === "distance" && styles.sortButtonTextActive]}>
+            <Text style={[styles.sortButtonText, sortMode === "distance" && styles.sortButtonTextActive, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
               거리순
             </Text>
           </Pressable>

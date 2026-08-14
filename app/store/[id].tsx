@@ -390,13 +390,13 @@ export default function StoreDetailScreen() {
         <View style={styles.statsGrid}>
           <View style={styles.statItem}>
             <View style={styles.statRow}>
-              <Text style={styles.statLabel}>1등 배출</Text>
+              <Text style={styles.statLabel}>🥇 1등 배출</Text>
               <Text style={styles.statText}><Text style={styles.statCount}>{stats.first_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
             </View>
           </View>
           <View style={styles.statItem}>
             <View style={styles.statRow}>
-              <Text style={styles.statLabel}>2등 배출</Text>
+              <Text style={styles.statLabel}>🥈 2등 배출</Text>
               <Text style={styles.statText}><Text style={styles.statCount}>{stats.second_prize_count}</Text><Text style={styles.statUnit}>회</Text></Text>
             </View>
           </View>
