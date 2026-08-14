@@ -457,7 +457,7 @@ const styles = StyleSheet.create({
   },
   headerAmenitiesSection: { flexDirection: "row", gap: spacing.sm, alignItems: "center", paddingTop: spacing.sm, alignItems: "center" },
   headerBusinessHoursSection: { flexDirection: "row", gap: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.sm, alignItems: "center" },
-  headerOwnerMessageSection: { gap: spacing.xs, paddingTop: spacing.sm },
+  headerOwnerMessageSection: { gap: spacing.xs },
   headerSectionLabel: { fontSize: 12, fontWeight: "600", color: colors.textSecondary, flexShrink: 0 },
   headerBusinessHoursText: { fontSize: 13, color: colors.textPrimary, flex: 1, fontWeight: "600" },
   headerOwnerMessageText: { fontSize: 13, color: colors.textPrimary, lineHeight: 18, fontWeight: "600" },
