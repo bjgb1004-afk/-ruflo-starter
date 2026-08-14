@@ -14,7 +14,7 @@ export const GEOFENCE_MAX_REGIONS = 20;
 
 // 명당 알림: 무료회원 현재 선택 한도. 유료화 전까지는 이 값이 실제 적용 한도이고,
 // 나중에 유료회원 여부를 확인할 수 있게 되면 GEOFENCE_MAX_REGIONS(20)로 풀어줄 예정.
-export const GEOFENCE_FREE_TIER_MAX = GEOFENCE_MAX_REGIONS;
+export const GEOFENCE_FREE_TIER_MAX = 2;
 
 // 관리자 페이지 접근 허용 이메일 목록. 서버 측 권한 체크가 아니라 클라이언트 UI 게이팅이므로
 // (이 앱에 별도 관리자 서버가 없음) 관리자 화면이 보여주는 데이터 자체가 공개 테이블 집계치
