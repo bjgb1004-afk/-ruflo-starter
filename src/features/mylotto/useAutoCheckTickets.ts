@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { getDrawByNo } from "@/features/draws/api/drawHistoryApi";
 import { computeWinRank, getPrizeAmount } from "@/features/qr/checkWinnings";
 import { reportError } from "@/lib/errorLog";
@@ -10,12 +10,18 @@ import { useMyLottoTickets } from "./useMyLottoTickets";
 export function useAutoCheckTickets() {
   const tickets = useMyLottoTickets((s) => s.tickets);
   const markChecked = useMyLottoTickets((s) => s.markChecked);
+  // markChecked가 tickets를 바꾸면서 이 effect의 dep(tickets)도 같이 바뀌어, 방금 시작한
+  // 루프가 끝나기도 전에 같은 회차를 또 조회하는 effect가 겹쳐 실행되곤 했다(추첨 직후
+  // 여러 티켓이 한꺼번에 checkable해지는 시점에 특히 심함) - 진행 중 플래그로 겹침을 막는다.
+  const isCheckingRef = useRef(false);
 
   useEffect(() => {
+    if (isCheckingRef.current) return;
     const unchecked = Object.values(tickets).filter((t) => !t.checked);
     if (unchecked.length === 0) return;
 
     const uniqueDrawNos = [...new Set(unchecked.map((t) => t.drawNo))];
+    isCheckingRef.current = true;
 
     (async () => {
       for (const drawNo of uniqueDrawNos) {
@@ -52,6 +58,7 @@ export function useAutoCheckTickets() {
           markChecked(t.id, rank, prizeAmount);
         }
       }
+      isCheckingRef.current = false;
     })();
   }, [tickets, markChecked]);
 }

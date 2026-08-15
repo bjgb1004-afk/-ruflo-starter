@@ -22,10 +22,14 @@ export function getPrizeAmount(
 }
 
 // 로또 6/45 표준 등수 규칙: 6개 일치 1등, 5개+보너스 2등, 5개 3등, 4개 4등, 3개 5등, 그 외 낙첨(null).
+// pickedNumbers에 중복 숫자가 있으면(현재는 parseLottoQr가 미리 걸러내 실전에서는 못 만나지만,
+// 이 함수 자체는 그 가정에 기대지 않는다) matchCount가 부풀려져 등수를 잘못 판정할 수 있어
+// Set으로 먼저 중복을 제거한다.
 export function computeWinRank(pickedNumbers: number[], winningNumbers: number[], bonusNumber: number): WinRank {
   const winningSet = new Set(winningNumbers);
-  const matchCount = pickedNumbers.filter((n) => winningSet.has(n)).length;
-  const hasBonus = pickedNumbers.includes(bonusNumber);
+  const uniquePicked = new Set(pickedNumbers);
+  const matchCount = [...uniquePicked].filter((n) => winningSet.has(n)).length;
+  const hasBonus = uniquePicked.has(bonusNumber);
 
   if (matchCount === 6) return 1;
   if (matchCount === 5 && hasBonus) return 2;

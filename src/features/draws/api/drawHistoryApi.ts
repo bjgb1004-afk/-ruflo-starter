@@ -60,6 +60,11 @@ export async function getLatestFirstPrizeWinners(): Promise<{
   const draw = await getLatestDraw();
   if (!draw || draw.first_prize_store_ids.length === 0) return null;
 
+  // store_ranking_stats에 있는지로 한 번 더 걸러내던 예전 코드는, draw_history엔 이미
+  // 확정된 배출점인데 refresh_store_ranking_stats() 배치가 아직 안 돌았거나(회차 수집 직후
+  // 몇 초~몇 분의 간격) 매장 병합 직후처럼 그 테이블이 일시적으로 뒤처져 있으면 결과가
+  // 통째로 비어버리는 버그였다 - "이번 회차 당첨매장 없음"과 구분이 안 됐다. 이 배너는
+  // 매장 이름만 보여주면 되고 순위 데이터가 필요 없으니, stores 조회 결과를 그대로 쓴다.
   const { data: storeData, error: storeError } = await supabase
     .from("stores")
     .select("id, name")
@@ -67,23 +72,12 @@ export async function getLatestFirstPrizeWinners(): Promise<{
     .returns<{ id: string; name: string }[]>();
   if (storeError) throw storeError;
 
-  const { data: statsData, error: statsError } = await supabase
-    .from("store_ranking_stats")
-    .select("id")
-    .in("id", draw.first_prize_store_ids)
-    .returns<{ id: string }[]>();
-  if (statsError) throw statsError;
-
-  const statsIds = new Set((statsData ?? []).map((s) => s.id));
-
-  const stores: LatestWinnerStore[] = (storeData ?? [])
-    .filter((s) => statsIds.has(s.id))
-    .map((s) => ({
-      drawNo: draw.draw_no,
-      drawDate: draw.draw_date,
-      storeId: s.id,
-      storeName: s.name,
-    }));
+  const stores: LatestWinnerStore[] = (storeData ?? []).map((s) => ({
+    drawNo: draw.draw_no,
+    drawDate: draw.draw_date,
+    storeId: s.id,
+    storeName: s.name,
+  }));
 
   return { drawNo: draw.draw_no, drawDate: draw.draw_date, stores };
 }

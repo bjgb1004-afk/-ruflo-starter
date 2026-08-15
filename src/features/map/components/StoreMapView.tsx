@@ -130,18 +130,34 @@ export const StoreMapView = memo(function StoreMapView({
   // watchSubscriptionRef에 할당되어 영원히 해제되지 않는 누수가 생긴다. 각 await 이후
   // 이 플래그를 확인해 unmount 후에는 구독을 만들자마자 바로 해제한다.
   const isMountedRef = useRef(true);
+  // handleToggleTracking은 권한요청~구독시작까지 여러 await를 거치는데(실기기에서 수백ms),
+  // 그 사이 버튼을 빠르게 다시 누르면 isTracking state가 아직 갱신 전이라 두 번째 탭도
+  // 똑같이 "시작" 분기로 들어가 구독이 중복 생성되거나, "탭1 시작 중 → 탭2 정지" 순서일 때
+  // stopTracking이 아직 null인 watchSubscriptionRef를 지워봤자 no-op이고 탭1의 구독은
+  // 화면엔 "정지됨"으로 보이는 채 계속 살아남는 누수가 생겼다. 진행 중 플래그로 재진입을
+  // 막고, 시작 도중 정지 요청이 들어오면 구독이 만들어지자마자 바로 정리한다.
+  const startInFlightRef = useRef(false);
+  const stopRequestedRef = useRef(false);
 
   const stopTracking = useCallback(() => {
+    if (startInFlightRef.current) {
+      stopRequestedRef.current = true;
+      setIsTracking(false);
+      return;
+    }
     watchSubscriptionRef.current?.remove();
     watchSubscriptionRef.current = null;
     setIsTracking(false);
   }, []);
 
   const handleToggleTracking = useCallback(async () => {
-    if (isTracking) {
+    if (watchSubscriptionRef.current || isTracking) {
       stopTracking();
       return;
     }
+    if (startInFlightRef.current) return; // 시작 처리 중 중복 탭 - 무시
+    startInFlightRef.current = true;
+    stopRequestedRef.current = false;
 
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -158,7 +174,7 @@ export const StoreMapView = memo(function StoreMapView({
       }
 
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || stopRequestedRef.current) return;
       mapRef.current?.animateToRegion(
         {
           latitude: current.coords.latitude,
@@ -179,8 +195,12 @@ export const StoreMapView = memo(function StoreMapView({
           );
         },
       );
-      if (!isMountedRef.current) {
+      // unmount됐거나, 시작 처리 도중(권한/GPS 대기 중) 사용자가 정지를 눌렀으면 방금
+      // 만든 구독을 그대로 살려두지 않고 즉시 해제한다 - 버튼은 "정지됨"인데 GPS 워치는
+      // 계속 도는 누수를 막기 위함.
+      if (!isMountedRef.current || stopRequestedRef.current) {
         subscription.remove();
+        setIsTracking(false);
         return;
       }
       watchSubscriptionRef.current = subscription;
@@ -190,6 +210,8 @@ export const StoreMapView = memo(function StoreMapView({
         Alert.alert("위치를 가져올 수 없어요", "잠시 후 다시 시도해 주세요.");
         setIsTracking(false);
       }
+    } finally {
+      startInFlightRef.current = false;
     }
   }, [isTracking, stopTracking]);
 

@@ -11,8 +11,9 @@ const FIXED_PRIZE_AMOUNT: Record<4 | 5, number> = { 4: 50_000, 5: 5_000 };
 // src/features/qr/checkWinnings.ts와 동일한 판정 규칙(클라이언트 로직을 서버에서도 그대로 사용).
 function computeWinRank(pickedNumbers: number[], winningNumbers: number[], bonusNumber: number): WinRank {
   const winningSet = new Set(winningNumbers);
-  const matchCount = pickedNumbers.filter((n) => winningSet.has(n)).length;
-  const hasBonus = pickedNumbers.includes(bonusNumber);
+  const uniquePicked = new Set(pickedNumbers);
+  const matchCount = [...uniquePicked].filter((n) => winningSet.has(n)).length;
+  const hasBonus = uniquePicked.has(bonusNumber);
   if (matchCount === 6) return 1;
   if (matchCount === 5 && hasBonus) return 2;
   if (matchCount === 5) return 3;

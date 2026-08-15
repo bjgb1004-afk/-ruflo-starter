@@ -45,6 +45,49 @@ Deno.serve(async (req) => {
   }
   const { storeId, bizName, bizRegNumber, repName, openDate } = body as Record<string, string>;
 
+  // 0) 동시요청 예약 락: 이 (user, store) 쌍에 대한 다른 요청이 이미 처리 중이면(60초 TTL,
+  // 홈택스 호출 왕복시간을 넉넉히 덮음) 즉시 물러난다 - 잠금 판정(1번)과 시도기록(5번) 사이의
+  // 시간차를 동시 요청 여러 개로 파고들어 5회 실패 잠금을 우회하는 걸 막기 위함.
+  const lockUntil = new Date(Date.now() + 60_000).toISOString();
+  const { data: lockRow, error: lockError } = await admin
+    .from("store_owner_verification_locks")
+    .upsert({ user_id: userId, store_id: storeId, locked_until: lockUntil }, { onConflict: "user_id,store_id" })
+    .lt("locked_until", new Date().toISOString())
+    .select("user_id")
+    .maybeSingle();
+  if (lockError) return json({ error: lockError.message }, 500);
+  if (!lockRow) return json({ error: "이미 처리 중인 요청이 있습니다. 잠시 후 다시 시도해주세요." }, 429);
+
+  try {
+    return await handleVerification({ admin, userId, storeId, bizName, bizRegNumber, repName, openDate });
+  } finally {
+    // 정상 처리가 끝나면 TTL을 기다릴 필요 없이 바로 락을 풀어, 같은 사용자가 바로 이어서
+    // 다시 시도(예: 오탈자 정정)할 때 60초를 그냥 기다리지 않게 한다.
+    await admin
+      .from("store_owner_verification_locks")
+      .delete()
+      .eq("user_id", userId)
+      .eq("store_id", storeId);
+  }
+});
+
+async function handleVerification({
+  admin,
+  userId,
+  storeId,
+  bizName,
+  bizRegNumber,
+  repName,
+  openDate,
+}: {
+  admin: ReturnType<typeof createClient>;
+  userId: string;
+  storeId: string;
+  bizName: string;
+  bizRegNumber: string;
+  repName: string;
+  openDate: string;
+}): Promise<Response> {
   // 1) 잠금 판정
   const { data: recentAttempts, error: attemptsError } = await admin
     .from("store_owner_verification_attempts")
@@ -137,4 +180,4 @@ Deno.serve(async (req) => {
   if (transferError) return json({ error: transferError.message }, 500);
 
   return json({ status: "transfer_pending", transferRequestId: transferRequest.id });
-});
+}

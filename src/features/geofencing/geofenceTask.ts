@@ -10,8 +10,33 @@ export const GEOFENCE_DEBUG_LOG_KEY = "geofence_debug_log";
 export type GeofenceStoreInfo = { name: string; rank: number | null };
 
 // 마지막 알림 시각을 기록해 같은 매장 반경 안에서 재진입/재알림 스팸을 막는다.
+// 메모리(Map)에만 두면 안드로이드가 백그라운드 태스크를 위해 JS 컨텍스트를 새로 띄울 때마다
+// (앱 강제종료 후 재개 등 아주 흔한 상황) 기록이 사라져서, 같은 프로세스 생애주기 안에서만
+// 쿨다운이 지켜지고 재시작을 넘나드는 재진입엔 매번 다시 알림이 갔다 - AsyncStorage에 저장해
+// 프로세스가 새로 떠도 이어지게 한다.
 const RENOTIFY_COOLDOWN_MS = 60 * 60 * 1000; // 1시간
-const lastNotifiedAt = new Map<string, number>();
+const LAST_NOTIFIED_KEY = "geofence_last_notified_at";
+
+async function getLastNotifiedAt(storeId: string): Promise<number | null> {
+  try {
+    const raw = await AsyncStorage.getItem(LAST_NOTIFIED_KEY);
+    const map: Record<string, number> = raw ? JSON.parse(raw) : {};
+    return map[storeId] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function setLastNotifiedAt(storeId: string, at: number): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(LAST_NOTIFIED_KEY);
+    const map: Record<string, number> = raw ? JSON.parse(raw) : {};
+    map[storeId] = at;
+    await AsyncStorage.setItem(LAST_NOTIFIED_KEY, JSON.stringify(map));
+  } catch {
+    // 저장 실패해도 알림 자체는 이미 보냈으니 무시 - 최악의 경우 쿨다운만 못 지킴
+  }
+}
 
 // 실기기에서 알림이 안 뜬다는 신고가 있어, OS가 태스크 자체를 호출했는지부터 확인하기 위한
 // 진단용 로그. 알림 없이 조용히 AsyncStorage에만 남기므로 사용자 경험에 영향 없다.
@@ -43,7 +68,7 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
   if (eventType !== Location.GeofencingEventType.Enter || !region.identifier) return;
 
   const now = Date.now();
-  const last = lastNotifiedAt.get(region.identifier);
+  const last = await getLastNotifiedAt(region.identifier);
   if (last && now - last < RENOTIFY_COOLDOWN_MS) return;
 
   const raw = await AsyncStorage.getItem(GEOFENCE_STORE_MAP_KEY);
@@ -52,6 +77,6 @@ TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
 
   if (!info) return;
 
-  lastNotifiedAt.set(region.identifier, now);
+  await setLastNotifiedAt(region.identifier, now);
   await sendStoreArrivalNotification(info.name, info.rank);
 });

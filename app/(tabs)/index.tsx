@@ -311,7 +311,7 @@ export default function MapScreen() {
             favoriteIds={favoriteIdSet}
             newWinnerIds={newWinnerIdSet}
           />
-          <TopStoresCarousel stores={stores} onPressStore={handlePressStore} />
+          <TopStoresCarousel stores={sortedStores} onPressStore={handlePressStore} />
         </View>
       )}
       </View>

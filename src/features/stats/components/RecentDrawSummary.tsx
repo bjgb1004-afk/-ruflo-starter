@@ -83,8 +83,11 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
 
   // 배출업소 데이터는 별도 공공데이터 소스라 당첨번호보다 반영이 여러 날 늦을 수 있다.
   // 최근 3일 이내 회차인데 목록이 비어 있으면 "정보 없음"이 아니라 "집계 중"으로 안내한다.
+  // draw_date는 "YYYY-MM-DD" 날짜 문자열이라 new Date()로 그대로 파싱하면 UTC 자정으로
+  // 해석돼, 실제 추첨 시각(토요일 20:35 KST = 11:35 UTC)보다 최대 반나절 이른 기준으로
+  // "3일 경과"가 판정됐다 - 실제 추첨 시각을 명시해 그 오차를 없앤다.
   const isRecentDraw = activeDraw
-    ? Date.now() - new Date(activeDraw.draw_date).getTime() < 3 * 24 * 60 * 60 * 1000
+    ? Date.now() - new Date(`${activeDraw.draw_date}T11:35:00Z`).getTime() < 3 * 24 * 60 * 60 * 1000
     : false;
 
   const drawOptions = useMemo(() => {

@@ -16,9 +16,14 @@ describe("mergeFavorites", () => {
     expect(result).toEqual({ b: storeB });
   });
 
-  it("기존 로컬 항목은 유지한 채 클라우드 항목을 합친다", () => {
+  it("클라우드를 진실의 원천으로 삼아 로컬에만 있던(다른 기기에서 지워진) 항목은 사라진다", () => {
+    // 예전엔 {...current, ...cloud}로 단순 합집합이라, 다른 기기에서 삭제한 즐겨찾기가
+    // 이 기기에서는 절대 안 사라지고 클라우드로 계속 재업로드되는 버그가 있었다.
+    // 게스트 상태에서 추가해 아직 클라우드에 없는 항목은 useFavoritesCloudSync.ts가
+    // 먼저 업로드해서 cloudStores에 포함시킨 뒤 이 함수를 호출하므로, 여기서는
+    // "cloudStores에 없으면 최종 결과에도 없다"가 항상 맞는 동작이다.
     const current = { b: storeB };
     const result = mergeFavorites(current, [storeA], []);
-    expect(result).toEqual({ a: storeA, b: storeB });
+    expect(result).toEqual({ a: storeA });
   });
 });

@@ -23,13 +23,26 @@ export function useFavoritesCloudSync() {
         await retryPendingDeletes(userId);
 
         const localStores = useFavorites.getState().stores;
+        const pendingDeletes = useFavorites.getState().pendingDeletes;
         const cloudStores = await getCloudFavorites(userId);
         const cloudIds = new Set(cloudStores.map((s) => s.id));
 
-        mergeCloud(cloudStores);
+        // 게스트 상태에서 추가해 아직 클라우드에 없는 항목을 먼저 업로드한다. mergeCloud가
+        // 클라우드를 그대로 로컬에 덮어쓰므로(다른 기기 삭제 반영을 위해 - mergeFavorites.ts
+        // 참고), 여기서 먼저 올려두지 않으면 게스트가 추가한 즐겨찾기가 병합 즉시 사라진다.
+        const localOnly = Object.values(localStores).filter(
+          (s) => !cloudIds.has(s.id) && !pendingDeletes.includes(s.id),
+        );
+        const uploaded: typeof localOnly = [];
+        await Promise.all(
+          localOnly.map((store) =>
+            addCloudFavorite(userId, store)
+              .then(() => uploaded.push(store))
+              .catch((err) => reportError(err, "favorites-cloud-add-on-login")),
+          ),
+        );
 
-        const localOnly = Object.values(localStores).filter((s) => !cloudIds.has(s.id));
-        await Promise.all(localOnly.map((store) => addCloudFavorite(userId, store).catch(() => {})));
+        mergeCloud([...cloudStores, ...uploaded]);
       } catch (err) {
         // 동기화 실패해도 로컬 즐겨찾기는 그대로 동작하므로 사용자에게는 조용히 넘어가되,
         // 실제로 얼마나 자주 실패하는지는 Sentry로 확인할 수 있어야 한다.

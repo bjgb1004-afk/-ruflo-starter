@@ -51,7 +51,10 @@ export async function registerResultPushSubscription(
       numbers: g.numbers,
       purchase_type: g.type,
     }));
-    const { error } = await supabase.from("mylotto_push_subscriptions").insert(rows);
+    // (push_token, draw_no, numbers) unique 제약 위반(재스캔으로 인한 중복)은 조용히 무시한다.
+    const { error } = await supabase
+      .from("mylotto_push_subscriptions")
+      .upsert(rows, { onConflict: "push_token,draw_no,numbers", ignoreDuplicates: true });
     if (error) throw error;
   } catch (err) {
     reportError(err, "mylotto-push-subscription");

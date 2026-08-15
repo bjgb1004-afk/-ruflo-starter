@@ -50,7 +50,14 @@ export const useMyLottoTickets = create<MyLottoState>()(
         const now = new Date().toISOString();
         const groupId = generateId();
         const next = { ...get().tickets };
+        // 같은 용지를 실수로 다시 스캔(리스캔 잠금 창 밖에서 재시도, 화면 재진입 후 재스캔 등)
+        // 해도 중복 저장되지 않게, 같은 회차+같은 번호 조합이 이미 있으면 건너뛴다. 그대로 두면
+        // 보관함 통계(총 구매액)가 부풀려지고, 추첨 후 같은 결과로 알림도 두 번 온다.
+        const existingKeys = new Set(Object.values(next).map((t) => `${t.drawNo}:${t.numbers.join(",")}`));
         for (const input of inputs) {
+          const key = `${input.drawNo}:${input.numbers.join(",")}`;
+          if (existingKeys.has(key)) continue;
+          existingKeys.add(key);
           const id = generateId();
           next[id] = {
             ...input,
@@ -82,6 +89,11 @@ export const useMyLottoTickets = create<MyLottoState>()(
     {
       name: "my-lotto-tickets",
       storage: createJSONStorage(() => AsyncStorage),
+      // 버전 없이는 필드 이름/모양이 바뀌는 미래 변경이 기존 사용자의 저장된 실제 티켓
+      // 데이터를 마이그레이션 없이 그대로 읽어버려 크래시나 조용한 데이터 손상으로 이어진다.
+      // 지금 형태를 1로 고정해두고, 다음 스키마 변경부터는 반드시 version을 올리고
+      // migrate()로 변환 경로를 명시한다.
+      version: 1,
     },
   ),
 );

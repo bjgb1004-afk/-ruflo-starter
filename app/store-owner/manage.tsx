@@ -26,15 +26,18 @@ import { ADMIN_EMAILS } from "@/constants/config";
 import { colors, spacing, radius } from "@/constants/theme";
 
 export default function StoreOwnerManageScreen() {
-  const { storeId: paramStoreId, testMode, isAdmin: isAdminParam } = useLocalSearchParams<{
+  const { storeId: paramStoreId, testMode } = useLocalSearchParams<{
     storeId?: string;
     testMode?: string;
-    isAdmin?: string;
   }>();
   const user = useAuth((s) => s.user);
   const userId = user?.id;
   const isTestMode = testMode === "true";
-  const isAdmin = isAdminParam === "true" || (user?.email ? ADMIN_EMAILS.includes(user.email) : false);
+  // URL 쿼리는 사용자가 직접 편집/딥링크로 조작 가능해 권한 판별에 쓸 수 없다(과거 버그:
+  // ?isAdmin=true를 그대로 신뢰해 화면상 관리자 모드가 열렸음 - 실제 쓰기는 RLS가 막았지만
+  // "저장 완료"로 잘못 표시됨). 이메일 목록도 UI 편의 게이트일 뿐이고, 실제 쓰기 권한은
+  // 항상 서버(is_admin() 기반 RLS 정책)가 최종 검증한다.
+  const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email);
 
   const [loading, setLoading] = useState(true);
   const [ownedStores, setOwnedStores] = useState<OwnedStoreSummary[]>([]);

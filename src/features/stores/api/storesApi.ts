@@ -106,7 +106,7 @@ export async function getStoreWithStats(
   const { data: stats, error: statsError } = await supabase
     .from("store_ranking_stats")
     .select(
-      "first_prize_count, second_prize_count, first_prize_1yr, first_prize_5yr, store_score, nation_rank, province_rank, city_rank",
+      "first_prize_count, second_prize_count, first_prize_1yr, first_prize_5yr, second_prize_1yr, store_score, nation_rank, province_rank, city_rank",
     )
     .eq("id", storeId)
     .maybeSingle();

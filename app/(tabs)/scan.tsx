@@ -21,7 +21,7 @@ const RESCAN_LOCK_MS = 1500;
 // "닫고 다음 QR 스캔"을 한 번 더 눌러야 해서 여러 장을 연달아 찍을 때 불편했다.
 const AUTO_CLOSE_AFTER_SAVE_MS = 600;
 
-type GameResult = ParsedLottoGame & { rank: WinRank; prizeAmount: number };
+type GameResult = ParsedLottoGame & { rank: WinRank; prizeAmount: number; amountPending: boolean };
 
 type ScanResult =
   | { status: "ok"; drawNo: number; drawDate: string; games: GameResult[] }
@@ -143,17 +143,31 @@ export default function ScanScreen() {
         setResult({ status: "pending", drawNo: parsed.drawNo, games: parsed.games });
         return;
       }
+      // 1~3등은 회차별 변동(파리뮤추얼) 금액이라 추첨 직후(토 20:35~21:10경)엔 당첨번호만
+      // 먼저 채워지고 금액 집계가 비어있을 수 있다(useAutoCheckTickets.ts, 서버 알림 스크립트와
+      // 동일 이유). 이 경우 여기서 바로 "0원"으로 확정 저장하면 checked=true로 영구 고정되어
+      // 나중에 실제 금액이 채워져도 다시는 재검사되지 않는다 - amountPending으로 표시해
+      // handleSaveToVault가 checked:false로 저장하게 한다.
       const games: GameResult[] = parsed.games.map((g) => {
         const rank = computeWinRank(g.numbers, draw.winning_numbers, draw.bonus_number);
+        const amountByRank: Partial<Record<1 | 2 | 3, number | null>> = {
+          1: draw.first_prize_amount_per_win,
+          2: draw.second_prize_amount_per_win,
+          3: draw.third_prize_amount_per_win,
+        };
+        const amountPending = (rank === 1 || rank === 2 || rank === 3) && amountByRank[rank] === null;
         return {
           ...g,
           rank,
-          prizeAmount: getPrizeAmount(
-            rank,
-            draw.first_prize_amount_per_win,
-            draw.second_prize_amount_per_win,
-            draw.third_prize_amount_per_win,
-          ),
+          amountPending,
+          prizeAmount: amountPending
+            ? 0
+            : getPrizeAmount(
+                rank,
+                draw.first_prize_amount_per_win,
+                draw.second_prize_amount_per_win,
+                draw.third_prize_amount_per_win,
+              ),
         };
       });
       // QR 스캔 자체가 성공적으로 완료됐다는 것을 화면을 보지 않고도 알 수 있도록 진동을 준다
@@ -185,15 +199,21 @@ export default function ScanScreen() {
 
     if (result.status === "ok") {
       addTickets(
-        result.games.map((g) => ({
-          drawNo: result.drawNo,
-          numbers: g.numbers,
-          purchaseType: g.type,
-          checked: true,
-          rank: g.rank,
-          prizeAmount: g.prizeAmount,
-        })),
+        result.games.map((g) =>
+          g.amountPending
+            ? { drawNo: result.drawNo, numbers: g.numbers, purchaseType: g.type }
+            : { drawNo: result.drawNo, numbers: g.numbers, purchaseType: g.type, checked: true, rank: g.rank, prizeAmount: g.prizeAmount },
+        ),
       );
+      // 금액 집계가 아직 안 끝난 게임이 있으면(1~3등 파리뮤추얼 금액 null), 다음 보관함
+      // 방문 때 재검사되긴 하지만 그새 앱을 안 열 수도 있으니 결과가 확정되면 푸시로도 알려준다.
+      const pendingGames = result.games.filter((g) => g.amountPending);
+      if (pendingGames.length > 0) {
+        registerResultPushSubscription(
+          result.drawNo,
+          pendingGames.map((g) => ({ numbers: g.numbers, type: g.type })),
+        );
+      }
     } else {
       addTickets(
         result.games.map((g) => ({
