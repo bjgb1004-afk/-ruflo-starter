@@ -32,12 +32,19 @@ export default function StoreOwnerManageScreen() {
   }>();
   const user = useAuth((s) => s.user);
   const userId = user?.id;
-  const isTestMode = testMode === "true";
   // URL 쿼리는 사용자가 직접 편집/딥링크로 조작 가능해 권한 판별에 쓸 수 없다(과거 버그:
   // ?isAdmin=true를 그대로 신뢰해 화면상 관리자 모드가 열렸음 - 실제 쓰기는 RLS가 막았지만
   // "저장 완료"로 잘못 표시됨). 이메일 목록도 UI 편의 게이트일 뿐이고, 실제 쓰기 권한은
   // 항상 서버(is_admin() 기반 RLS 정책)가 최종 검증한다.
   const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email);
+  // 사장님 로그인 기능 자체가 아직 앱 어디에도 노출 안 된 상태(입점 편의를 위해 의도적으로
+  // 막아둠)라 testMode는 지금은 관리자 본인의 입점 테스트 용도로만 쓴다. isAdmin 없이
+  // ?testMode=true만 붙이면 비로그인 상태로 로그인 요구(줄 아래 !userId && !isTestMode)와
+  // 소유권 검증(!isTestMode && !isAdmin && ...)을 둘 다 우회해 아무 매장이나 storeId로
+  // 편집 화면을 열 수 있었다 - 실제 저장은 RLS가 막지만, 관리자 계정으로 로그인하기 전까지는
+  // 이 편의기능 자체를 완전히 잠가둔다. 앱이 정상 궤도에 오르고 사장님 로그인을 실제로 열 때
+  // 함께 재설계할 것.
+  const isTestMode = testMode === "true" && isAdmin;
 
   const [loading, setLoading] = useState(true);
   const [ownedStores, setOwnedStores] = useState<OwnedStoreSummary[]>([]);
