@@ -107,9 +107,19 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           cd ${{ env.WORKING_DIR }}
-          echo "📍 Step 3/3: 랭킹 재계산..."
+          echo "📍 Step 3/4: 랭킹 재계산..."
           npm run ingest:refresh-rankings
           echo "✅ Step 3 완료"
+
+      - name: 🔔 보관함 당첨 알림 발송
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          cd ${{ env.WORKING_DIR }}
+          echo "📍 Step 4/4: 당첨 알림 발송..."
+          npm run ingest:notify
+          echo "✅ Step 4 완료"
 
       - name: ✅ 성공
         if: success()

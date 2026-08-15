@@ -1573,6 +1573,36 @@ export type Database = {
         }
         Relationships: []
       }
+      mylotto_push_subscriptions: {
+        Row: {
+          created_at: string
+          draw_no: number
+          id: string
+          notified_at: string | null
+          numbers: number[]
+          purchase_type: string | null
+          push_token: string
+        }
+        Insert: {
+          created_at?: string
+          draw_no: number
+          id?: string
+          notified_at?: string | null
+          numbers: number[]
+          purchase_type?: string | null
+          push_token: string
+        }
+        Update: {
+          created_at?: string
+          draw_no?: number
+          id?: string
+          notified_at?: string | null
+          numbers?: number[]
+          purchase_type?: string | null
+          push_token?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

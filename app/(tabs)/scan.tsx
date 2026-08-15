@@ -11,6 +11,7 @@ import { parseLottoQr, type ParsedLottoGame } from "@/features/qr/parseLottoQr";
 import { computeWinRank, getPrizeAmount, type WinRank } from "@/features/qr/checkWinnings";
 import { useMyLottoTickets, LOTTO_UNIT_PRICE, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
 import { scheduleDrawReminder } from "@/features/mylotto/drawReminders";
+import { registerResultPushSubscription } from "@/features/mylotto/pushSubscription";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 // 같은 용지를 계속 카메라에 비추고 있을 때 Bottom Sheet를 닫자마자 동일 QR이
@@ -202,6 +203,10 @@ export default function ScanScreen() {
         })),
       );
       scheduleDrawReminder(result.drawNo).catch((err) => reportError(err, "mylotto-reminder"));
+      registerResultPushSubscription(
+        result.drawNo,
+        result.games.map((g) => ({ numbers: g.numbers, type: g.type })),
+      );
     }
 
     setSaveState("saved");

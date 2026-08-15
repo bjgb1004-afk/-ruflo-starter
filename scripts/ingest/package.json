@@ -8,7 +8,8 @@
     "ingest:stores:api": "tsx fetchStores.ts",
     "ingest:winning-stores": "tsx fetchWinningStores.ts",
     "ingest:draws": "tsx fetchDrawHistory.ts",
-    "ingest:refresh-rankings": "tsx refreshRankingStats.ts"
+    "ingest:refresh-rankings": "tsx refreshRankingStats.ts",
+    "ingest:notify": "tsx sendMylottoNotifications.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
