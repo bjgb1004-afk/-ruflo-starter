@@ -47,6 +47,13 @@ function normalizeWhitespace(input: string): string {
   return input.replace(/\s+/g, " ").trim();
 }
 
+// "3·15대로"(창원, 3·15의거 기념) 같은 숫자 사이 가운뎃점은 도로명의 일부라 삭제하면
+// "315대로"로 붙어버려 VWorld 지오코딩이 실패한다(실측 확인: 창원시 3.15대로 15곳 영향).
+// NOISE_PATTERNS의 [·,] 삭제보다 먼저, 숫자·숫자 형태만 VWorld가 실제 쓰는 표기인 마침표로 바꾼다.
+function preserveDateRoadNames(input: string): string {
+  return input.replace(/(\d)·(\d)/g, "$1.$2");
+}
+
 function normalizeSido(address: string): string {
   const [first, ...rest] = address.split(" ");
   const full = SIDO_ALIASES[first] ?? first;
@@ -66,6 +73,7 @@ export interface NormalizedAddress {
 
 export function normalizeAddress(rawAddress: string): NormalizedAddress {
   let address = normalizeWhitespace(rawAddress);
+  address = preserveDateRoadNames(address);
   for (const pattern of NOISE_PATTERNS) {
     address = address.replace(pattern, "");
   }
