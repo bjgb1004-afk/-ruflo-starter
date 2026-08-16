@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -24,7 +24,15 @@ const AUTO_CLOSE_AFTER_SAVE_MS = 600;
 type GameResult = ParsedLottoGame & { rank: WinRank; prizeAmount: number; amountPending: boolean };
 
 type ScanResult =
-  | { status: "ok"; drawNo: number; drawDate: string; games: GameResult[] }
+  | {
+      status: "ok";
+      drawNo: number;
+      drawDate: string;
+      winningNumbers: number[];
+      bonusNumber: number;
+      sourceUrl: string;
+      games: GameResult[];
+    }
   // 추첨 전(구매 직후)에 스캔한 경우 - 정상적인 사용 흐름이라 에러가 아니라 "저장하고 기다리기"를 안내한다.
   | { status: "pending"; drawNo: number; games: ParsedLottoGame[] }
   | { status: "unrecognized" }
@@ -173,7 +181,15 @@ export default function ScanScreen() {
       // QR 스캔 자체가 성공적으로 완료됐다는 것을 화면을 보지 않고도 알 수 있도록 진동을 준다
       // (당첨 여부와 무관하게 "스캔이 인식됐다"는 신호).
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setResult({ status: "ok", drawNo: draw.draw_no, drawDate: draw.draw_date, games });
+      setResult({
+        status: "ok",
+        drawNo: draw.draw_no,
+        drawDate: draw.draw_date,
+        winningNumbers: draw.winning_numbers,
+        bonusNumber: draw.bonus_number,
+        sourceUrl: scan.data,
+        games,
+      });
     } catch (err) {
       // QR 자체는 정상 파싱됐는데 네트워크/DB 조회가 실패한 경우다. "인식할 수 없는 QR"이라고
       // 하면 사용자가 용지를 의심하게 되므로, 원인이 다른 별도 상태로 구분해 안내한다.
@@ -373,47 +389,86 @@ export default function ScanScreen() {
                 <Text style={styles.sheetSubtitle}>네트워크 상태를 확인한 뒤 다시 스캔해 주세요.</Text>
               </>
             )}
-            {result?.status === "ok" && (
-              <>
-                <View style={styles.gamesList}>
-                  <View style={styles.groupHeaderRow}>
-                    <Text style={styles.groupDraw}>{result.drawNo}회</Text>
-                    <Text style={styles.groupSpent}>
-                      {(LOTTO_UNIT_PRICE * result.games.length).toLocaleString()}원치 · {result.games.length}게임
-                    </Text>
+            {result?.status === "ok" && (() => {
+              const winningSet = new Set(result.winningNumbers);
+              const bestRank = result.games.reduce<WinRank>((best, g) => {
+                if (g.rank === null) return best;
+                return best === null ? g.rank : Math.min(best, g.rank) as WinRank;
+              }, null);
+              return (
+                <ScrollView style={styles.checkScroll} showsVerticalScrollIndicator={false}>
+                  <Text style={styles.checkTitle}>로또 6/45 제{result.drawNo}회</Text>
+                  <Text style={styles.checkDate}>{result.drawDate} 추첨</Text>
+
+                  <Text style={styles.checkLabel}>당첨번호</Text>
+                  <View style={styles.checkWinningRow}>
+                    {result.winningNumbers.map((n) => (
+                      <LottoBall key={n} number={n} size="small" />
+                    ))}
+                    <Text style={styles.checkPlus}>+</Text>
+                    <LottoBall number={result.bonusNumber} size="small" isBonus />
                   </View>
-                  {result.games.map((game, idx) => (
-                    <View key={idx} style={styles.gameRow}>
-                      <View style={styles.gameIndexBox}>
-                        <Text style={styles.gameIndex}>{String.fromCharCode(97 + idx)}</Text>
-                      </View>
-                      <View style={styles.gameBalls}>
-                        {game.numbers.map((n) => (
-                          <LottoBall key={n} number={n} size="small" />
-                        ))}
-                      </View>
-                      <View style={styles.gameRight}>
-                        <View style={[styles.rankBadge, game.rank ? styles.rankBadgeWin : styles.rankBadgeLose]}>
-                          <Text style={styles.rankBadgeText}>
-                            {game.rank ? RANK_LABEL[game.rank] : "낙첨"}
-                          </Text>
+
+                  <View style={[styles.checkMessageBox, bestRank && styles.checkMessageBoxWin]}>
+                    {bestRank ? (
+                      <Text style={styles.checkMessageWin}>
+                        축하합니다!{"\n"}
+                        <Text style={styles.checkMessageWinRank}>{RANK_LABEL[bestRank]}</Text>에 당첨되었습니다.
+                      </Text>
+                    ) : (
+                      <Text style={styles.checkMessage}>
+                        아쉽게도,{"\n"}낙첨되었습니다.
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={styles.checkTable}>
+                    {result.games.map((game, idx) => (
+                      <View key={idx} style={styles.checkTableRow}>
+                        <View style={styles.checkTableIndexCol}>
+                          <Text style={styles.checkTableIndex}>{String.fromCharCode(65 + idx)}</Text>
+                          <Text style={styles.checkTableRank}>{game.rank ? RANK_LABEL[game.rank] : "낙첨"}</Text>
+                        </View>
+                        <View style={styles.checkTableNumbers}>
+                          {game.numbers.map((n) => {
+                            const matched = winningSet.has(n) || n === result.bonusNumber;
+                            return matched ? (
+                              <LottoBall key={n} number={n} size="xs" />
+                            ) : (
+                              <Text key={n} style={styles.checkTableNumberPlain}>{n}</Text>
+                            );
+                          })}
                         </View>
                         {game.rank && <Text style={styles.winAmount}>{game.prizeAmount.toLocaleString()}원</Text>}
                       </View>
-                    </View>
-                  ))}
-                </View>
-                <Pressable
-                  style={[styles.saveButton, saveState === "saved" && styles.saveButtonDone]}
-                  onPress={handleSaveToVault}
-                  disabled={saveState !== "idle"}
-                >
-                  <Text style={styles.saveButtonText}>
-                    {saveState === "saved" ? "보관함에 저장됨 ✓" : saveState === "saving" ? "저장 중..." : "🎟️ 보관함에 저장"}
+                    ))}
+                  </View>
+
+                  <Text style={styles.checkDisclaimer}>
+                    QR 당첨 확인은 보조적인 수단입니다. 반드시 로또 공식 웹사이트에서 실제 복권과의 일치 여부를
+                    확인하시기 바랍니다. 당첨금은 실제 복권 소지자에게만 지급됩니다.
                   </Text>
-                </Pressable>
-              </>
-            )}
+
+                  <View style={styles.checkButtonRow}>
+                    <Pressable
+                      style={styles.checkSecondaryButton}
+                      onPress={() => Linking.openURL(result.sourceUrl)}
+                    >
+                      <Text style={styles.checkSecondaryButtonText}>인터넷에서 확인</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.saveButton, styles.checkPrimaryButton, saveState === "saved" && styles.saveButtonDone]}
+                      onPress={handleSaveToVault}
+                      disabled={saveState !== "idle"}
+                    >
+                      <Text style={styles.saveButtonText}>
+                        {saveState === "saved" ? "저장됨 ✓" : saveState === "saving" ? "저장 중..." : "🎟️ 보관함에 저장"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </ScrollView>
+              );
+            })()}
             <Pressable style={styles.closeButton} onPress={handleCloseSheet}>
               <Text style={styles.closeButtonText}>닫고 다음 QR 스캔</Text>
             </Pressable>
@@ -569,10 +624,6 @@ const styles = StyleSheet.create({
   gameRight: { alignItems: "flex-end", gap: 4 },
   pendingBadge: { backgroundColor: colors.surface, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
   pendingBadgeText: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
-  rankBadge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
-  rankBadgeWin: { backgroundColor: colors.gold },
-  rankBadgeLose: { backgroundColor: colors.rankNeutral },
-  rankBadgeText: { color: "#fff", fontWeight: "700", fontSize: 11 },
   winAmount: { fontSize: 12, fontWeight: "700", color: colors.primary, fontFamily: numericFont.medium },
   gameRowLarge: {
     flexDirection: "row",
@@ -608,4 +659,50 @@ const styles = StyleSheet.create({
   },
   saveButtonDone: { backgroundColor: colors.rankNeutral },
   saveButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  checkScroll: { flexGrow: 0 },
+  checkTitle: { fontSize: 18, fontWeight: "800", color: colors.textPrimary, textAlign: "center" },
+  checkDate: { fontSize: 12, color: colors.textMuted, textAlign: "center", marginTop: 2, marginBottom: spacing.md },
+  checkLabel: { fontSize: 13, fontWeight: "700", color: colors.textSecondary, textAlign: "center", marginBottom: spacing.sm },
+  checkWinningRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, marginBottom: spacing.lg },
+  checkPlus: { fontSize: 16, fontWeight: "700", color: colors.textMuted },
+  checkMessageBox: {
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+  checkMessageBoxWin: { backgroundColor: colors.goldLight },
+  checkMessage: { fontSize: 15, fontWeight: "700", color: colors.textPrimary, textAlign: "center", lineHeight: 22 },
+  checkMessageWin: { fontSize: 15, fontWeight: "700", color: colors.textPrimary, textAlign: "center", lineHeight: 22 },
+  checkMessageWinRank: { color: colors.primary, fontSize: 17 },
+  checkTable: { borderRadius: radius.md, overflow: "hidden", borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md },
+  checkTableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  checkTableIndexCol: { minWidth: 44, alignItems: "center", gap: 2 },
+  checkTableIndex: { fontSize: 13, fontWeight: "800", color: colors.textPrimary },
+  checkTableRank: { fontSize: 10, fontWeight: "600", color: colors.textMuted },
+  checkTableNumbers: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center" },
+  checkTableNumberPlain: { fontSize: 14, fontWeight: "600", color: colors.textPrimary, minWidth: 22, textAlign: "center" },
+  checkDisclaimer: { fontSize: 10, color: colors.textMuted, lineHeight: 15, marginBottom: spacing.md },
+  checkButtonRow: { flexDirection: "row", gap: spacing.sm },
+  checkSecondaryButton: {
+    flex: 1,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  checkSecondaryButtonText: { color: colors.primary, fontWeight: "700", fontSize: 14 },
+  checkPrimaryButton: { flex: 1, marginTop: 0 },
 });
