@@ -114,7 +114,11 @@ export default function StoreDetailScreen() {
 
   const { data: stats, isLoading } = useStoreWithStats(id);
 
-  const { data: winnings = [] } = useQuery({
+  // isLoading을 안 보고 winnings만 보면, 쿼리가 아직 안 끝난 상태(data=[] 기본값)와
+  // "실제로 당첨 이력이 없음"을 화면에서 구분할 수 없다 - 매장 상세에 막 진입해 곧바로
+  // 이 섹션을 펼치면(fetch가 끝나기 전) "당첨 이력이 없습니다"가 잘못 뜨는 버그로
+  // 이어졌다(실제로는 있는데 아직 안 불러온 것뿐).
+  const { data: winnings = [], isLoading: winningsLoading } = useQuery({
     queryKey: ["store", id, "winnings"],
     queryFn: () => getWinningsByStore(id!),
     staleTime: 10 * 60 * 1000, // 10분 (자주 변하지 않음)
@@ -410,7 +414,9 @@ export default function StoreDetailScreen() {
         </Pressable>
         {winningsExpanded && (
           <>
-            {winnings.length === 0 ? (
+            {winningsLoading ? (
+              <ActivityIndicator style={styles.winningsLoading} />
+            ) : winnings.length === 0 ? (
               <Text style={styles.emptyText}>당첨 이력이 없습니다.</Text>
             ) : (
               <FlatList
@@ -544,6 +550,7 @@ const styles = StyleSheet.create({
   statUnit: { fontSize: 12, color: colors.textMuted, lineHeight: 22 },
   statsFootnote: { fontSize: 11, color: colors.textMuted, lineHeight: 16, marginTop: spacing.sm },
   emptyText: { color: colors.textMuted, textAlign: "center", paddingVertical: spacing.lg },
+  winningsLoading: { paddingVertical: spacing.lg },
   winRow: {
     flexDirection: "row",
     justifyContent: "space-between",

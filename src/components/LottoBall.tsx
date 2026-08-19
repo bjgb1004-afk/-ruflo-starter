@@ -27,6 +27,15 @@ function getSizeMultiplier(breakpoint: "small" | "medium" | "large"): number {
   return 1;
 }
 
+const BALL_SIZE_PX: Record<"xs" | "small" | "large", number> = { xs: 22, small: 36, large: 50 };
+
+// 실제 렌더링되는 공 지름(반응형 배율 적용 후) - TicketNumberRow가 안 맞은 번호(평범한
+// 텍스트) 칸 폭을 여기에 맞춰야 공과 텍스트가 같은 줄에서 삐뚤어지지 않는다. 여기 값이
+// 유일한 기준이라 이후 공 크기를 바꿔도 두 컴포넌트가 따로 어긋날 일이 없다.
+export function getBallSizePx(size: "xs" | "small" | "large", breakpoint: "small" | "medium" | "large"): number {
+  return BALL_SIZE_PX[size] * getSizeMultiplier(breakpoint);
+}
+
 interface LottoBallProps {
   number: number;
   isBonus?: boolean;
@@ -37,13 +46,7 @@ export function LottoBall({ number, isBonus = false, size = "large" }: LottoBall
   const { breakpoint } = useResponsive();
   const color = getBallColor(number);
   const bgColor = getBackgroundColor(color);
-  const multiplier = getSizeMultiplier(breakpoint);
-
-  const sizeStyles = {
-    large: { width: 50 * multiplier, height: 50 * multiplier },
-    small: { width: 36 * multiplier, height: 36 * multiplier },
-    xs: { width: 22 * multiplier, height: 22 * multiplier },
-  };
+  const diameter = getBallSizePx(size, breakpoint);
 
   const fontSizes = {
     large: 18,
@@ -56,7 +59,7 @@ export function LottoBall({ number, isBonus = false, size = "large" }: LottoBall
       style={[
         styles.ball,
         { backgroundColor: bgColor },
-        sizeStyles[size],
+        { width: diameter, height: diameter },
         isBonus && styles.ballBonus,
       ]}
     >

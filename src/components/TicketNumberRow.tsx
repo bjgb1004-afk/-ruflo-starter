@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, type StyleProp, type ViewStyle, type TextStyle } from "react-native";
-import { LottoBall } from "@/components/LottoBall";
+import { LottoBall, getBallSizePx } from "@/components/LottoBall";
+import { useResponsive } from "@/utils/responsive";
 
 // 실제 동행복권 공식 사이트처럼 당첨번호(+보너스번호)와 일치하는 숫자만 색공으로,
 // 나머지는 일반 텍스트로 보여준다. winningSet이 없으면(draw 미로딩/추첨 전) 전부
@@ -24,6 +25,12 @@ export function TicketNumberRow({
   containerStyle?: StyleProp<ViewStyle>;
   plainTextStyle?: StyleProp<TextStyle>;
 }) {
+  // LottoBall과 같은 지름(반응형 배율 포함)을 써서, 공(당첨 일치)이든 평범한 텍스트(불일치)든
+  // 번호 하나가 항상 같은 폭을 차지하게 한다. 이게 없으면 두 자리 숫자만 있는 게임(예: 10~45
+  // 사이 6개)이 한 자리 숫자가 섞인 게임보다 줄 폭이 넓어져, 카드 안에서만 랜덤하게
+  // 줄바꿈되는 문제가 생긴다.
+  const { breakpoint } = useResponsive();
+  const slotWidth = getBallSizePx(ballSize, breakpoint);
   return (
     <View style={[styles.row, containerStyle]}>
       {numbers.map((n) => {
@@ -32,7 +39,7 @@ export function TicketNumberRow({
         return isMainMatch || isBonusOnlyMatch ? (
           <LottoBall key={n} number={n} size={ballSize} isBonus={isBonusOnlyMatch} />
         ) : (
-          <Text key={n} style={plainTextStyle}>
+          <Text key={n} style={[{ width: slotWidth, textAlign: "center" }, plainTextStyle]}>
             {n}
           </Text>
         );

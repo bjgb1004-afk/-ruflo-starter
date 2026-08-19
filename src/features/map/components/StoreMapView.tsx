@@ -68,10 +68,17 @@ const StoreMarker = memo(function StoreMarker({
       <View style={styles.pinDefault} />
     );
 
+  // 마커 겹침 순서를 store 배열 순서(우연한 렌더 순서)에 맡기면, 1등과 2등이 가까이 있을 때
+  // 어느 쪽이 위로 올라올지 예측할 수 없다("2등이 1등 위로 나온다" 재현 보고). 배지 우선순위로
+  // 명시적인 zIndex를 줘서, 겹치더라도 항상 더 중요한 배지(순위가 낮을수록/특수배지일수록)가
+  // 위에 그려지게 한다.
+  const zIndex = badge.type === "rank" ? 40 - badge.rank : badge.type === "new" || badge.type === "favorite" ? 10 : 0;
+
   return (
     <Marker
       coordinate={{ latitude: store.latitude, longitude: store.longitude }}
       anchor={{ x: 0.5, y: 0.5 }}
+      zIndex={zIndex}
       onPress={handleMarkerPress}
       // react-native-maps의 잘 알려진 함정: tracksViewChanges=false인 커스텀 View 마커는
       // 레이아웃이 끝나기 전에 스냅샷이 찍히면 그대로 "빈 마커"로 굳어버릴 수 있다.
@@ -260,7 +267,13 @@ export const StoreMapView = memo(function StoreMapView({
               : favoriteIds?.has(store.store_id)
                 ? { type: "favorite" }
                 : { type: "default" };
-          return <StoreMarker key={store.store_id} store={store} onPress={onPressStore} badge={badge} />;
+          // key에 store_id만 쓰면, 지도를 이동해 top3(rank)에 들고 나는 매장의 배지 타입이
+          // 바뀌어도 React가 같은 마커를 "업데이트"로 재사용한다 - 그러면 그 네이티브 마커 뷰가
+          // tracksViewChanges 켜짐/꺼짐 전환 도중의 스냅샷(빈 사각형)에 굳어버릴 수 있다(위
+          // tracksViewChanges 주석의 함정과 같은 원인, 다른 트리거). 배지가 바뀌면 마커를 아예
+          // 새로 마운트시켜 네이티브 뷰를 새로 만들게 하면 이 경합 자체가 생기지 않는다.
+          const badgeKey = badge.type === "rank" ? `rank-${badge.rank}` : badge.type;
+          return <StoreMarker key={`${store.store_id}-${badgeKey}`} store={store} onPress={onPressStore} badge={badge} />;
         })}
       </ClusteredMapView>
       <Pressable

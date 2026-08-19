@@ -2,14 +2,15 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQueries } from "@tanstack/react-query";
 import { useMyLottoTickets, LOTTO_UNIT_PRICE, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
 import { useAutoCheckTickets } from "@/features/mylotto/useAutoCheckTickets";
+import { groupTicketsByDraw, type TicketGroup } from "@/features/mylotto/groupTickets";
 import { computeVaultSummary, computeFrequentNumbers } from "@/features/mylotto/stats";
 import { WinningCard } from "@/features/mylotto/components/WinningCard";
 import { LottoBall } from "@/components/LottoBall";
 import { TicketNumberRow } from "@/components/TicketNumberRow";
-import { getDrawByNo, type DrawSummary } from "@/features/draws/api/drawHistoryApi";
+import { type DrawSummary } from "@/features/draws/api/drawHistoryApi";
+import { useDrawsByNo } from "@/features/draws/useDrawsByNo";
 import { shareWinningCard, ShareCardError } from "@/features/mylotto/shareWinningCard";
 import { reportError } from "@/lib/errorLog";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
@@ -75,7 +76,7 @@ const TicketRow = ({
   <View style={styles.ticketRow}>
     <View style={styles.ticketIndex}>
       <Text style={[styles.ticketIndexText, { fontSize: getResponsiveFontSize(11, breakpoint) }]}>
-        {String.fromCharCode(97 + index)}
+        {String.fromCharCode(65 + index)}
       </Text>
     </View>
     <View style={styles.ticketInfo}>
@@ -128,29 +129,6 @@ const TicketRow = ({
     </View>
   </View>
 );
-
-interface TicketGroup {
-  key: string;
-  drawNo: number;
-  savedAt: string;
-  tickets: MyLottoTicket[];
-}
-
-// 회차별로 묶는다(서로 다른 날 따로 스캔한 용지라도 같은 회차면 한 카드에 모인다).
-// 카드 정렬/표시용 savedAt은 그룹 내 가장 최근 저장 시각을 쓴다.
-function groupTickets(tickets: MyLottoTicket[]): TicketGroup[] {
-  const map = new Map<number, TicketGroup>();
-  for (const t of tickets) {
-    const existing = map.get(t.drawNo);
-    if (existing) {
-      existing.tickets.push(t);
-      if (t.savedAt > existing.savedAt) existing.savedAt = t.savedAt;
-    } else {
-      map.set(t.drawNo, { key: String(t.drawNo), drawNo: t.drawNo, savedAt: t.savedAt, tickets: [t] });
-    }
-  }
-  return [...map.values()].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
-}
 
 const TicketGroupCard = ({
   group,
@@ -207,26 +185,11 @@ export default function MyLottoScreen() {
   const removeTicket = useMyLottoTickets((s) => s.removeTicket);
   const clearAll = useMyLottoTickets((s) => s.clearAll);
   const tickets = useMemo(() => Object.values(ticketsMap).sort((a, b) => b.savedAt.localeCompare(a.savedAt)), [ticketsMap]);
-  const ticketGroups = useMemo(() => groupTickets(tickets), [tickets]);
+  const ticketGroups = useMemo(() => groupTicketsByDraw(tickets), [tickets]);
 
   // 보관함 카드의 번호를 실제 당첨번호와 매칭해 색칠하려면 회차별 당첨번호가 필요하다.
-  // draw_history는 회차당 한 번 확정되면 바뀌지 않으므로 staleTime을 무한으로 둬 재조회를 막는다.
   const drawNos = useMemo(() => ticketGroups.map((g) => g.drawNo), [ticketGroups]);
-  const drawQueries = useQueries({
-    queries: drawNos.map((drawNo) => ({
-      queryKey: ["draw", drawNo],
-      queryFn: () => getDrawByNo(drawNo),
-      staleTime: Infinity,
-    })),
-  });
-  const drawsByNo = useMemo(() => {
-    const map = new Map<number, DrawSummary | null>();
-    drawNos.forEach((drawNo, i) => {
-      const data = drawQueries[i]?.data;
-      if (data !== undefined) map.set(drawNo, data);
-    });
-    return map;
-  }, [drawNos, drawQueries]);
+  const drawsByNo = useDrawsByNo(drawNos);
 
   // 그룹(회차) 단위로 삭제한다 - 게임 하나만 따로 지우는 것보다
   // "이 회차를 보관함에서 뺀다"는 사용자의 실제 의도에 더 맞는다.
@@ -352,7 +315,7 @@ export default function MyLottoScreen() {
           </View>
           {ticketGroups.map((g) => (
             <TicketGroupCard
-              key={g.key}
+              key={g.drawNo}
               group={g}
               onShare={handleShare}
               onDelete={handleDeleteGroup}
@@ -477,7 +440,7 @@ const styles = StyleSheet.create({
   },
   methodTagText: { color: colors.textSecondary, fontWeight: "600" },
   ticketBalls: { flexDirection: "row", gap: 3, flexWrap: "wrap" },
-  ticketNumberPlain: { fontSize: 13, fontWeight: "600", color: colors.textPrimary, minWidth: 18, textAlign: "center" },
+  ticketNumberPlain: { fontSize: 13, fontWeight: "600", color: colors.textPrimary },
   ticketRight: { alignItems: "flex-end", gap: 4 },
   pendingBadge: { backgroundColor: colors.background, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
   pendingBadgeText: { color: colors.textMuted, fontWeight: "600" },

@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert, FlatList, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { useIsFocused } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { useQueries } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { reportError } from "@/lib/errorLog";
 import { TicketNumberRow } from "@/components/TicketNumberRow";
 import { getDrawByNo, type DrawSummary } from "@/features/draws/api/drawHistoryApi";
+import { useDrawsByNo } from "@/features/draws/useDrawsByNo";
 import { parseLottoQr, type ParsedLottoGame } from "@/features/qr/parseLottoQr";
 import { computeWinRank, getPrizeAmount, type WinRank } from "@/features/qr/checkWinnings";
 import { useMyLottoTickets, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
+import { groupTicketsByDraw, type TicketGroup } from "@/features/mylotto/groupTickets";
 import { useScanSettings } from "@/features/mylotto/useScanSettings";
 import { scheduleDrawReminder } from "@/features/mylotto/drawReminders";
 import { registerResultPushSubscription } from "@/features/mylotto/pushSubscription";
@@ -34,8 +35,9 @@ type OkScan = {
   winningNumbers: number[];
   bonusNumber: number;
   games: GameResult[];
+  qrUrl: string;
 };
-type PendingScan = { status: "pending"; drawNo: number; games: ParsedLottoGame[] };
+type PendingScan = { status: "pending"; drawNo: number; games: ParsedLottoGame[]; qrUrl: string };
 
 // 연속촬영(자동모드): 스캔에 성공하면(당첨확인/추첨전) 모달을 띄우지 않고 곧바로 저장한다 -
 // 결과 텍스트를 읽기도 전에 자동으로 닫히는 모달은 오히려 확인을 방해한다는 피드백에 따라,
@@ -53,27 +55,32 @@ const RANK_LABEL: Record<Exclude<WinRank, null>, string> = {
   5: "5등",
 };
 
-// 회차별로 게임 그룹화
-function groupTicketsByDraw(tickets: MyLottoTicket[]): Map<number, MyLottoTicket[]> {
-  const map = new Map<number, MyLottoTicket[]>();
-  tickets.forEach((ticket) => {
-    if (!map.has(ticket.drawNo)) map.set(ticket.drawNo, []);
-    map.get(ticket.drawNo)!.push(ticket);
-  });
-  return map;
-}
-
 // 회차별 카드 컴포넌트. draw가 있으면(체크 완료된 회차) 동행복권 공식 사이트처럼
 // 당첨번호와 일치하는 숫자만 색공으로, 나머지는 일반 텍스트로 표시한다. draw를 아직
 // 못 받아온 동안(로딩 중/추첨 전)은 기존처럼 전부 색공으로 보여준다.
-function VaultDrawCard({ drawNo, tickets, draw }: { drawNo: number; tickets: MyLottoTicket[]; draw: DrawSummary | null | undefined }) {
+function VaultDrawCard({
+  drawNo,
+  tickets,
+  draw,
+  onDelete,
+}: {
+  drawNo: number;
+  tickets: MyLottoTicket[];
+  draw: DrawSummary | null | undefined;
+  onDelete: () => void;
+}) {
   const winningSet = draw ? new Set(draw.winning_numbers) : null;
   return (
     <View style={styles.vaultCard}>
-      <Text style={styles.vaultCardTitle}>{drawNo}회</Text>
+      <View style={styles.vaultCardHeader}>
+        <Text style={styles.vaultCardTitle}>{drawNo}회</Text>
+        <Pressable hitSlop={8} onPress={onDelete}>
+          <Text style={styles.vaultCardDeleteIcon}>🗑️</Text>
+        </Pressable>
+      </View>
       {tickets.map((ticket, idx) => (
         <View key={ticket.id} style={styles.vaultCardGame}>
-          <Text style={styles.vaultCardGameIndex}>{String.fromCharCode(97 + idx)}</Text>
+          <Text style={styles.vaultCardGameIndex}>{String.fromCharCode(65 + idx)}</Text>
           <TicketNumberRow
             numbers={ticket.numbers}
             winningSet={winningSet}
@@ -103,9 +110,11 @@ export default function ScanScreen() {
   const [torchOn, setTorchOn] = useState(false);
   const [cameraError, setCameraError] = useState(false);
   const addTickets = useMyLottoTickets((s) => s.addTickets);
-  // 자동촬영 on/off - 이 기기에만 저장되고 서버로는 안 간다(useScanSettings.ts).
+  const removeTicket = useMyLottoTickets((s) => s.removeTicket);
+  const clearAll = useMyLottoTickets((s) => s.clearAll);
+  // 자동촬영 on/off - 이 기기에만 저장되고 서버로는 안 간다(useScanSettings.ts). 켜고 끄는
+  // 스위치 자체는 설정 화면(settings.tsx)에 있다 - 카메라 화면 위에 얹으면 안내 문구를 가린다.
   const autoCapture = useScanSettings((s) => s.autoCapture);
-  const setAutoCapture = useScanSettings((s) => s.setAutoCapture);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 화면을 카메라(상단)/보관함(하단) 2분할로 나누고, 저장한 순간 하단 목록이 실시간으로
   // 갱신되는 걸 보여준다 - 스캔 결과를 모달로 잠깐 띄우는 대신, 계속 쌓이는 이 리스트를
@@ -119,23 +128,29 @@ export default function ScanScreen() {
     [ticketsMap],
   );
   // 보관함 카드의 번호를 실제 당첨번호와 매칭해 색칠하려면 회차별 당첨번호가 필요하다.
-  // draw_history는 회차당 한 번 확정되면 바뀌지 않으므로 staleTime을 무한으로 둬 재조회를 막는다.
   const recentDrawNos = useMemo(() => [...new Set(recentTickets.map((t) => t.drawNo))], [recentTickets]);
-  const drawQueries = useQueries({
-    queries: recentDrawNos.map((drawNo) => ({
-      queryKey: ["draw", drawNo],
-      queryFn: () => getDrawByNo(drawNo),
-      staleTime: Infinity,
-    })),
-  });
-  const drawsByNo = useMemo(() => {
-    const map = new Map<number, DrawSummary | null>();
-    recentDrawNos.forEach((drawNo, i) => {
-      const data = drawQueries[i]?.data;
-      if (data !== undefined) map.set(drawNo, data);
-    });
-    return map;
-  }, [recentDrawNos, drawQueries]);
+  const drawsByNo = useDrawsByNo(recentDrawNos);
+
+  // 회차(그룹) 단위로 삭제한다 - mylotto.tsx의 handleDeleteGroup과 동일한 방식(파괴적
+  // 동작이라 확인 알럿을 거친다).
+  const handleDeleteVaultGroup = useCallback(
+    (group: TicketGroup) => {
+      Alert.alert("보관함에서 삭제", `${group.drawNo}회 ${group.tickets.length}게임을 삭제할까요?`, [
+        { text: "취소", style: "cancel" },
+        { text: "삭제", style: "destructive", onPress: () => group.tickets.forEach((t) => removeTicket(t.id)) },
+      ]);
+    },
+    [removeTicket],
+  );
+
+  // 되돌릴 수 없는 파괴적 동작이라 회차별 삭제(handleDeleteVaultGroup)와 동일하게 확인
+  // 알럿을 거친다 - mylotto.tsx의 handleClearAll과 같은 스토어(clearAll)를 그대로 쓴다.
+  const handleClearAll = useCallback(() => {
+    Alert.alert("전체 삭제", "저장된 복권을 모두 삭제할까요? 되돌릴 수 없어요.", [
+      { text: "취소", style: "cancel" },
+      { text: "전체 삭제", style: "destructive", onPress: () => clearAll() },
+    ]);
+  }, [clearAll]);
 
   const handleCameraMountError = useCallback((event: { message: string }) => {
     reportError(new Error(`camera mount error: ${event.message}`), "qr-scan-camera");
@@ -241,7 +256,7 @@ export default function ScanScreen() {
           // 아직 추첨하지 않은 회차(구매 직후 스캔)일 가능성이 가장 크다 - 에러가 아니라
           // 보관함에 저장하고 추첨일에 알림받는 흐름으로 처리한다.
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          const pending: PendingScan = { status: "pending", drawNo: parsed.drawNo, games: parsed.games };
+          const pending: PendingScan = { status: "pending", drawNo: parsed.drawNo, games: parsed.games, qrUrl: scan.data };
           if (autoCapture) {
             saveResult(pending);
             showToast(`${parsed.drawNo}회 저장됨 · 추첨 전`);
@@ -288,6 +303,7 @@ export default function ScanScreen() {
           winningNumbers: draw.winning_numbers,
           bonusNumber: draw.bonus_number,
           games,
+          qrUrl: scan.data,
         };
         if (autoCapture) {
           saveResult(ok);
@@ -317,6 +333,13 @@ export default function ScanScreen() {
     saveResult(result);
     setSaveState("saved");
   }, [result, saveResult]);
+
+  // 앱 자체 계산 결과 말고 동행복권 공식 사이트 결과도 직접 보고 싶다는 요청 - QR 스캔 시
+  // 원본으로 찍힌 URL(https://qr.dhlottery.co.kr/?v=...)을 그대로 열면 공식 결과 페이지로 간다.
+  const handleOpenOfficialSite = useCallback(() => {
+    if (!result || (result.status !== "ok" && result.status !== "pending")) return;
+    Linking.openURL(result.qrUrl).catch((err) => reportError(err, "qr-scan-open-official"));
+  }, [result]);
 
   // 인식불가/에러, 그리고 수동모드에서 저장까지 끝난 결과는 사용자가 닫기를 누르지 않아도
   // 일정 시간 뒤 자동으로 닫혀 다음 용지를 계속 비출 수 있게 한다. 수동모드에서 아직 저장
@@ -382,14 +405,6 @@ export default function ScanScreen() {
             <Text style={styles.toastText}>{toast}</Text>
           </View>
         )}
-        <View style={styles.autoToggleRow}>
-          <Text style={styles.autoToggleLabel}>연속촬영</Text>
-          <Switch
-            value={autoCapture}
-            onValueChange={setAutoCapture}
-            trackColor={{ true: colors.goldBright }}
-          />
-        </View>
         <Pressable
           style={[styles.torchButton, torchOn && styles.torchButtonActive]}
           onPress={() => setTorchOn((v) => !v)}
@@ -400,20 +415,34 @@ export default function ScanScreen() {
       </View>
 
       <View style={styles.vaultPanel}>
-        <Pressable style={styles.vaultPanelHeader} onPress={() => router.push("/mylotto")}>
+        <View style={styles.vaultPanelHeader}>
           <Text style={styles.vaultPanelTitle}>🎟️ 내 복권 보관함</Text>
-          <Text style={styles.vaultPanelMore}>전체보기 ›</Text>
-        </Pressable>
+          <View style={styles.vaultPanelHeaderRight}>
+            {recentTickets.length > 0 && (
+              <Pressable hitSlop={8} onPress={handleClearAll}>
+                <Text style={styles.vaultPanelClearAll}>전체삭제</Text>
+              </Pressable>
+            )}
+            <Pressable hitSlop={8} onPress={() => router.push("/mylotto")}>
+              <Text style={styles.vaultPanelMore}>전체보기 ›</Text>
+            </Pressable>
+          </View>
+        </View>
         {recentTickets.length === 0 ? (
           <View style={styles.vaultEmpty}>
             <Text style={styles.vaultEmptyText}>스캔한 복권이 여기에 저장돼요</Text>
           </View>
         ) : (
           <FlatList
-            data={Array.from(groupTicketsByDraw(recentTickets).entries())}
-            keyExtractor={(item) => `draw-${item[0]}`}
-            renderItem={({ item: [drawNo, tickets] }) => (
-              <VaultDrawCard drawNo={drawNo} tickets={tickets} draw={drawsByNo.get(drawNo)} />
+            data={groupTicketsByDraw(recentTickets)}
+            keyExtractor={(item) => `draw-${item.drawNo}`}
+            renderItem={({ item }) => (
+              <VaultDrawCard
+                drawNo={item.drawNo}
+                tickets={item.tickets}
+                draw={drawsByNo.get(item.drawNo)}
+                onDelete={() => handleDeleteVaultGroup(item)}
+              />
             )}
             contentContainerStyle={styles.vaultList}
             showsVerticalScrollIndicator={false}
@@ -450,7 +479,7 @@ export default function ScanScreen() {
                 <ScrollView style={styles.checkScroll}>
                   {result.games.map((g, idx) => (
                     <View key={idx} style={styles.checkGameRow}>
-                      <Text style={styles.checkGameIndex}>{String.fromCharCode(97 + idx)}</Text>
+                      <Text style={styles.checkGameIndex}>{String.fromCharCode(65 + idx)}</Text>
                       <TicketNumberRow numbers={g.numbers} winningSet={null} ballSize="small" containerStyle={styles.checkGameBalls} />
                     </View>
                   ))}
@@ -473,7 +502,7 @@ export default function ScanScreen() {
                     <ScrollView style={styles.checkScroll}>
                       {result.games.map((g, idx) => (
                         <View key={idx} style={styles.checkGameRow}>
-                          <Text style={styles.checkGameIndex}>{String.fromCharCode(97 + idx)}</Text>
+                          <Text style={styles.checkGameIndex}>{String.fromCharCode(65 + idx)}</Text>
                           <TicketNumberRow
                             numbers={g.numbers}
                             winningSet={winningSet}
@@ -489,15 +518,22 @@ export default function ScanScreen() {
                 );
               })()}
             {(result?.status === "ok" || result?.status === "pending") && (
-              <Pressable
-                style={[styles.saveButton, saveState === "saved" && styles.saveButtonDone]}
-                onPress={handleManualSave}
-                disabled={saveState === "saved"}
-              >
-                <Text style={styles.saveButtonText}>
-                  {saveState === "saved" ? "보관함에 저장됨 ✓" : "🎟️ 보관함에 저장"}
-                </Text>
-              </Pressable>
+              <View style={styles.actionRow}>
+                <Pressable
+                  style={[styles.saveButton, styles.actionButton, saveState === "saved" && styles.saveButtonDone]}
+                  onPress={handleManualSave}
+                  disabled={saveState === "saved"}
+                >
+                  <Text style={styles.saveButtonText} numberOfLines={1}>
+                    {saveState === "saved" ? "저장됨 ✓" : "🎟️ 보관함 저장"}
+                  </Text>
+                </Pressable>
+                <Pressable style={[styles.officialButton, styles.actionButton]} onPress={handleOpenOfficialSite}>
+                  <Text style={styles.officialButtonText} numberOfLines={1}>
+                    🔗 인터넷 확인
+                  </Text>
+                </Pressable>
+              </View>
             )}
             <Pressable style={styles.closeButton} onPress={handleCloseSheet}>
               <Text style={styles.closeButtonText}>닫고 다음 QR 스캔</Text>
@@ -547,19 +583,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
   },
-  autoToggleRow: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-  },
-  autoToggleLabel: { color: "#fff", fontSize: 12, fontWeight: "700" },
   permissionContainer: {
     flex: 1,
     alignItems: "center",
@@ -585,8 +608,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  vaultPanelHeaderRight: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   vaultPanelTitle: { fontSize: 15, fontWeight: "800", color: colors.textPrimary },
   vaultPanelMore: { fontSize: 12, fontWeight: "700", color: colors.primary },
+  vaultPanelClearAll: { fontSize: 12, fontWeight: "600", color: colors.textMuted },
   vaultList: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.lg },
   vaultEmpty: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.lg },
   vaultEmptyText: { fontSize: 13, color: colors.textMuted },
@@ -598,7 +623,9 @@ const styles = StyleSheet.create({
     ...cardShadow,
     minHeight: 240,
   },
+  vaultCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   vaultCardTitle: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
+  vaultCardDeleteIcon: { fontSize: 16 },
   vaultCardGame: {
     flexDirection: "row",
     alignItems: "center",
@@ -610,7 +637,7 @@ const styles = StyleSheet.create({
   },
   vaultCardGameIndex: { fontSize: 13, fontWeight: "700", color: colors.textSecondary, minWidth: 18 },
   vaultCardBalls: { flexDirection: "row", flexWrap: "wrap", gap: 4, alignItems: "center" },
-  vaultCardNumberPlain: { fontSize: 12, fontWeight: "600", color: colors.textPrimary, minWidth: 16, textAlign: "center" },
+  vaultCardNumberPlain: { fontSize: 12, fontWeight: "600", color: colors.textPrimary },
   vaultCardBadge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
   vaultCardBadgeWin: { backgroundColor: colors.gold },
   vaultCardBadgeLose: { backgroundColor: colors.rankNeutral },
@@ -654,15 +681,25 @@ const styles = StyleSheet.create({
   checkGameIndex: { fontSize: 13, fontWeight: "700", color: colors.textSecondary, minWidth: 18 },
   checkGameBalls: { flex: 1 },
   checkGameRank: { fontSize: 12, fontWeight: "700", color: colors.textSecondary },
+  actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+  actionButton: { flex: 1, marginTop: 0 },
   saveButton: {
     backgroundColor: colors.goldBright,
     borderRadius: radius.pill,
     paddingVertical: spacing.md,
     alignItems: "center",
-    marginTop: spacing.sm,
   },
   saveButtonDone: { backgroundColor: colors.rankNeutral },
   saveButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  officialButton: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+  },
+  officialButtonText: { color: colors.primary, fontWeight: "700", fontSize: 14 },
   closeButton: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,

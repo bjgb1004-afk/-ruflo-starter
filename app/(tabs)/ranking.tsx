@@ -64,7 +64,7 @@ const RankingRow = memo(function RankingRow({
         <View style={styles.info}>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{item.name}</Text>
-            {!isTop3 && item.nation_rank != null && item.nation_rank <= 100 && (
+            {item.nation_rank != null && item.nation_rank <= 100 && (
               <Text style={styles.top100Badge}>🏆 TOP100</Text>
             )}
           </View>

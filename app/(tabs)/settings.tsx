@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
@@ -17,6 +18,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/features/auth/useAuth";
 import { GeofenceToggle } from "@/features/geofencing/GeofenceToggle";
 import { GEOFENCE_DEBUG_LOG_KEY } from "@/features/geofencing/geofenceTask";
+import { useScanSettings } from "@/features/mylotto/useScanSettings";
 import { ADMIN_EMAILS, PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from "@/constants/config";
 import { colors } from "@/constants/theme";
 import { useResponsive, getResponsiveSpacing, getResponsiveFontSize } from "@/utils/responsive";
@@ -32,6 +34,8 @@ export default function SettingsScreen() {
   const user = useAuth((s) => s.user);
   const signIn = useAuth((s) => s.signIn);
   const signUp = useAuth((s) => s.signUp);
+  const autoCapture = useScanSettings((s) => s.autoCapture);
+  const setAutoCapture = useScanSettings((s) => s.setAutoCapture);
 
   // 카운트는 useState로 둬서 로직을 명시적으로 추적 가능하게 하고, 매 탭마다 setTimeout으로
   // 리셋 타이머를 다시 예약한다 - 2초 안에 다음 탭이 없으면 자동으로 0으로 되돌아간다.
@@ -157,7 +161,23 @@ export default function SettingsScreen() {
         )}
       </View>
 
-
+      {/* 스캔 설정 */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
+          QR 스캔
+        </Text>
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleTextGroup}>
+            <Text style={[styles.toggleTitle, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
+              연속촬영
+            </Text>
+            <Text style={[styles.toggleSubtitle, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
+              켜면 QR을 비추는 즉시 저장, 끄면 매번 확인 후 저장해요
+            </Text>
+          </View>
+          <Switch value={autoCapture} onValueChange={setAutoCapture} />
+        </View>
+      </View>
 
       {/* 관리자 빠른 진입 - settings.tsx에서만 보임 */}
       {user?.email && ADMIN_EMAILS.includes(user.email) && (
@@ -259,6 +279,20 @@ const styles = StyleSheet.create({
   },
   linkRowText: { fontWeight: "600", color: "#000" },
   debugText: { color: "#bbb", marginHorizontal: 16, marginTop: 6 },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#f9f9f9",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginHorizontal: 16,
+    borderRadius: 10,
+    gap: 12,
+  },
+  toggleTextGroup: { flex: 1, gap: 2 },
+  toggleTitle: { fontWeight: "700", color: "#000" },
+  toggleSubtitle: { color: "#666" },
   footer: { alignItems: "center", paddingVertical: 32 },
   versionText: { fontSize: 12, color: "#ccc" },
   modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },

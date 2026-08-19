@@ -47,6 +47,19 @@ export async function getDrawByNo(drawNo: number): Promise<DrawSummary | null> {
   return data;
 }
 
+// 보관함처럼 서로 다른 회차 티켓이 여러 개 쌓인 화면에서, 회차마다 별도 요청을 보내는 대신
+// 한 번의 in() 쿼리로 가져온다.
+export async function getDrawsByNos(drawNos: number[]): Promise<DrawSummary[]> {
+  if (drawNos.length === 0) return [];
+  const { data, error } = await supabase
+    .from("draw_history")
+    .select(DRAW_SUMMARY_COLUMNS)
+    .in("draw_no", drawNos)
+    .returns<DrawSummary[]>();
+  if (error) throw error;
+  return data ?? [];
+}
+
 export interface LatestWinnerStore {
   drawNo: number;
   drawDate: string;

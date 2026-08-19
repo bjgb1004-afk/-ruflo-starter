@@ -74,6 +74,7 @@ const config: ExpoConfig = {
     "expo-font",
     "expo-web-browser",
     "./plugins/withMapAppQueries",
+    "./plugins/withAndroidLargeHeap",
     // Android 15 엣지투엣지에서는 StatusBar.setBackgroundColor 등이 조용히 무시돼서
     // expo-status-bar의 style만으로는 상태바 배경/아이콘 색이 제대로 안 먹는다(흰 배경에
     // 흰 아이콘이 겹쳐 안 보이는 문제로 실기기에서 확인됨) - react-native-edge-to-edge의
