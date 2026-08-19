@@ -5,7 +5,7 @@ import type { DrawHistory, StoreWinningRow } from "@/types/database.types";
 // 계산)가 공통으로 쓰는 필드만 선택한다. first_prize_store_ids는 getLatestFirstPrizeWinners가
 // 이 함수 결과를 그대로 재사용하기 때문에 필요.
 const DRAW_SUMMARY_COLUMNS =
-  "draw_no, draw_date, winning_numbers, bonus_number, first_prize_winner_count, first_prize_amount_per_win, second_prize_amount_per_win, third_prize_amount_per_win, first_prize_store_ids";
+  "draw_no, draw_date, winning_numbers, bonus_number, first_prize_winner_count, first_prize_amount_per_win, second_prize_amount_per_win, second_prize_winner_count, third_prize_amount_per_win, third_prize_winner_count, fourth_prize_winner_count, fifth_prize_winner_count, first_prize_store_ids";
 
 export type DrawSummary = Pick<
   DrawHistory,
@@ -16,7 +16,11 @@ export type DrawSummary = Pick<
   | "first_prize_winner_count"
   | "first_prize_amount_per_win"
   | "second_prize_amount_per_win"
+  | "second_prize_winner_count"
   | "third_prize_amount_per_win"
+  | "third_prize_winner_count"
+  | "fourth_prize_winner_count"
+  | "fifth_prize_winner_count"
   | "first_prize_store_ids"
 >;
 

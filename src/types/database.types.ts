@@ -1194,6 +1194,8 @@ export type Database = {
           first_prize_store_ids: string[]
           first_prize_total_amount: number | null
           first_prize_winner_count: number | null
+          fourth_prize_winner_count: number | null
+          fifth_prize_winner_count: number | null
           second_prize_amount_per_win: number | null
           second_prize_store_ids: string[]
           second_prize_winner_count: number | null
@@ -1211,6 +1213,8 @@ export type Database = {
           first_prize_store_ids?: string[]
           first_prize_total_amount?: number | null
           first_prize_winner_count?: number | null
+          fourth_prize_winner_count?: number | null
+          fifth_prize_winner_count?: number | null
           second_prize_amount_per_win?: number | null
           second_prize_store_ids?: string[]
           second_prize_winner_count?: number | null
@@ -1228,6 +1232,8 @@ export type Database = {
           first_prize_store_ids?: string[]
           first_prize_total_amount?: number | null
           first_prize_winner_count?: number | null
+          fourth_prize_winner_count?: number | null
+          fifth_prize_winner_count?: number | null
           second_prize_amount_per_win?: number | null
           second_prize_store_ids?: string[]
           second_prize_winner_count?: number | null

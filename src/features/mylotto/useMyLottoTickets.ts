@@ -35,6 +35,7 @@ interface MyLottoState {
   addTickets: (inputs: NewTicketInput[]) => void;
   markChecked: (id: string, rank: WinRank, prizeAmount: number) => void;
   removeTicket: (id: string) => void;
+  clearAll: () => void;
 }
 
 function generateId(): string {
@@ -84,6 +85,10 @@ export const useMyLottoTickets = create<MyLottoState>()(
         const next = { ...get().tickets };
         delete next[id];
         set({ tickets: next });
+      },
+
+      clearAll: () => {
+        set({ tickets: {} });
       },
     }),
     {

@@ -11,6 +11,8 @@ import { useDrawByNo } from "@/features/draws/useDrawByNo";
 import { Skeleton } from "@/components/Skeleton";
 import { Dropdown } from "@/components/Dropdown";
 import { LottoBall } from "@/components/LottoBall";
+import { FIXED_PRIZE_AMOUNT } from "@/features/qr/checkWinnings";
+import { calcNetPrizeAmount } from "@/features/draws/lotteryTax";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 type Row = DrawWinnerStore & { rank: 1 | 2 };
@@ -25,6 +27,7 @@ const drawNoLabel = (n: number) => `${n}회`;
 export const RecentDrawSummary = memo(function RecentDrawSummary() {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
+  const [prizeTableExpanded, setPrizeTableExpanded] = useState(false);
   const [selectedDrawNo, setSelectedDrawNo] = useState<number | null>(null);
 
   const {
@@ -97,7 +100,20 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
     return list;
   }, [latestDraw]);
 
+  type PrizeRow = { rank: 1 | 2 | 3 | 4 | 5; winnerCount: number | null; amount: number | null };
+  const prizeRows = useMemo<PrizeRow[]>(() => {
+    if (!activeDraw) return [];
+    return [
+      { rank: 1, winnerCount: activeDraw.first_prize_winner_count, amount: activeDraw.first_prize_amount_per_win },
+      { rank: 2, winnerCount: activeDraw.second_prize_winner_count, amount: activeDraw.second_prize_amount_per_win },
+      { rank: 3, winnerCount: activeDraw.third_prize_winner_count, amount: activeDraw.third_prize_amount_per_win },
+      { rank: 4, winnerCount: activeDraw.fourth_prize_winner_count, amount: FIXED_PRIZE_AMOUNT[4] },
+      { rank: 5, winnerCount: activeDraw.fifth_prize_winner_count, amount: FIXED_PRIZE_AMOUNT[5] },
+    ];
+  }, [activeDraw]);
+
   const handleToggle = useCallback(() => setExpanded((v) => !v), []);
+  const handlePrizeTableToggle = useCallback(() => setPrizeTableExpanded((v) => !v), []);
   const handlePressStore = useCallback((storeId: string) => router.push(`/store/${storeId}`), [router]);
   const handleSelectDraw = useCallback((n: number) => {
     setSelectedDrawNo(n);
@@ -178,6 +194,37 @@ export const RecentDrawSummary = memo(function RecentDrawSummary() {
               </Text>
             </View>
           </View>
+
+          <Pressable style={styles.toggleButton} onPress={handlePrizeTableToggle}>
+            <Text style={styles.toggleButtonText}>1~5등 당첨금 전체보기</Text>
+            <Text style={styles.toggleChevron}>{prizeTableExpanded ? "▲" : "▼"}</Text>
+          </Pressable>
+
+          {prizeTableExpanded && (
+            <View style={styles.prizeTable}>
+              {prizeRows.map((row) => (
+                <View key={row.rank} style={styles.prizeRow}>
+                  <Text style={styles.prizeRank}>{row.rank}등</Text>
+                  <View style={styles.prizeRowRight}>
+                    <Text style={styles.prizeWinnerCount}>
+                      {row.winnerCount !== null ? `${row.winnerCount.toLocaleString()}명` : "정보 없음"}
+                    </Text>
+                    <Text style={styles.prizeAmount}>
+                      {row.amount !== null ? `${row.amount.toLocaleString()}원` : "집계 중..."}
+                    </Text>
+                    {row.amount !== null && (
+                      <Text style={styles.prizeNetAmount}>
+                        세후 예상 {calcNetPrizeAmount(row.amount).toLocaleString()}원
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              ))}
+              <Text style={styles.prizeDisclaimer}>
+                세후 예상금액은 원천징수 규정을 적용한 참고용 추정치입니다. 실제 수령액은 다를 수 있어요.
+              </Text>
+            </View>
+          )}
         </>
       )}
 
@@ -290,6 +337,22 @@ const styles = StyleSheet.create({
   },
   toggleButtonText: { fontSize: 13, fontWeight: "700", color: colors.primary },
   toggleChevron: { fontSize: 12, color: colors.textMuted },
+  prizeTable: { gap: spacing.xs, marginTop: spacing.xs },
+  prizeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.background,
+  },
+  prizeRank: { fontSize: 14, fontWeight: "800", color: colors.textPrimary, minWidth: 32 },
+  prizeRowRight: { alignItems: "flex-end", gap: 1 },
+  prizeWinnerCount: { fontSize: 12, color: colors.textSecondary, fontFamily: numericFont.regular },
+  prizeAmount: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, fontFamily: numericFont.medium },
+  prizeNetAmount: { fontSize: 11, color: colors.textMuted, fontFamily: numericFont.regular },
+  prizeDisclaimer: { fontSize: 10, color: colors.textMuted, lineHeight: 14, marginTop: spacing.xs },
   accordion: { gap: spacing.sm, marginTop: spacing.xs },
   skeletonWrap: { gap: spacing.sm },
   emptyText: { fontSize: 13, color: colors.textMuted, textAlign: "center", paddingVertical: spacing.md },

@@ -1,42 +1,49 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { FlatList, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { useIsFocused } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useQueries } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { reportError } from "@/lib/errorLog";
-import { LottoBall } from "@/components/LottoBall";
-import { getDrawByNo } from "@/features/draws/api/drawHistoryApi";
+import { TicketNumberRow } from "@/components/TicketNumberRow";
+import { getDrawByNo, type DrawSummary } from "@/features/draws/api/drawHistoryApi";
 import { parseLottoQr, type ParsedLottoGame } from "@/features/qr/parseLottoQr";
 import { computeWinRank, getPrizeAmount, type WinRank } from "@/features/qr/checkWinnings";
-import { useMyLottoTickets, LOTTO_UNIT_PRICE, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
+import { useMyLottoTickets, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
+import { useScanSettings } from "@/features/mylotto/useScanSettings";
 import { scheduleDrawReminder } from "@/features/mylotto/drawReminders";
 import { registerResultPushSubscription } from "@/features/mylotto/pushSubscription";
-import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
+import { colors, spacing, radius, cardShadow } from "@/constants/theme";
 
-// 같은 용지를 계속 카메라에 비추고 있을 때 Bottom Sheet를 닫자마자 동일 QR이
-// 즉시 재인식되어 다시 열리는 "깜빡임"을 막기 위한 잠금 해제 지연 시간.
+// 같은 용지를 계속 카메라에 비추고 있을 때, 스캔 직후 즉시 재인식되어 중복 저장되는
+// "깜빡임"을 막기 위한 잠금 해제 지연 시간.
 const RESCAN_LOCK_MS = 1500;
-// 저장 버튼을 누르면 "저장됨 ✓"을 잠깐 보여준 뒤 자동으로 시트를 닫는다 - 예전엔 저장 후
-// "닫고 다음 QR 스캔"을 한 번 더 눌러야 해서 여러 장을 연달아 찍을 때 불편했다.
-const AUTO_CLOSE_AFTER_SAVE_MS = 600;
+// 인식불가/에러는 저장할 게 없어 사용자 입력을 기다리지 않고 이 시간 뒤 자동으로 닫는다.
+const AUTO_CLOSE_AFTER_FAIL_MS = 2000;
+// 자동촬영 모드일 때 "저장됐다"는 걸 화면으로도 보여주는 짧은 배너 노출 시간.
+const AUTO_TOAST_MS = 1600;
 
 type GameResult = ParsedLottoGame & { rank: WinRank; prizeAmount: number; amountPending: boolean };
 
-type ScanResult =
-  | {
-      status: "ok";
-      drawNo: number;
-      drawDate: string;
-      winningNumbers: number[];
-      bonusNumber: number;
-      sourceUrl: string;
-      games: GameResult[];
-    }
-  // 추첨 전(구매 직후)에 스캔한 경우 - 정상적인 사용 흐름이라 에러가 아니라 "저장하고 기다리기"를 안내한다.
-  | { status: "pending"; drawNo: number; games: ParsedLottoGame[] }
-  | { status: "unrecognized" }
-  | { status: "error" };
+type OkScan = {
+  status: "ok";
+  drawNo: number;
+  drawDate: string;
+  winningNumbers: number[];
+  bonusNumber: number;
+  games: GameResult[];
+};
+type PendingScan = { status: "pending"; drawNo: number; games: ParsedLottoGame[] };
+
+// 연속촬영(자동모드): 스캔에 성공하면(당첨확인/추첨전) 모달을 띄우지 않고 곧바로 저장한다 -
+// 결과 텍스트를 읽기도 전에 자동으로 닫히는 모달은 오히려 확인을 방해한다는 피드백에 따라,
+// 대신 하단 보관함 리스트에 카드가 즉시 쌓이는 것 + 짧은 토스트로 저장 여부를 확인한다.
+type SaveableScan = OkScan | PendingScan;
+
+// 수동모드에서만 뜨는 결과 모달 + 저장할 게 없는 경우(인식불가/에러)는 모드와 무관하게 항상 모달.
+type ModalResult = OkScan | PendingScan | { status: "unrecognized" } | { status: "error" };
 
 const RANK_LABEL: Record<Exclude<WinRank, null>, string> = {
   1: "1등",
@@ -56,19 +63,25 @@ function groupTicketsByDraw(tickets: MyLottoTicket[]): Map<number, MyLottoTicket
   return map;
 }
 
-// 회차별 카드 컴포넌트
-function VaultDrawCard({ drawNo, tickets }: { drawNo: number; tickets: MyLottoTicket[] }) {
+// 회차별 카드 컴포넌트. draw가 있으면(체크 완료된 회차) 동행복권 공식 사이트처럼
+// 당첨번호와 일치하는 숫자만 색공으로, 나머지는 일반 텍스트로 표시한다. draw를 아직
+// 못 받아온 동안(로딩 중/추첨 전)은 기존처럼 전부 색공으로 보여준다.
+function VaultDrawCard({ drawNo, tickets, draw }: { drawNo: number; tickets: MyLottoTicket[]; draw: DrawSummary | null | undefined }) {
+  const winningSet = draw ? new Set(draw.winning_numbers) : null;
   return (
     <View style={styles.vaultCard}>
       <Text style={styles.vaultCardTitle}>{drawNo}회</Text>
       {tickets.map((ticket, idx) => (
         <View key={ticket.id} style={styles.vaultCardGame}>
           <Text style={styles.vaultCardGameIndex}>{String.fromCharCode(97 + idx)}</Text>
-          <View style={styles.vaultCardBalls}>
-            {ticket.numbers.map((n) => (
-              <LottoBall key={n} number={n} size="xs" />
-            ))}
-          </View>
+          <TicketNumberRow
+            numbers={ticket.numbers}
+            winningSet={winningSet}
+            bonusNumber={draw?.bonus_number}
+            ballSize="xs"
+            containerStyle={styles.vaultCardBalls}
+            plainTextStyle={styles.vaultCardNumberPlain}
+          />
           <View style={[styles.vaultCardBadge, ticket.checked ? (ticket.rank ? styles.vaultCardBadgeWin : styles.vaultCardBadgeLose) : styles.vaultCardBadgePending]}>
             <Text style={styles.vaultCardBadgeText}>
               {ticket.checked ? (ticket.rank ? RANK_LABEL[ticket.rank] : "낙첨") : "추첨 전"}
@@ -82,23 +95,47 @@ function VaultDrawCard({ drawNo, tickets }: { drawNo: number; tickets: MyLottoTi
 
 export default function ScanScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
-  const [result, setResult] = useState<ScanResult | null>(null);
+  const [result, setResult] = useState<ModalResult | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saved">("idle");
+  const [toast, setToast] = useState<string | null>(null);
   const [torchOn, setTorchOn] = useState(false);
   const [cameraError, setCameraError] = useState(false);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const addTickets = useMyLottoTickets((s) => s.addTickets);
+  // 자동촬영 on/off - 이 기기에만 저장되고 서버로는 안 간다(useScanSettings.ts).
+  const autoCapture = useScanSettings((s) => s.autoCapture);
+  const setAutoCapture = useScanSettings((s) => s.setAutoCapture);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 화면을 카메라(상단)/보관함(하단) 2분할로 나누고, 저장한 순간 하단 목록이 실시간으로
-  // 갱신되는 걸 보여준다 - "찍을 때마다 보관함으로 이동"을 매번 화면 전환 없이도 체감하게
-  // 하면서, 화면 전환이 없어야 가능한 "용지 여러 장 연속 스캔" 흐름은 그대로 유지한다.
+  // 갱신되는 걸 보여준다 - 스캔 결과를 모달로 잠깐 띄우는 대신, 계속 쌓이는 이 리스트를
+  // 드래그해서 훑어보는 것 자체가 "연속촬영" 결과 확인 방법이다.
   const ticketsMap = useMyLottoTickets((s) => s.tickets);
   const recentTickets = useMemo(
     () =>
       Object.values(ticketsMap)
         .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
-        .slice(0, 5),
+        .slice(0, 30),
     [ticketsMap],
   );
+  // 보관함 카드의 번호를 실제 당첨번호와 매칭해 색칠하려면 회차별 당첨번호가 필요하다.
+  // draw_history는 회차당 한 번 확정되면 바뀌지 않으므로 staleTime을 무한으로 둬 재조회를 막는다.
+  const recentDrawNos = useMemo(() => [...new Set(recentTickets.map((t) => t.drawNo))], [recentTickets]);
+  const drawQueries = useQueries({
+    queries: recentDrawNos.map((drawNo) => ({
+      queryKey: ["draw", drawNo],
+      queryFn: () => getDrawByNo(drawNo),
+      staleTime: Infinity,
+    })),
+  });
+  const drawsByNo = useMemo(() => {
+    const map = new Map<number, DrawSummary | null>();
+    recentDrawNos.forEach((drawNo, i) => {
+      const data = drawQueries[i]?.data;
+      if (data !== undefined) map.set(drawNo, data);
+    });
+    return map;
+  }, [recentDrawNos, drawQueries]);
 
   const handleCameraMountError = useCallback((event: { message: string }) => {
     reportError(new Error(`camera mount error: ${event.message}`), "qr-scan-camera");
@@ -117,142 +154,179 @@ export default function ScanScreen() {
     if (!isFocused) setTorchOn(false);
   }, [isFocused]);
 
-  // 결과 처리 중(파싱→DB조회→표시)에는 카메라 이벤트를 무시해 중복 스캔/중복 API 요청을 막는다.
-  // Bottom Sheet가 열려있는 동안도 이 플래그가 true로 유지되어 추가 스캔 이벤트를 차단한다.
+  // 결과 처리 중(파싱→DB조회→저장)에는 카메라 이벤트를 무시해 중복 스캔/중복 저장을 막는다.
   const scanLockRef = useRef(false);
   const unlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
       if (unlockTimerRef.current) clearTimeout(unlockTimerRef.current);
-      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
 
-  const handleBarcodeScanned = useCallback(async (scan: BarcodeScanningResult) => {
-    if (scanLockRef.current) return;
-    scanLockRef.current = true;
-    setSaveState("idle");
-
-    const parsed = parseLottoQr(scan.data);
-    if (!parsed) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      setResult({ status: "unrecognized" });
-      return;
-    }
-
-    try {
-      const draw = await getDrawByNo(parsed.drawNo);
-      if (!draw) {
-        // 아직 추첨하지 않은 회차(구매 직후 스캔)일 가능성이 가장 크다 - 에러가 아니라
-        // "보관함에 저장하고 추첨일에 알림받기" 흐름으로 안내한다.
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setResult({ status: "pending", drawNo: parsed.drawNo, games: parsed.games });
-        return;
-      }
-      // 1~3등은 회차별 변동(파리뮤추얼) 금액이라 추첨 직후(토 20:35~21:10경)엔 당첨번호만
-      // 먼저 채워지고 금액 집계가 비어있을 수 있다(useAutoCheckTickets.ts, 서버 알림 스크립트와
-      // 동일 이유). 이 경우 여기서 바로 "0원"으로 확정 저장하면 checked=true로 영구 고정되어
-      // 나중에 실제 금액이 채워져도 다시는 재검사되지 않는다 - amountPending으로 표시해
-      // handleSaveToVault가 checked:false로 저장하게 한다.
-      const games: GameResult[] = parsed.games.map((g) => {
-        const rank = computeWinRank(g.numbers, draw.winning_numbers, draw.bonus_number);
-        const amountByRank: Partial<Record<1 | 2 | 3, number | null>> = {
-          1: draw.first_prize_amount_per_win,
-          2: draw.second_prize_amount_per_win,
-          3: draw.third_prize_amount_per_win,
-        };
-        const amountPending = (rank === 1 || rank === 2 || rank === 3) && amountByRank[rank] === null;
-        return {
-          ...g,
-          rank,
-          amountPending,
-          prizeAmount: amountPending
-            ? 0
-            : getPrizeAmount(
-                rank,
-                draw.first_prize_amount_per_win,
-                draw.second_prize_amount_per_win,
-                draw.third_prize_amount_per_win,
-              ),
-        };
-      });
-      // QR 스캔 자체가 성공적으로 완료됐다는 것을 화면을 보지 않고도 알 수 있도록 진동을 준다
-      // (당첨 여부와 무관하게 "스캔이 인식됐다"는 신호).
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setResult({
-        status: "ok",
-        drawNo: draw.draw_no,
-        drawDate: draw.draw_date,
-        winningNumbers: draw.winning_numbers,
-        bonusNumber: draw.bonus_number,
-        sourceUrl: scan.data,
-        games,
-      });
-    } catch (err) {
-      // QR 자체는 정상 파싱됐는데 네트워크/DB 조회가 실패한 경우다. "인식할 수 없는 QR"이라고
-      // 하면 사용자가 용지를 의심하게 되므로, 원인이 다른 별도 상태로 구분해 안내한다.
-      reportError(err, "qr-scan-lookup");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      setResult({ status: "error" });
-    }
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), AUTO_TOAST_MS);
   }, []);
 
-  const handleCloseSheet = useCallback(() => {
-    setResult(null);
-    // 카메라는 계속 유지하되, 방금 닫은 용지가 여전히 프레임 안에 있으면 바로 재인식되어
-    // 같은 결과 시트가 다시 뜨는 깜빡임이 생긴다. 일정 시간 뒤에만 잠금을 풀어 방지한다.
+  // 같은 용지가 계속 프레임 안에 있어도 곧바로 중복 저장되지 않도록, 일정 시간 뒤에만
+  // 다음 스캔 잠금을 푼다.
+  const scheduleRescanUnlock = useCallback(() => {
     if (unlockTimerRef.current) clearTimeout(unlockTimerRef.current);
     unlockTimerRef.current = setTimeout(() => {
       scanLockRef.current = false;
     }, RESCAN_LOCK_MS);
   }, []);
 
-  const handleSaveToVault = useCallback(() => {
-    if (!result || (result.status !== "ok" && result.status !== "pending")) return;
-    setSaveState("saving");
+  const handleCloseSheet = useCallback(() => {
+    setResult(null);
+    scheduleRescanUnlock();
+  }, [scheduleRescanUnlock]);
 
-    if (result.status === "ok") {
-      addTickets(
-        result.games.map((g) =>
-          g.amountPending
-            ? { drawNo: result.drawNo, numbers: g.numbers, purchaseType: g.type }
-            : { drawNo: result.drawNo, numbers: g.numbers, purchaseType: g.type, checked: true, rank: g.rank, prizeAmount: g.prizeAmount },
-        ),
-      );
-      // 금액 집계가 아직 안 끝난 게임이 있으면(1~3등 파리뮤추얼 금액 null), 다음 보관함
-      // 방문 때 재검사되긴 하지만 그새 앱을 안 열 수도 있으니 결과가 확정되면 푸시로도 알려준다.
-      const pendingGames = result.games.filter((g) => g.amountPending);
-      if (pendingGames.length > 0) {
+  const saveResult = useCallback(
+    (data: SaveableScan) => {
+      if (data.status === "ok") {
+        addTickets(
+          data.games.map((g) =>
+            g.amountPending
+              ? { drawNo: data.drawNo, numbers: g.numbers, purchaseType: g.type }
+              : { drawNo: data.drawNo, numbers: g.numbers, purchaseType: g.type, checked: true, rank: g.rank, prizeAmount: g.prizeAmount },
+          ),
+        );
+        // 금액 집계가 아직 안 끝난 게임이 있으면(1~3등 파리뮤추얼 금액 null), 다음 보관함
+        // 방문 때 재검사되긴 하지만 그새 앱을 안 열 수도 있으니 결과가 확정되면 푸시로도 알려준다.
+        const pendingGames = data.games.filter((g) => g.amountPending);
+        if (pendingGames.length > 0) {
+          registerResultPushSubscription(
+            data.drawNo,
+            pendingGames.map((g) => ({ numbers: g.numbers, type: g.type })),
+          );
+        }
+      } else {
+        addTickets(
+          data.games.map((g) => ({
+            drawNo: data.drawNo,
+            numbers: g.numbers,
+            purchaseType: g.type,
+          })),
+        );
+        scheduleDrawReminder(data.drawNo).catch((err) => reportError(err, "mylotto-reminder"));
         registerResultPushSubscription(
-          result.drawNo,
-          pendingGames.map((g) => ({ numbers: g.numbers, type: g.type })),
+          data.drawNo,
+          data.games.map((g) => ({ numbers: g.numbers, type: g.type })),
         );
       }
-    } else {
-      addTickets(
-        result.games.map((g) => ({
-          drawNo: result.drawNo,
-          numbers: g.numbers,
-          purchaseType: g.type,
-        })),
-      );
-      scheduleDrawReminder(result.drawNo).catch((err) => reportError(err, "mylotto-reminder"));
-      registerResultPushSubscription(
-        result.drawNo,
-        result.games.map((g) => ({ numbers: g.numbers, type: g.type })),
-      );
-    }
+    },
+    [addTickets],
+  );
 
+  const handleBarcodeScanned = useCallback(
+    async (scan: BarcodeScanningResult) => {
+      if (scanLockRef.current) return;
+      scanLockRef.current = true;
+      setSaveState("idle");
+
+      const parsed = parseLottoQr(scan.data);
+      if (!parsed) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setResult({ status: "unrecognized" });
+        return;
+      }
+
+      try {
+        const draw = await getDrawByNo(parsed.drawNo);
+        if (!draw) {
+          // 아직 추첨하지 않은 회차(구매 직후 스캔)일 가능성이 가장 크다 - 에러가 아니라
+          // 보관함에 저장하고 추첨일에 알림받는 흐름으로 처리한다.
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          const pending: PendingScan = { status: "pending", drawNo: parsed.drawNo, games: parsed.games };
+          if (autoCapture) {
+            saveResult(pending);
+            showToast(`${parsed.drawNo}회 저장됨 · 추첨 전`);
+            scheduleRescanUnlock();
+          } else {
+            setResult(pending);
+          }
+          return;
+        }
+        // 1~3등은 회차별 변동(파리뮤추얼) 금액이라 추첨 직후(토 20:35~21:10경)엔 당첨번호만
+        // 먼저 채워지고 금액 집계가 비어있을 수 있다(useAutoCheckTickets.ts, 서버 알림 스크립트와
+        // 동일 이유). 이 경우 여기서 바로 "0원"으로 확정 저장하면 checked=true로 영구 고정되어
+        // 나중에 실제 금액이 채워져도 다시는 재검사되지 않는다 - amountPending으로 표시해
+        // saveResult가 checked:false로 저장하게 한다.
+        const games: GameResult[] = parsed.games.map((g) => {
+          const rank = computeWinRank(g.numbers, draw.winning_numbers, draw.bonus_number);
+          const amountByRank: Partial<Record<1 | 2 | 3, number | null>> = {
+            1: draw.first_prize_amount_per_win,
+            2: draw.second_prize_amount_per_win,
+            3: draw.third_prize_amount_per_win,
+          };
+          const amountPending = (rank === 1 || rank === 2 || rank === 3) && amountByRank[rank] === null;
+          return {
+            ...g,
+            rank,
+            amountPending,
+            prizeAmount: amountPending
+              ? 0
+              : getPrizeAmount(
+                  rank,
+                  draw.first_prize_amount_per_win,
+                  draw.second_prize_amount_per_win,
+                  draw.third_prize_amount_per_win,
+                ),
+          };
+        });
+        // QR 스캔 자체가 성공적으로 완료됐다는 것을 화면을 보지 않고도 알 수 있도록 진동을 준다
+        // (당첨 여부와 무관하게 "스캔이 인식됐다"는 신호).
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        const ok: OkScan = {
+          status: "ok",
+          drawNo: draw.draw_no,
+          drawDate: draw.draw_date,
+          winningNumbers: draw.winning_numbers,
+          bonusNumber: draw.bonus_number,
+          games,
+        };
+        if (autoCapture) {
+          saveResult(ok);
+          const bestRank = games.reduce<WinRank>((best, g) => {
+            if (g.rank === null) return best;
+            return best === null ? g.rank : (Math.min(best, g.rank) as WinRank);
+          }, null);
+          showToast(`${draw.draw_no}회 저장됨 · ${bestRank ? RANK_LABEL[bestRank] + " 당첨!" : "낙첨"}`);
+          scheduleRescanUnlock();
+        } else {
+          setResult(ok);
+        }
+      } catch (err) {
+        // QR 자체는 정상 파싱됐는데 네트워크/DB 조회가 실패한 경우다. "인식할 수 없는 QR"이라고
+        // 하면 사용자가 용지를 의심하게 되므로, 원인이 다른 별도 상태로 구분해 안내한다.
+        reportError(err, "qr-scan-lookup");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setResult({ status: "error" });
+      }
+    },
+    [saveResult, scheduleRescanUnlock, autoCapture, showToast],
+  );
+
+  // 수동모드에서 결과가 뜨면 사용자가 직접 "보관함에 저장"을 눌러야 저장된다.
+  const handleManualSave = useCallback(() => {
+    if (!result || (result.status !== "ok" && result.status !== "pending")) return;
+    saveResult(result);
     setSaveState("saved");
-    // "저장됨 ✓"을 잠깐 보여준 뒤 자동으로 닫아 바로 다음 용지를 찍을 수 있게 한다
-    // (예전엔 "닫고 다음 QR 스캔"을 한 번 더 눌러야 했음).
-    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-    autoCloseTimerRef.current = setTimeout(() => {
-      handleCloseSheet();
-    }, AUTO_CLOSE_AFTER_SAVE_MS);
-  }, [result, addTickets, handleCloseSheet]);
+  }, [result, saveResult]);
+
+  // 인식불가/에러, 그리고 수동모드에서 저장까지 끝난 결과는 사용자가 닫기를 누르지 않아도
+  // 일정 시간 뒤 자동으로 닫혀 다음 용지를 계속 비출 수 있게 한다. 수동모드에서 아직 저장
+  // 전인 ok/pending은 사용자가 직접 판단해야 하니 자동으로 닫지 않는다.
+  useEffect(() => {
+    if (!result) return;
+    if ((result.status === "ok" || result.status === "pending") && saveState !== "saved") return;
+    const timer = setTimeout(() => handleCloseSheet(), AUTO_CLOSE_AFTER_FAIL_MS);
+    return () => clearTimeout(timer);
+  }, [result, saveState, handleCloseSheet]);
 
   if (!permission) {
     return <View style={styles.container} />;
@@ -303,6 +377,19 @@ export default function ScanScreen() {
         <View style={styles.guideOverlay} pointerEvents="none">
           <Text style={styles.guideText}>로또 용지의 QR코드를 비춰주세요</Text>
         </View>
+        {toast && (
+          <View style={styles.toast} pointerEvents="none">
+            <Text style={styles.toastText}>{toast}</Text>
+          </View>
+        )}
+        <View style={styles.autoToggleRow}>
+          <Text style={styles.autoToggleLabel}>연속촬영</Text>
+          <Switch
+            value={autoCapture}
+            onValueChange={setAutoCapture}
+            trackColor={{ true: colors.goldBright }}
+          />
+        </View>
         <Pressable
           style={[styles.torchButton, torchOn && styles.torchButtonActive]}
           onPress={() => setTorchOn((v) => !v)}
@@ -325,10 +412,10 @@ export default function ScanScreen() {
           <FlatList
             data={Array.from(groupTicketsByDraw(recentTickets).entries())}
             keyExtractor={(item) => `draw-${item[0]}`}
-            renderItem={({ item: [drawNo, tickets] }) => <VaultDrawCard drawNo={drawNo} tickets={tickets} />}
+            renderItem={({ item: [drawNo, tickets] }) => (
+              <VaultDrawCard drawNo={drawNo} tickets={tickets} draw={drawsByNo.get(drawNo)} />
+            )}
             contentContainerStyle={styles.vaultList}
-            scrollEnabled={false}
-            pagingEnabled={false}
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -336,51 +423,18 @@ export default function ScanScreen() {
 
       <Modal visible={result !== null} transparent animationType="slide" onRequestClose={handleCloseSheet}>
         <Pressable style={styles.sheetBackdrop} onPress={handleCloseSheet}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+          <Pressable
+            style={[
+              styles.sheet,
+              (result?.status === "ok" || result?.status === "pending") && styles.sheetTall,
+              { paddingBottom: spacing.xl + insets.bottom },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
             {result?.status === "unrecognized" && (
               <>
                 <Text style={styles.sheetTitle}>인식할 수 없는 QR코드예요</Text>
                 <Text style={styles.sheetSubtitle}>로또 6/45 용지의 QR코드가 맞는지 확인해 주세요.</Text>
-              </>
-            )}
-            {result?.status === "pending" && (
-              <>
-                <Text style={styles.sheetTitle}>{result.drawNo}회 추첨 전이에요</Text>
-                <Text style={styles.sheetSubtitle}>
-                  보관함에 저장하면 추첨일에 알림을 보내드리고, 결과가 나오면 자동으로 당첨을 확인해요.
-                </Text>
-                <View style={styles.gamesList}>
-                  <View style={styles.groupHeaderRow}>
-                    <Text style={styles.groupDraw}>{result.drawNo}회</Text>
-                    <Text style={styles.groupSpent}>
-                      {(LOTTO_UNIT_PRICE * result.games.length).toLocaleString()}원치 · {result.games.length}게임
-                    </Text>
-                  </View>
-                  {result.games.map((game, idx) => (
-                    <View key={idx} style={styles.gameRow}>
-                      <View style={styles.gameIndexBox}>
-                        <Text style={styles.gameIndex}>{String.fromCharCode(97 + idx)}</Text>
-                      </View>
-                      <View style={styles.gameBalls}>
-                        {game.numbers.map((n) => (
-                          <LottoBall key={n} number={n} size="small" />
-                        ))}
-                      </View>
-                      <View style={styles.pendingBadge}>
-                        <Text style={styles.pendingBadgeText}>추첨 전</Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-                <Pressable
-                  style={[styles.saveButton, saveState === "saved" && styles.saveButtonDone]}
-                  onPress={handleSaveToVault}
-                  disabled={saveState !== "idle"}
-                >
-                  <Text style={styles.saveButtonText}>
-                    {saveState === "saved" ? "보관함에 저장됨 ✓" : saveState === "saving" ? "저장 중..." : "🎟️ 보관함에 저장하고 알림받기"}
-                  </Text>
-                </Pressable>
               </>
             )}
             {result?.status === "error" && (
@@ -389,86 +443,62 @@ export default function ScanScreen() {
                 <Text style={styles.sheetSubtitle}>네트워크 상태를 확인한 뒤 다시 스캔해 주세요.</Text>
               </>
             )}
-            {result?.status === "ok" && (() => {
-              const winningSet = new Set(result.winningNumbers);
-              const bestRank = result.games.reduce<WinRank>((best, g) => {
-                if (g.rank === null) return best;
-                return best === null ? g.rank : Math.min(best, g.rank) as WinRank;
-              }, null);
-              return (
-                <ScrollView style={styles.checkScroll} showsVerticalScrollIndicator={false}>
-                  <Text style={styles.checkTitle}>로또 6/45 제{result.drawNo}회</Text>
-                  <Text style={styles.checkDate}>{result.drawDate} 추첨</Text>
-
-                  <Text style={styles.checkLabel}>당첨번호</Text>
-                  <View style={styles.checkWinningRow}>
-                    {result.winningNumbers.map((n) => (
-                      <LottoBall key={n} number={n} size="small" />
-                    ))}
-                    <Text style={styles.checkPlus}>+</Text>
-                    <LottoBall number={result.bonusNumber} size="small" isBonus />
-                  </View>
-
-                  <View style={[styles.checkMessageBox, bestRank && styles.checkMessageBoxWin]}>
-                    {bestRank ? (
-                      <Text style={styles.checkMessageWin}>
-                        축하합니다!{"\n"}
-                        <Text style={styles.checkMessageWinRank}>{RANK_LABEL[bestRank]}</Text>에 당첨되었습니다.
-                      </Text>
-                    ) : (
-                      <Text style={styles.checkMessage}>
-                        아쉽게도,{"\n"}낙첨되었습니다.
-                      </Text>
-                    )}
-                  </View>
-
-                  <View style={styles.checkTable}>
-                    {result.games.map((game, idx) => (
-                      <View key={idx} style={styles.checkTableRow}>
-                        <View style={styles.checkTableIndexCol}>
-                          <Text style={styles.checkTableIndex}>{String.fromCharCode(65 + idx)}</Text>
-                          <Text style={styles.checkTableRank}>{game.rank ? RANK_LABEL[game.rank] : "낙첨"}</Text>
-                        </View>
-                        <View style={styles.checkTableNumbers}>
-                          {game.numbers.map((n) => {
-                            const matched = winningSet.has(n) || n === result.bonusNumber;
-                            return matched ? (
-                              <LottoBall key={n} number={n} size="xs" />
-                            ) : (
-                              <Text key={n} style={styles.checkTableNumberPlain}>{n}</Text>
-                            );
-                          })}
-                        </View>
-                        {game.rank && <Text style={styles.winAmount}>{game.prizeAmount.toLocaleString()}원</Text>}
-                      </View>
-                    ))}
-                  </View>
-
-                  <Text style={styles.checkDisclaimer}>
-                    QR 당첨 확인은 보조적인 수단입니다. 반드시 로또 공식 웹사이트에서 실제 복권과의 일치 여부를
-                    확인하시기 바랍니다. 당첨금은 실제 복권 소지자에게만 지급됩니다.
-                  </Text>
-
-                  <View style={styles.checkButtonRow}>
-                    <Pressable
-                      style={styles.checkSecondaryButton}
-                      onPress={() => Linking.openURL(result.sourceUrl)}
-                    >
-                      <Text style={styles.checkSecondaryButtonText}>인터넷에서 확인</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.saveButton, styles.checkPrimaryButton, saveState === "saved" && styles.saveButtonDone]}
-                      onPress={handleSaveToVault}
-                      disabled={saveState !== "idle"}
-                    >
-                      <Text style={styles.saveButtonText}>
-                        {saveState === "saved" ? "저장됨 ✓" : saveState === "saving" ? "저장 중..." : "🎟️ 보관함에 저장"}
-                      </Text>
-                    </Pressable>
-                  </View>
+            {result?.status === "pending" && (
+              <>
+                <Text style={styles.sheetTitle}>{result.drawNo}회 추첨 전이에요</Text>
+                <Text style={styles.sheetSubtitle}>저장하면 추첨일에 알림을 보내드려요.</Text>
+                <ScrollView style={styles.checkScroll}>
+                  {result.games.map((g, idx) => (
+                    <View key={idx} style={styles.checkGameRow}>
+                      <Text style={styles.checkGameIndex}>{String.fromCharCode(97 + idx)}</Text>
+                      <TicketNumberRow numbers={g.numbers} winningSet={null} ballSize="small" containerStyle={styles.checkGameBalls} />
+                    </View>
+                  ))}
                 </ScrollView>
-              );
-            })()}
+              </>
+            )}
+            {result?.status === "ok" &&
+              (() => {
+                const winningSet = new Set(result.winningNumbers);
+                const bestRank = result.games.reduce<WinRank>((best, g) => {
+                  if (g.rank === null) return best;
+                  return best === null ? g.rank : (Math.min(best, g.rank) as WinRank);
+                }, null);
+                return (
+                  <>
+                    <Text style={styles.sheetTitle}>
+                      {result.drawNo}회 · {bestRank ? `${RANK_LABEL[bestRank]} 당첨!` : "낙첨"}
+                    </Text>
+                    <Text style={styles.sheetSubtitle}>{result.drawDate} 추첨</Text>
+                    <ScrollView style={styles.checkScroll}>
+                      {result.games.map((g, idx) => (
+                        <View key={idx} style={styles.checkGameRow}>
+                          <Text style={styles.checkGameIndex}>{String.fromCharCode(97 + idx)}</Text>
+                          <TicketNumberRow
+                            numbers={g.numbers}
+                            winningSet={winningSet}
+                            bonusNumber={result.bonusNumber}
+                            ballSize="small"
+                            containerStyle={styles.checkGameBalls}
+                          />
+                          <Text style={styles.checkGameRank}>{g.rank ? RANK_LABEL[g.rank] : "낙첨"}</Text>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </>
+                );
+              })()}
+            {(result?.status === "ok" || result?.status === "pending") && (
+              <Pressable
+                style={[styles.saveButton, saveState === "saved" && styles.saveButtonDone]}
+                onPress={handleManualSave}
+                disabled={saveState === "saved"}
+              >
+                <Text style={styles.saveButtonText}>
+                  {saveState === "saved" ? "보관함에 저장됨 ✓" : "🎟️ 보관함에 저장"}
+                </Text>
+              </Pressable>
+            )}
             <Pressable style={styles.closeButton} onPress={handleCloseSheet}>
               <Text style={styles.closeButtonText}>닫고 다음 QR 스캔</Text>
             </Pressable>
@@ -501,6 +531,35 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
   },
+  toast: {
+    position: "absolute",
+    top: 108,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  toastText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+    backgroundColor: "rgba(0,0,0,0.65)",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+  },
+  autoToggleRow: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+  },
+  autoToggleLabel: { color: "#fff", fontSize: 12, fontWeight: "700" },
   permissionContainer: {
     flex: 1,
     alignItems: "center",
@@ -550,28 +609,13 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   vaultCardGameIndex: { fontSize: 13, fontWeight: "700", color: colors.textSecondary, minWidth: 18 },
-  vaultCardBalls: { flexDirection: "row", gap: 4 },
+  vaultCardBalls: { flexDirection: "row", flexWrap: "wrap", gap: 4, alignItems: "center" },
+  vaultCardNumberPlain: { fontSize: 12, fontWeight: "600", color: colors.textPrimary, minWidth: 16, textAlign: "center" },
   vaultCardBadge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
   vaultCardBadgeWin: { backgroundColor: colors.gold },
   vaultCardBadgeLose: { backgroundColor: colors.rankNeutral },
   vaultCardBadgePending: { backgroundColor: colors.rankNeutral },
   vaultCardBadgeText: { color: "#fff", fontWeight: "700", fontSize: 10 },
-  vaultRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    ...cardShadow,
-  },
-  vaultRowInfo: { gap: 2 },
-  vaultRowDraw: { fontSize: 13, fontWeight: "700", color: colors.textPrimary },
-  vaultRowBalls: { flexDirection: "row", gap: 3, flexWrap: "wrap" },
-  vaultRowBadge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
-  vaultRowBadgeWin: { backgroundColor: colors.gold },
-  vaultRowBadgePending: { backgroundColor: colors.rankNeutral },
-  vaultRowBadgeText: { color: "#fff", fontWeight: "700", fontSize: 11 },
   torchButton: {
     position: "absolute",
     right: 16,
@@ -592,64 +636,24 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.lg,
     padding: spacing.xl,
     gap: spacing.md,
-    maxHeight: "90%",
+    maxHeight: "50%",
     ...cardShadow,
   },
   sheetTitle: { fontSize: 18, fontWeight: "800", color: colors.textPrimary },
   sheetSubtitle: { fontSize: 13, color: colors.textSecondary },
-  gamesList: { flexShrink: 0, backgroundColor: colors.background, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
-  groupHeaderRow: {
-    paddingBottom: spacing.sm,
-    marginBottom: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: 2,
-  },
-  groupDraw: { fontSize: 14, fontWeight: "800", color: colors.textPrimary, fontFamily: numericFont.medium },
-  groupSpent: { fontSize: 12, color: colors.textSecondary, fontFamily: numericFont.regular },
-  drawInfoCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.sm },
-  drawInfoHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  drawNumber: { fontSize: 22, fontWeight: "800", color: colors.textPrimary, fontFamily: numericFont.bold },
-  deleteIconText: { fontSize: 20 },
-  drawMeta: { fontSize: 12, color: colors.textSecondary },
-  gameRow: {
+  // 당첨확인(ok)/추첨전(pending)은 게임이 여러 개(a~e)일 수 있어 내용이 많다 - 짧은
+  // 인식불가/에러 시트보다 크게 펼친다.
+  sheetTall: { maxHeight: "80%" },
+  checkScroll: { flexGrow: 0 },
+  checkGameRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: spacing.sm + 2,
     gap: spacing.md,
   },
-  gameIndexBox: { minWidth: 20, alignItems: "center" },
-  gameIndex: { fontSize: 11, fontWeight: "700", color: colors.textSecondary },
-  gameBalls: { flex: 1, flexDirection: "row", gap: 3, flexWrap: "wrap" },
-  gameRight: { alignItems: "flex-end", gap: 4 },
-  pendingBadge: { backgroundColor: colors.surface, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
-  pendingBadgeText: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
-  winAmount: { fontSize: 12, fontWeight: "700", color: colors.primary, fontFamily: numericFont.medium },
-  gameRowLarge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.lg,
-    gap: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  gameIndexLarge: { fontSize: 15, fontWeight: "700", color: colors.textSecondary, minWidth: 26 },
-  gamesBallsLarge: { flex: 1, flexDirection: "row", gap: spacing.md, alignItems: "center" },
-  gameBallContainer: { alignItems: "center", justifyContent: "center" },
-  rankBadgeLarge: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.pill },
-  rankBadgeWinLarge: { backgroundColor: colors.gold },
-  rankBadgeLoseLarge: { backgroundColor: colors.rankNeutral },
-  rankBadgeTextLarge: { color: "#fff", fontWeight: "700", fontSize: 13 },
-  closeButton: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.pill,
-    paddingVertical: spacing.md,
-    alignItems: "center",
-    marginTop: spacing.sm,
-  },
-  closeButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  checkGameIndex: { fontSize: 13, fontWeight: "700", color: colors.textSecondary, minWidth: 18 },
+  checkGameBalls: { flex: 1 },
+  checkGameRank: { fontSize: 12, fontWeight: "700", color: colors.textSecondary },
   saveButton: {
     backgroundColor: colors.goldBright,
     borderRadius: radius.pill,
@@ -659,50 +663,12 @@ const styles = StyleSheet.create({
   },
   saveButtonDone: { backgroundColor: colors.rankNeutral },
   saveButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  checkScroll: { flexGrow: 0 },
-  checkTitle: { fontSize: 18, fontWeight: "800", color: colors.textPrimary, textAlign: "center" },
-  checkDate: { fontSize: 12, color: colors.textMuted, textAlign: "center", marginTop: 2, marginBottom: spacing.md },
-  checkLabel: { fontSize: 13, fontWeight: "700", color: colors.textSecondary, textAlign: "center", marginBottom: spacing.sm },
-  checkWinningRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, marginBottom: spacing.lg },
-  checkPlus: { fontSize: 16, fontWeight: "700", color: colors.textMuted },
-  checkMessageBox: {
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.lg,
-    alignItems: "center",
-    marginBottom: spacing.lg,
-  },
-  checkMessageBoxWin: { backgroundColor: colors.goldLight },
-  checkMessage: { fontSize: 15, fontWeight: "700", color: colors.textPrimary, textAlign: "center", lineHeight: 22 },
-  checkMessageWin: { fontSize: 15, fontWeight: "700", color: colors.textPrimary, textAlign: "center", lineHeight: 22 },
-  checkMessageWinRank: { color: colors.primary, fontSize: 17 },
-  checkTable: { borderRadius: radius.md, overflow: "hidden", borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md },
-  checkTableRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  checkTableIndexCol: { minWidth: 44, alignItems: "center", gap: 2 },
-  checkTableIndex: { fontSize: 13, fontWeight: "800", color: colors.textPrimary },
-  checkTableRank: { fontSize: 10, fontWeight: "600", color: colors.textMuted },
-  checkTableNumbers: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center" },
-  checkTableNumberPlain: { fontSize: 14, fontWeight: "600", color: colors.textPrimary, minWidth: 22, textAlign: "center" },
-  checkDisclaimer: { fontSize: 10, color: colors.textMuted, lineHeight: 15, marginBottom: spacing.md },
-  checkButtonRow: { flexDirection: "row", gap: spacing.sm },
-  checkSecondaryButton: {
-    flex: 1,
+  closeButton: {
+    backgroundColor: colors.primary,
     borderRadius: radius.pill,
     paddingVertical: spacing.md,
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.primary,
+    marginTop: spacing.sm,
   },
-  checkSecondaryButtonText: { color: colors.primary, fontWeight: "700", fontSize: 14 },
-  checkPrimaryButton: { flex: 1, marginTop: 0 },
+  closeButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 });

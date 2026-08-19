@@ -2,7 +2,7 @@ export type WinRank = 1 | 2 | 3 | 4 | 5 | null;
 
 // 로또6/45 규정상 1~3등은 모두 회차별 변동(파리뮤추얼: 배당재원 ÷ 당첨자수) 금액이고,
 // 4~5등만 회차와 무관한 법정 고정 금액이다. (3등을 고정금액으로 계산하던 이전 버전은 오류였음)
-const FIXED_PRIZE_AMOUNT: Record<4 | 5, number> = {
+export const FIXED_PRIZE_AMOUNT: Record<4 | 5, number> = {
   4: 50_000,
   5: 5_000,
 };

@@ -2,11 +2,14 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useQueries } from "@tanstack/react-query";
 import { useMyLottoTickets, LOTTO_UNIT_PRICE, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
 import { useAutoCheckTickets } from "@/features/mylotto/useAutoCheckTickets";
 import { computeVaultSummary, computeFrequentNumbers } from "@/features/mylotto/stats";
 import { WinningCard } from "@/features/mylotto/components/WinningCard";
 import { LottoBall } from "@/components/LottoBall";
+import { TicketNumberRow } from "@/components/TicketNumberRow";
+import { getDrawByNo, type DrawSummary } from "@/features/draws/api/drawHistoryApi";
 import { shareWinningCard, ShareCardError } from "@/features/mylotto/shareWinningCard";
 import { reportError } from "@/lib/errorLog";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
@@ -56,7 +59,19 @@ function RoiBars({ spent, won, breakpoint }: { spent: number; won: number; break
   );
 }
 
-const TicketRow = ({ ticket, index, onShare, breakpoint }: { ticket: MyLottoTicket; index: number; onShare: (t: MyLottoTicket) => void; breakpoint: "small" | "medium" | "large" }) => (
+const TicketRow = ({
+  ticket,
+  index,
+  onShare,
+  breakpoint,
+  draw,
+}: {
+  ticket: MyLottoTicket;
+  index: number;
+  onShare: (t: MyLottoTicket) => void;
+  breakpoint: "small" | "medium" | "large";
+  draw: DrawSummary | null | undefined;
+}) => (
   <View style={styles.ticketRow}>
     <View style={styles.ticketIndex}>
       <Text style={[styles.ticketIndexText, { fontSize: getResponsiveFontSize(11, breakpoint) }]}>
@@ -71,11 +86,14 @@ const TicketRow = ({ ticket, index, onShare, breakpoint }: { ticket: MyLottoTick
           </Text>
         </View>
       )}
-      <View style={styles.ticketBalls}>
-        {ticket.numbers.map((n) => (
-          <LottoBall key={n} number={n} size="small" />
-        ))}
-      </View>
+      <TicketNumberRow
+        numbers={ticket.numbers}
+        winningSet={draw ? new Set(draw.winning_numbers) : null}
+        bonusNumber={draw?.bonus_number}
+        ballSize="small"
+        containerStyle={styles.ticketBalls}
+        plainTextStyle={styles.ticketNumberPlain}
+      />
     </View>
     <View style={styles.ticketRight}>
       {!ticket.checked ? (
@@ -139,11 +157,13 @@ const TicketGroupCard = ({
   onShare,
   onDelete,
   breakpoint,
+  draw,
 }: {
   group: TicketGroup;
   onShare: (t: MyLottoTicket) => void;
   onDelete: (group: TicketGroup) => void;
   breakpoint: "small" | "medium" | "large";
+  draw: DrawSummary | null | undefined;
 }) => {
   // 회차(그룹)마다 따로 접고 펼 수 있게 - 보관함에 여러 회차가 쌓이면 전부 펼쳐진 채로
   // 쭉 나열되어 원하는 회차를 찾기 번거롭다는 피드백. 기본은 펼침 상태로 둬서 기존
@@ -173,7 +193,7 @@ const TicketGroupCard = ({
       </View>
       {expanded &&
         group.tickets.map((t, idx) => (
-          <TicketRow key={t.id} ticket={t} index={idx} onShare={onShare} breakpoint={breakpoint} />
+          <TicketRow key={t.id} ticket={t} index={idx} onShare={onShare} breakpoint={breakpoint} draw={draw} />
         ))}
     </View>
   );
@@ -185,8 +205,28 @@ export default function MyLottoScreen() {
   const { breakpoint } = useResponsive();
   const ticketsMap = useMyLottoTickets((s) => s.tickets);
   const removeTicket = useMyLottoTickets((s) => s.removeTicket);
+  const clearAll = useMyLottoTickets((s) => s.clearAll);
   const tickets = useMemo(() => Object.values(ticketsMap).sort((a, b) => b.savedAt.localeCompare(a.savedAt)), [ticketsMap]);
   const ticketGroups = useMemo(() => groupTickets(tickets), [tickets]);
+
+  // 보관함 카드의 번호를 실제 당첨번호와 매칭해 색칠하려면 회차별 당첨번호가 필요하다.
+  // draw_history는 회차당 한 번 확정되면 바뀌지 않으므로 staleTime을 무한으로 둬 재조회를 막는다.
+  const drawNos = useMemo(() => ticketGroups.map((g) => g.drawNo), [ticketGroups]);
+  const drawQueries = useQueries({
+    queries: drawNos.map((drawNo) => ({
+      queryKey: ["draw", drawNo],
+      queryFn: () => getDrawByNo(drawNo),
+      staleTime: Infinity,
+    })),
+  });
+  const drawsByNo = useMemo(() => {
+    const map = new Map<number, DrawSummary | null>();
+    drawNos.forEach((drawNo, i) => {
+      const data = drawQueries[i]?.data;
+      if (data !== undefined) map.set(drawNo, data);
+    });
+    return map;
+  }, [drawNos, drawQueries]);
 
   // 그룹(회차) 단위로 삭제한다 - 게임 하나만 따로 지우는 것보다
   // "이 회차를 보관함에서 뺀다"는 사용자의 실제 의도에 더 맞는다.
@@ -203,6 +243,14 @@ export default function MyLottoScreen() {
     },
     [removeTicket],
   );
+
+  // 되돌릴 수 없는 파괴적 동작이라 개별삭제(handleDeleteGroup)와 동일하게 확인 알럿을 거친다.
+  const handleClearAll = useCallback(() => {
+    Alert.alert("전체 삭제", "저장된 복권을 모두 삭제할까요? 되돌릴 수 없어요.", [
+      { text: "취소", style: "cancel" },
+      { text: "전체 삭제", style: "destructive", onPress: () => clearAll() },
+    ]);
+  }, [clearAll]);
 
   const summary = useMemo(() => computeVaultSummary(tickets), [tickets]);
   const frequentNumbers = useMemo(() => computeFrequentNumbers(tickets), [tickets]);
@@ -292,9 +340,16 @@ export default function MyLottoScreen() {
         )}
 
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
-            내 복권 목록
-          </Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
+              내 복권 목록
+            </Text>
+            <Pressable hitSlop={8} onPress={handleClearAll}>
+              <Text style={[styles.clearAllText, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
+                전체삭제
+              </Text>
+            </Pressable>
+          </View>
           {ticketGroups.map((g) => (
             <TicketGroupCard
               key={g.key}
@@ -302,6 +357,7 @@ export default function MyLottoScreen() {
               onShare={handleShare}
               onDelete={handleDeleteGroup}
               breakpoint={breakpoint}
+              draw={drawsByNo.get(g.drawNo)}
             />
           ))}
         </View>
@@ -350,6 +406,8 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   sectionTitle: { fontWeight: "700", color: colors.textPrimary },
+  sectionHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  clearAllText: { color: colors.textMuted, fontWeight: "600" },
   summaryFootnote: { color: colors.textMuted },
 
   roiContainer: { gap: spacing.sm },
@@ -419,6 +477,7 @@ const styles = StyleSheet.create({
   },
   methodTagText: { color: colors.textSecondary, fontWeight: "600" },
   ticketBalls: { flexDirection: "row", gap: 3, flexWrap: "wrap" },
+  ticketNumberPlain: { fontSize: 13, fontWeight: "600", color: colors.textPrimary, minWidth: 18, textAlign: "center" },
   ticketRight: { alignItems: "flex-end", gap: 4 },
   pendingBadge: { backgroundColor: colors.background, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
   pendingBadgeText: { color: colors.textMuted, fontWeight: "600" },

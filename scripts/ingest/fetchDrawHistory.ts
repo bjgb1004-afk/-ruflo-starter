@@ -34,6 +34,8 @@ interface NormalizedDraw {
   secondPrizeWinnerCount: number | null;
   thirdPrizeAmountPerWin: number | null;
   thirdPrizeWinnerCount: number | null;
+  fourthPrizeWinnerCount: number | null;
+  fifthPrizeWinnerCount: number | null;
   totalSalesAmount: number;
 }
 
@@ -45,6 +47,8 @@ async function fetchDrawFromMirror(drwNo: number): Promise<NormalizedDraw | null
   const first = d.divisions?.[0];
   const second = d.divisions?.[1];
   const third = d.divisions?.[2];
+  const fourth = d.divisions?.[3];
+  const fifth = d.divisions?.[4];
   if (!first || !d.numbers || d.numbers.length !== 6) return null;
 
   return {
@@ -59,6 +63,8 @@ async function fetchDrawFromMirror(drwNo: number): Promise<NormalizedDraw | null
     secondPrizeWinnerCount: second?.winners ?? null,
     thirdPrizeAmountPerWin: third?.prize ?? null,
     thirdPrizeWinnerCount: third?.winners ?? null,
+    fourthPrizeWinnerCount: fourth?.winners ?? null,
+    fifthPrizeWinnerCount: fifth?.winners ?? null,
     totalSalesAmount: d.total_sales_amount,
   };
 }
@@ -168,6 +174,8 @@ async function main() {
             second_prize_winner_count: draw.secondPrizeWinnerCount,
             third_prize_amount_per_win: draw.thirdPrizeAmountPerWin,
             third_prize_winner_count: draw.thirdPrizeWinnerCount,
+            fourth_prize_winner_count: draw.fourthPrizeWinnerCount,
+            fifth_prize_winner_count: draw.fifthPrizeWinnerCount,
             total_sales_amount: draw.totalSalesAmount,
             first_prize_store_ids: firstPrizeStoreIds,
             second_prize_store_ids: secondPrizeStoreIds,
