@@ -35,3 +35,36 @@ When starting real project work in this repo, the first real code added will def
 - Because there's no app code yet, most useful actions are through the claude-flow tooling itself: the `Skill` tool (v3-*, agentdb-*, sparc-methodology, swarm-orchestration, etc.), the `Agent` tool with the specialized `subagent_type`s under `.claude/agents/`, and the `claude-flow` MCP server once started.
 - `.claude/helpers/v3.sh` is the master CLI for V3 progress tracking (`v3.sh status`, `v3.sh update domain N`, `v3.sh validate`, `v3.sh full-status`) — useful only once actual V3 domain/DDD work begins in this repo.
 - If asked to add a real project (app, library, service), scaffold it normally for the requested stack; there is no existing convention to conform to yet.
+
+## EAS Build Quota Management (Critical)
+
+**Context**: Free plan has only 15 Android builds/month. One command-line error wastes 1 quota immediately (past incident: typo in `--type` flag caused 2-week wait).
+
+**MANDATORY Pre-Build Checklist** (NEVER skip, NEVER rush):
+
+1. ✅ All commits pushed to GitHub (`git push` first)
+2. ✅ app.config.ts validated (name, version, versionCode, permissions, icons)
+3. ✅ .env file has all required vars (SUPABASE_URL, SUPABASE_ANON_KEY, GOOGLE_MAPS_API_KEY_ANDROID)
+4. ✅ node_modules installed (870+ packages)
+5. ✅ TypeScript check passes (`npm run typecheck`)
+6. ✅ Android native config valid (build.gradle, gradle.properties, etc.)
+7. ✅ eas.json has correct build profiles (production = AAB, production-samsung = APK)
+8. ✅ Visual assets exist (icon.png, splash.png, adaptive-icon.png)
+9. **[CRITICAL] ✅ Test the EXACT build command FIRST**:
+   - `npx eas build --help` → verify correct flags
+   - Do NOT copy-paste commands from memory or docs
+   - Test with `npx eas build --platform android` (interactive mode) BEFORE production build
+10. ✅ Current quota confirmed: `npx eas account:usage bjgbs-team`
+11. ✅ ALL above items marked ✅ before executing production build
+
+**Production Build Command** (only after ALL 11 items pass):
+```bash
+npx eas build --platform android
+# Select "production" profile when prompted
+```
+
+**Why This Is Non-Negotiable**:
+- 15 builds/month = ~0.5/day
+- One command-line error = 2 weeks of waiting
+- No recovery: quota expires, cannot be rolled over
+- Typos in flags (`--type`, `--profile`, `-p`, etc.) fail fast and burn quota
