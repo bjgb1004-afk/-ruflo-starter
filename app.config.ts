@@ -23,14 +23,14 @@ const config: ExpoConfig = {
   },
   ios: {
     supportsTablet: true,
-    bundleIdentifier: "com.lottomap.app",
+    bundleIdentifier: "com.gzc.lottomap",
     jsEngine: "hermes",
     infoPlist: {
       LSApplicationQueriesSchemes: ["kakaomap", "nmap"],
     },
   },
   android: {
-    package: "com.lottomap.app",
+    package: "com.gzc.lottomap",
     versionCode: 1,
     jsEngine: "hermes",
     adaptiveIcon: {
