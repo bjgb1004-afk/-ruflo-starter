@@ -22,8 +22,94 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, spawn } = require('child_process');
 const os = require('os');
+
+// ─── Windows orphan-process fix ────────────────────────────────
+// On Windows, execSync/spawnSync's `timeout` option kills only the
+// IMMEDIATE child. When `shell: true`, that child is cmd.exe (`cmd /d /s
+// /c "<cmd>"`), and cmd.exe's own children (e.g. npx spawning a further
+// node process to run the resolved CLI) are NOT part of the same kill —
+// TerminateProcess on cmd.exe leaves them running as orphans. Observed
+// live: `node statusline.cjs -> cmd.exe -> node npx-cli.js`, with dozens
+// of orphaned npx-cli.js processes (~95MB each) accumulating over a
+// session because every 8s timeout only ever killed the cmd.exe layer.
+//
+// `taskkill /PID <pid> /T /F` reaps the whole tree — but only if <pid> is
+// still alive when it runs: /T walks CURRENT processes for matching
+// parent-PIDs, so a pid that's already dead (e.g. because Node's own
+// spawnSync `timeout` already called .kill() on it) leaves taskkill unable
+// to find anything to walk, and the grandchildren survive as orphans —
+// this was verified live: spawnSync's built-in timeout let cmd.exe die
+// first, and the orphaned npx-cli.js process kept running afterward.
+// Fix: never use the built-in timeout kill. Spawn async (so the pid is
+// available immediately, before anything has a chance to exit) and run our
+// OWN watchdog timer that tree-kills the still-alive root directly.
+function killTreeWindows(pid) {
+  if (process.platform !== 'win32' || !pid) return;
+  try { execSync('taskkill /PID ' + pid + ' /T /F', { stdio: 'ignore', timeout: 3000, windowsHide: true }); } catch { /* already gone */ }
+}
+
+// Runs `cmd` via a shell, capturing stdout. Resolves to the trimmed stdout
+// on a clean zero-exit, or null on any failure/timeout. On timeout, kills
+// the whole process tree while it's still alive (see killTreeWindows above)
+// instead of leaving descendants orphaned.
+function execCapture(cmd, opts) {
+  const timeoutMs = (opts && opts.timeout) || 8000;
+  const spawnOpts = Object.assign({ shell: true, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }, opts);
+  delete spawnOpts.timeout;
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn(cmd, [], spawnOpts);
+    } catch {
+      resolve(null);
+      return;
+    }
+    let out = '';
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+    const timer = setTimeout(() => {
+      killTreeWindows(child.pid);
+      finish(null);
+    }, timeoutMs);
+    if (child.stdout) child.stdout.on('data', (d) => { out += d; });
+    child.on('error', () => finish(null));
+    child.on('close', (code) => finish(code === 0 ? out.trim() : null));
+  });
+}
+
+// ─── CLI-delegation circuit breaker ────────────────────────────
+// When no local @claude-flow/cli install exists (this project has none —
+// no marketplace checkout, no node_modules, no global install), EVERY
+// render falls through to the network-dependent `npx --prefer-offline`
+// candidate. Without a breaker, that's a fresh spawn every ~20s (the
+// promoFresh clock — see readCache()) forever, each one a real chance to
+// hit the timeout/orphan path above. Trip the breaker on failure and skip
+// straight to cached/local data for a cooldown instead of respawning.
+const CLI_DOWN_MARKER = path.join(os.homedir(), '.ruflo', 'statusline-cli-down-until.json');
+const CLI_DOWN_COOLDOWN_MS = 10 * 60 * 1000;
+
+function isCliCircuitOpen() {
+  try {
+    const raw = readJSON(CLI_DOWN_MARKER);
+    return !!(raw && typeof raw.until === 'number' && Date.now() < raw.until);
+  } catch { return false; }
+}
+function tripCliCircuit() {
+  try {
+    fs.mkdirSync(path.dirname(CLI_DOWN_MARKER), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(CLI_DOWN_MARKER, JSON.stringify({ until: Date.now() + CLI_DOWN_COOLDOWN_MS }), { encoding: 'utf-8', mode: 0o600 });
+  } catch { /* ignore */ }
+}
+function resetCliCircuit() {
+  try { if (fs.existsSync(CLI_DOWN_MARKER)) fs.unlinkSync(CLI_DOWN_MARKER); } catch { /* ignore */ }
+}
 
 // Configuration
 const CONFIG = {
@@ -211,14 +297,14 @@ function overlayMemoPromo(data) {
   return data;
 }
 
-function getStatuslineData() {
+async function getStatuslineData() {
   const cache = readCache();
   // Both clocks must be satisfied to skip the CLI call entirely: the general
   // 60s TTL (#2337 — don't re-spawn the CLI on every rapid re-render) AND the
   // tighter promo-rotation clock (this fix — don't let a still-fresh 60s
   // cache silently freeze the promo/insight row across multiple 20s slots).
   if (cache.fresh && cache.promoFresh) {
-    return applyLocalOverlays(overlayMemoPromo(cache.data));
+    return await applyLocalOverlays(overlayMemoPromo(cache.data));
   }
 
   // #2337: prefer an already-installed CLI bin via direct `node` invocation —
@@ -237,39 +323,45 @@ function getStatuslineData() {
   // intelligence and an empty promo row (the memo cache that keeps the row
   // populated across CLI hiccups is only ever written from a SUCCESSFUL
   // delegation, so it could never get seeded on Windows either).
-  const cmds = resolveCliBinCandidates()
-    .map((bin) => '"' + process.execPath + '" "' + bin + '" hooks statusline --json')
-    .concat(['npx --prefer-offline @claude-flow/cli hooks statusline --json']);
+  const localBinCmds = resolveCliBinCandidates()
+    .map((bin) => '"' + process.execPath + '" "' + bin + '" hooks statusline --json');
+  // The network-dependent npx fallback is gated by the circuit breaker —
+  // local bin candidates (no network, no orphan risk) always still run.
+  const cmds = localBinCmds.concat(
+    isCliCircuitOpen() ? [] : ['npx --prefer-offline @claude-flow/cli hooks statusline --json']
+  );
+  let attemptedNpx = false;
   for (const cmd of cmds) {
+    if (cmd.indexOf('npx ') === 0) attemptedNpx = true;
+    const raw = await execCapture(cmd, { timeout: 8000, cwd: CWD });
+    if (!raw) continue;
     try {
-      const raw = execSync(
-        cmd,
-        { encoding: 'utf-8', timeout: 8000, stdio: ['pipe', 'pipe', 'pipe'], cwd: CWD, windowsHide: true }
-      ).trim();
       // The CLI may emit preamble lines before the JSON — find the first '{'.
       const jsonStart = raw.indexOf('{');
-      if (jsonStart === -1) throw new Error('no JSON in CLI output');
+      if (jsonStart === -1) continue;
       const data = JSON.parse(raw.slice(jsonStart));
       // Overlay every block the CLI JSON omits (adrs/agentdb/tests/hooks/integration)
       // with real local reads, so those segments reflect actual state instead of 0.
-      applyLocalOverlays(data);
+      await applyLocalOverlays(data);
       overlayMemoPromo(data);
       writeCache(data);
+      if (attemptedNpx) resetCliCircuit();
       return data;
-    } catch { /* this candidate unavailable, broken, or timed out — try the next */ }
+    } catch { /* malformed JSON from this candidate — try the next */ }
   }
+  if (attemptedNpx) tripCliCircuit();
 
   // Stale-while-revalidate: if we have any cached data, keep serving it so the
   // funnel row doesn't flicker on CLI hiccups. Overlay fresh local reads for
   // the segments the CLI JSON doesn't populate; the promo row survives.
   if (cache.data) {
-    applyLocalOverlays(cache.data);
+    await applyLocalOverlays(cache.data);
     overlayMemoPromo(cache.data);
     return cache.data;
   }
 
   // Last resort: local probes + memo. Users still see the funnel row.
-  return overlayMemoPromo(buildLocalFallback());
+  return overlayMemoPromo(await buildLocalFallback());
 }
 
 // Count ADRs from BOTH known directories (fix for ruflo#2195: old code missed
@@ -303,7 +395,7 @@ function getLocalADRCount() {
 // Real AgentDB stats from the local memory DB. Vectors live in .swarm/memory.db
 // (sql.js + HNSW); ruvector.db is an opaque redb store counted only toward size.
 // One read-only sqlite3 query (mode=ro never takes a write lock the daemon owns).
-function getLocalAgentDB() {
+async function getLocalAgentDB() {
   const result = { vectorCount: 0, dbSizeKB: 0, hasHnsw: false };
   try {
     let bytes = 0;
@@ -325,13 +417,13 @@ function getLocalAgentDB() {
       // HNSW flag, never the count. The init self-heal provisions the table so
       // the flag recovers on the next ruflo init / MCP start.
       const countSql = Q + 'SELECT COUNT(*) FROM memory_entries WHERE embedding IS NOT NULL;' + Q;
-      const vc = safeExec("sqlite3 'file:" + memDb + "?mode=ro' " + countSql, 1500);
+      const vc = await safeExec("sqlite3 'file:" + memDb + "?mode=ro' " + countSql, 1500);
       if (vc) result.vectorCount = parseInt(vc, 10) || 0;
       // HNSW flag: separate statement. If vector_indexes is absent, sqlite3
       // exits non-zero and safeExec returns empty -- hasHnsw stays false (exact
       // original semantics: at least one index-config row present).
       const hnswSql = Q + 'SELECT COUNT(*) FROM vector_indexes;' + Q;
-      const hn = safeExec("sqlite3 'file:" + memDb + "?mode=ro' " + hnswSql, 1500);
+      const hn = await safeExec("sqlite3 'file:" + memDb + "?mode=ro' " + hnswSql, 1500);
       if (hn) result.hasHnsw = (parseInt(hn, 10) || 0) > 0;
     }
   } catch { /* ignore */ }
@@ -557,9 +649,9 @@ function getLocalSecurity(cliSecurity) {
 }
 
 // Overlay every locally-derived block onto the CLI data (mutates in place).
-function applyLocalOverlays(data) {
+async function applyLocalOverlays(data) {
   data.adrs = getLocalADRCount();
-  data.agentdb = getLocalAgentDB();
+  data.agentdb = await getLocalAgentDB();
   data.tests = getLocalTests();
   data.hooks = getLocalHooks();
   data.integration = getLocalIntegration();
@@ -571,10 +663,10 @@ function applyLocalOverlays(data) {
 
 // Minimal local fallback when the CLI is not installed or times out.
 // Returns a structure that matches the CLI JSON schema so the renderer works.
-function buildLocalFallback() {
+async function buildLocalFallback() {
   const memMB = Math.floor(process.memoryUsage().heapUsed / 1024 / 1024);
 
-  return applyLocalOverlays({
+  return await applyLocalOverlays({
     user: { name: 'user', gitBranch: '', modelName: 'Claude Code' },
     v3Progress: { domainsCompleted: 0, totalDomains: 5, dddProgress: 0, patternsLearned: 0, sessionsCompleted: 0 },
     security: { status: 'NONE', findings: 0, cvesFixed: 0, totalCves: 0 },
@@ -604,22 +696,11 @@ const c = {
   brightWhite: '\x1b[1;37m',
 };
 
-// Safe execSync with strict timeout (returns empty string on failure)
-function safeExec(cmd, timeoutMs) {
-  try {
-    return execSync(cmd, {
-      encoding: 'utf-8',
-      timeout: timeoutMs || 2000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      // Windows: without this, every execSync spawns cmd.exe /d /s /c which
-      // flashes a visible console window every render (~1/min via the 60s
-      // cache TTL). windowsHide runs the child in a hidden window instead.
-      // No-op on POSIX. Fix for #2XXX (user report: "cmd prompt keeps opening").
-      windowsHide: true,
-    }).trim();
-  } catch {
-    return '';
-  }
+// Safe exec with strict timeout (returns empty string on failure). Routed
+// through execCapture so a timeout reaps the full process tree on Windows
+// instead of orphaning shell grandchildren (see killTreeWindows above).
+async function safeExec(cmd, timeoutMs) {
+  return (await execCapture(cmd, { timeout: timeoutMs || 2000 })) || '';
 }
 
 // Safe JSON file reader (returns null on failure)
@@ -634,7 +715,7 @@ function readJSON(filePath) {
 
 // ─── Git info (pure-Node / single exec — needed for branch display) ──────────
 
-function getGitInfo() {
+async function getGitInfo() {
   const result = {
     name: path.basename(CWD) || 'project', gitBranch: '', modified: 0, untracked: 0,
     staged: 0, ahead: 0, behind: 0,
@@ -652,7 +733,7 @@ function getGitInfo() {
     'git rev-list --left-right --count HEAD...@{upstream} 2>/dev/null || echo "0 0"',
   ].join('; ');
 
-  const raw = safeExec("sh -c '" + script + "'", 3000);
+  const raw = await safeExec("sh -c '" + script + "'", 3000);
   if (!raw) return result;
 
   const parts = raw.split('---SEP---').map(function(s) { return s.trim(); });
@@ -913,9 +994,9 @@ function progressBar(current, total) {
   return '[' + '●'.repeat(filled) + '○'.repeat(width - filled) + ']';
 }
 
-function generateStatusline() {
-  const d = getStatuslineData();
-  const git = getGitInfo();
+async function generateStatusline() {
+  const d = await getStatuslineData();
+  const git = await getGitInfo();
   const modelName = getModelFromStdin() || (d.user && d.user.modelName) || 'Claude Code';
   const ctxInfo = getContextFromStdin();
   const costInfo = getCostFromStdin();
@@ -1203,9 +1284,9 @@ function getPromoRow(d) {
 }
 
 // JSON output — delegates to CLI for accuracy; caller can use --json flag
-function generateJSON() {
-  const d = getStatuslineData();
-  const git = getGitInfo();
+async function generateJSON() {
+  const d = await getStatuslineData();
+  const git = await getGitInfo();
   return Object.assign({}, d, {
     user: Object.assign({ name: git.name, gitBranch: git.gitBranch }, d.user || {}),
     git: { modified: git.modified, untracked: git.untracked, staged: git.staged, ahead: git.ahead, behind: git.behind },
@@ -1214,10 +1295,12 @@ function generateJSON() {
 }
 
 // ─── Main ───────────────────────────────────────────────────────
-if (process.argv.includes('--json')) {
-  console.log(JSON.stringify(generateJSON(), null, 2));
-} else if (process.argv.includes('--compact')) {
-  console.log(JSON.stringify(generateJSON()));
-} else {
-  console.log(generateStatusline());
-}
+(async () => {
+  if (process.argv.includes('--json')) {
+    console.log(JSON.stringify(await generateJSON(), null, 2));
+  } else if (process.argv.includes('--compact')) {
+    console.log(JSON.stringify(await generateJSON()));
+  } else {
+    console.log(await generateStatusline());
+  }
+})();

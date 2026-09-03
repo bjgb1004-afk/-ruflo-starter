@@ -8,6 +8,11 @@
             "type": "command",
             "command": "cmd /c \"IF EXIST \"%CLAUDE_PROJECT_DIR%\\.claude\\helpers\\hook-handler.cjs\" (node \"%CLAUDE_PROJECT_DIR%\\.claude\\helpers\\hook-handler.cjs\" pre-bash) ELSE (node \"%USERPROFILE%\\.claude\\helpers\\hook-handler.cjs\" pre-bash)\"",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "node \"%CLAUDE_PROJECT_DIR%\\.claude\\helpers\\eas-build-guard.cjs\"",
+            "timeout": 5000
           }
         ]
       },
@@ -172,7 +177,10 @@
       "Bash(git branch *)",
       "Bash(git show *)",
       "Bash(git remote *)",
-      "Bash(npx eas-cli *)",
+      "Bash(npx eas-cli whoami)",
+      "Bash(npx eas-cli account:usage *)",
+      "Bash(npx eas-cli build:list *)",
+      "Bash(npx eas-cli update:list *)",
       "Bash(gh pr view *)",
       "Bash(gh pr list *)",
       "Bash(gh issue view *)",
@@ -186,9 +194,15 @@
     "deny": [
       "Read(./.env)",
       "Read(./.env.*)"
+    ],
+    "ask": [
+      "Bash(npx eas-cli build*)",
+      "Bash(npx eas-cli submit*)",
+      "Bash(eas build*)",
+      "Bash(eas submit*)"
     ]
   },
-  "model": "claude-haiku-4-5-20251001",
+  "model": "claude-sonnet-5",
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_FLOW_V3_ENABLED": "true",
