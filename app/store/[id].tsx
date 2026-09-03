@@ -27,6 +27,7 @@ import { useFavorites } from "@/features/favorites/useFavorites";
 import { useRecentlyViewed } from "@/features/favorites/useRecentlyViewed";
 import { useAuth } from "@/features/auth/useAuth";
 import { useSelectedStores } from "@/features/geofencing/useSelectedStores";
+import { useGeofencing } from "@/features/geofencing/useGeofencing";
 import { GEOFENCE_FREE_TIER_MAX } from "@/constants/config";
 import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
 import { getStoreOwnerProfile } from "@/features/storeOwner/api/storeOwnerApi";
@@ -169,6 +170,7 @@ export default function StoreDetailScreen() {
 
   const isSelected = useSelectedStores((s) => !!s.stores[id!]);
   const toggle = useSelectedStores((s) => s.toggle);
+  const { status: geofenceStatus, enable: enableGeofence } = useGeofencing();
 
   useEffect(() => {
     if (!stats || !id) return;
@@ -219,8 +221,22 @@ export default function StoreDetailScreen() {
     });
     if (result === null) {
       Alert.alert("선택 제한", `명당알림은 최대 ${GEOFENCE_FREE_TIER_MAX}개까지만 선택할 수 있어요.`);
+      return;
     }
-  }, [toggle, id, stats]);
+    // 새로 선택했고 아직 알림이 꺼져 있으면, 여기서 바로 disclosure 안내 후 권한 요청까지
+    // 이어간다 - "종 눌렀는데 왜 알림이 안 오지" 하고 설정 화면을 따로 찾아가야 했던
+    // 흐름을 없애고, 선택 = 알림 받기 의도가 그 자리에서 완결되게 한다.
+    if (result === true && geofenceStatus !== "enabled") {
+      Alert.alert(
+        "백그라운드 위치 접근 안내",
+        "명당알림을 켜면, 선택한 로또 판매점 근처에 도착했을 때 앱이 백그라운드 상태여도 방문 알림을 보내드리기 위해 백그라운드 위치 정보에 접근합니다. 선택한 판매점 위치만 사용하며, 언제든 설정에서 끌 수 있습니다.",
+        [
+          { text: "취소", style: "cancel" },
+          { text: "허용", onPress: enableGeofence },
+        ],
+      );
+    }
+  }, [toggle, id, stats, geofenceStatus, enableGeofence]);
 
   if (isLoading) {
     return (

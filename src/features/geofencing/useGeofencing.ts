@@ -86,7 +86,10 @@ export function useGeofencing() {
   }, [status, disable]);
 
   const enable = useCallback(async () => {
-    const stores = Object.values(selectedStores);
+    // 판매점 상세의 🔔 클릭 → toggle() 직후 곧바로 enable()이 불릴 수 있는데, 그 시점엔
+    // 이 훅이 구독 중인 selectedStores(클로저)가 아직 리렌더 전이라 방금 선택한 판매점이
+    // 빠져 있을 수 있다. zustand의 최신 스냅샷을 직접 읽어 이 레이스를 없앤다.
+    const stores = Object.values(useSelectedStores.getState().stores);
     if (stores.length === 0) {
       setStatus("error");
       setErrorMessage("알림 받을 판매점을 먼저 선택해주세요.");
@@ -147,7 +150,7 @@ export function useGeofencing() {
       setStatus("error");
       setErrorMessage(err instanceof Error ? err.message : String(err));
     }
-  }, [selectedStores]);
+  }, []);
 
   // 알림이 켜진 상태에서 선택 목록이 바뀌면 지오펜스를 재등록해 동기화한다.
   useEffect(() => {
