@@ -12,6 +12,9 @@ android/
 .env
 .env.local
 
+# Google Play 서비스 계정 키 (EAS submit 자동화용, 절대 커밋 금지)
+google-play-service-account.json
+
 # supabase local
 supabase/.branches/
 supabase/.temp/
