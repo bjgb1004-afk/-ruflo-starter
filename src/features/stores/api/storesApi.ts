@@ -87,39 +87,35 @@ export async function getStoreById(storeId: string): Promise<StoreDetail | null>
   return data;
 }
 
-// nearby_stores()는 당첨 이력이 없는 매장도 지도에 표시하지만, store_ranking_stats는
-// 당첨 이력이 있는 매장만 존재한다(refresh_store_ranking_stats가 draw_history 집계 기준으로 채움).
-// 그래서 stores를 기준으로 조회하고 store_ranking_stats는 있으면 병합, 없으면 0/null 기본값으로 채운다.
-export async function getStoreWithStats(
-  storeId: string,
-): Promise<(StoreRankingStats & { phone?: string; latitude?: number; longitude?: number }) | null> {
-  const { data: store, error: storeError } = await supabase
-    .from("stores")
-    .select(
-      "id, name, address, phone, latitude, longitude, has_parking, has_restroom, has_atm, amenities, rating, review_count, latest_review, business_hours",
-    )
-    .eq("id", storeId)
-    .single();
-  if (storeError && storeError.code !== "PGRST116") throw storeError;
-  if (!store) return null;
+// store_ranking_stats는 당첨 이력이 있는 매장만 존재한다(refresh_store_ranking_stats가
+// draw_history 집계 기준으로 채움) - 없으면 0/null 기본값으로 채운다. 이름/주소/좌표 같은
+// 고정정보(getStoreById)와 분리해 별도 쿼리로 둔 이유는 useStoreWithStats.ts 참고
+// (고정정보는 캐싱, 순위/통계는 매주 바뀌니 캐싱 안 함).
+export type StoreRankingStatsOnly = Pick<
+  StoreRankingStats,
+  | "first_prize_count"
+  | "second_prize_count"
+  | "first_prize_1yr"
+  | "first_prize_5yr"
+  | "second_prize_1yr"
+  | "store_score"
+  | "nation_rank"
+  | "province_rank"
+  | "city_rank"
+>;
 
-  const { data: stats, error: statsError } = await supabase
+export async function getStoreRankingStats(storeId: string): Promise<StoreRankingStatsOnly> {
+  const { data, error } = await supabase
     .from("store_ranking_stats")
     .select(
       "first_prize_count, second_prize_count, first_prize_1yr, first_prize_5yr, second_prize_1yr, store_score, nation_rank, province_rank, city_rank",
     )
     .eq("id", storeId)
     .maybeSingle();
-  if (statsError) throw statsError;
+  if (error) throw error;
 
-  const s = store as any;
-  const r = (stats as any) ?? {};
+  const r = (data as any) ?? {};
   return {
-    ...s,
-    ...r,
-    id: s.id,
-    name: s.name,
-    address: s.address,
     first_prize_count: r.first_prize_count ?? 0,
     second_prize_count: r.second_prize_count ?? 0,
     first_prize_1yr: r.first_prize_1yr ?? 0,
@@ -129,9 +125,6 @@ export async function getStoreWithStats(
     nation_rank: r.nation_rank ?? null,
     province_rank: r.province_rank ?? null,
     city_rank: r.city_rank ?? null,
-    phone: s.phone,
-    latitude: s.latitude,
-    longitude: s.longitude,
   };
 }
 
