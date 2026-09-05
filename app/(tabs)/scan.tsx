@@ -5,6 +5,7 @@ import { useIsFocused } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
+import * as WebBrowser from "expo-web-browser";
 import { useQuery } from "@tanstack/react-query";
 import { reportError } from "@/lib/errorLog";
 import { TicketNumberRow } from "@/components/TicketNumberRow";
@@ -505,6 +506,9 @@ export default function ScanScreen() {
               <>
                 <Text style={styles.sheetTitle}>{result.drawNo}회 추첨 전이에요</Text>
                 <Text style={styles.sheetSubtitle}>저장하면 추첨일에 알림을 보내드려요.</Text>
+                <Pressable style={styles.officialLink} onPress={() => WebBrowser.openBrowserAsync(result.qrUrl)}>
+                  <Text style={styles.officialLinkText}>동행복권에서 원본 확인 ↗</Text>
+                </Pressable>
                 <ScrollView style={styles.checkScroll}>
                   {result.games.map((g, idx) => (
                     <View key={idx} style={styles.checkGameRow}>
@@ -528,6 +532,9 @@ export default function ScanScreen() {
                       {result.drawNo}회 · {bestRank ? `${RANK_LABEL[bestRank]} 당첨!` : "낙첨"}
                     </Text>
                     <Text style={styles.sheetSubtitle}>{result.drawDate} 추첨</Text>
+                    <Pressable style={styles.officialLink} onPress={() => WebBrowser.openBrowserAsync(result.qrUrl)}>
+                      <Text style={styles.officialLinkText}>동행복권에서 원본 확인 ↗</Text>
+                    </Pressable>
                     <ScrollView style={styles.checkScroll}>
                       {result.games.map((g, idx) => (
                         <View key={idx} style={styles.checkGameRow}>
@@ -708,6 +715,8 @@ const styles = StyleSheet.create({
   },
   sheetTitle: { fontSize: 18, fontWeight: "800", color: colors.textPrimary },
   sheetSubtitle: { fontSize: 13, color: colors.textSecondary },
+  officialLink: { alignSelf: "flex-start", marginTop: spacing.sm },
+  officialLinkText: { fontSize: 12, fontWeight: "700", color: colors.primary },
   // 당첨확인(ok)/추첨전(pending)은 게임이 여러 개(a~e)일 수 있어 내용이 많다 - 짧은
   // 인식불가/에러 시트보다 크게 펼친다.
   sheetTall: { maxHeight: "80%" },
