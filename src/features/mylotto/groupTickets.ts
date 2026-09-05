@@ -22,3 +22,18 @@ export function groupTicketsByDraw(tickets: MyLottoTicket[]): TicketGroup[] {
   }
   return [...map.values()].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
 }
+
+// 게임 라벨(A,B,C...)은 실제 용지(한 번의 QR 스캔=groupId) 경계마다 A로 리셋돼야 한다.
+// 한 회차에 여러 장을 스캔했을 때 전체 게임을 이어서 A~J로 매기면 어느 용지가 몇 게임인지
+// 알 수 없다 - 5게임 고정으로 자르면 3게임만 산 용지가 섞였을 때 다시 어긋나므로, 실제
+// 스캔 단위인 groupId를 그대로 경계로 쓴다. groupId가 없는 구버전 티켓은 id로 대체해
+// 각자 단독 용지로 취급한다(useMyLottoTickets.ts의 groupId 주석 참고).
+export function withGameLabel(tickets: MyLottoTicket[]): { ticket: MyLottoTicket; label: string }[] {
+  const counters = new Map<string, number>();
+  return tickets.map((t) => {
+    const key = t.groupId ?? t.id;
+    const idx = counters.get(key) ?? 0;
+    counters.set(key, idx + 1);
+    return { ticket: t, label: String.fromCharCode(65 + idx) };
+  });
+}

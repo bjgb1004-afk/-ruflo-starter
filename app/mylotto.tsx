@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMyLottoTickets, LOTTO_UNIT_PRICE, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
 import { useAutoCheckTickets } from "@/features/mylotto/useAutoCheckTickets";
-import { groupTicketsByDraw, type TicketGroup } from "@/features/mylotto/groupTickets";
+import { groupTicketsByDraw, withGameLabel, type TicketGroup } from "@/features/mylotto/groupTickets";
 import { computeVaultSummary, computeFrequentNumbers } from "@/features/mylotto/stats";
 import { WinningCard } from "@/features/mylotto/components/WinningCard";
 import { LottoBall } from "@/components/LottoBall";
@@ -62,13 +62,13 @@ function RoiBars({ spent, won, breakpoint }: { spent: number; won: number; break
 
 const TicketRow = ({
   ticket,
-  index,
+  label,
   onShare,
   breakpoint,
   draw,
 }: {
   ticket: MyLottoTicket;
-  index: number;
+  label: string;
   onShare: (t: MyLottoTicket) => void;
   breakpoint: "small" | "medium" | "large";
   draw: DrawSummary | null | undefined;
@@ -76,7 +76,7 @@ const TicketRow = ({
   <View style={styles.ticketRow}>
     <View style={styles.ticketIndex}>
       <Text style={[styles.ticketIndexText, { fontSize: getResponsiveFontSize(11, breakpoint) }]}>
-        {String.fromCharCode(65 + index)}
+        {label}
       </Text>
     </View>
     <View style={styles.ticketInfo}>
@@ -170,8 +170,8 @@ const TicketGroupCard = ({
         </Pressable>
       </View>
       {expanded &&
-        group.tickets.map((t, idx) => (
-          <TicketRow key={t.id} ticket={t} index={idx} onShare={onShare} breakpoint={breakpoint} draw={draw} />
+        withGameLabel(group.tickets).map(({ ticket: t, label }) => (
+          <TicketRow key={t.id} ticket={t} label={label} onShare={onShare} breakpoint={breakpoint} draw={draw} />
         ))}
     </View>
   );

@@ -12,7 +12,7 @@ import { useDrawsByNo } from "@/features/draws/useDrawsByNo";
 import { parseLottoQr, type ParsedLottoGame } from "@/features/qr/parseLottoQr";
 import { computeWinRank, getPrizeAmount, type WinRank } from "@/features/qr/checkWinnings";
 import { useMyLottoTickets, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
-import { groupTicketsByDraw, type TicketGroup } from "@/features/mylotto/groupTickets";
+import { groupTicketsByDraw, withGameLabel, type TicketGroup } from "@/features/mylotto/groupTickets";
 import { useScanSettings } from "@/features/mylotto/useScanSettings";
 import { scheduleDrawReminder } from "@/features/mylotto/drawReminders";
 import { registerResultPushSubscription } from "@/features/mylotto/pushSubscription";
@@ -78,9 +78,9 @@ function VaultDrawCard({
           <Text style={styles.vaultCardDeleteIcon}>🗑️</Text>
         </Pressable>
       </View>
-      {tickets.map((ticket, idx) => (
+      {withGameLabel(tickets).map(({ ticket, label }) => (
         <View key={ticket.id} style={styles.vaultCardGame}>
-          <Text style={styles.vaultCardGameIndex}>{String.fromCharCode(65 + idx)}</Text>
+          <Text style={styles.vaultCardGameIndex}>{label}</Text>
           <TicketNumberRow
             numbers={ticket.numbers}
             winningSet={winningSet}
