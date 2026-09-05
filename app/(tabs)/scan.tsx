@@ -8,6 +8,7 @@ import * as Haptics from "expo-haptics";
 import * as WebBrowser from "expo-web-browser";
 import { reportError } from "@/lib/errorLog";
 import { TicketNumberRow } from "@/components/TicketNumberRow";
+import { LottoBall } from "@/components/LottoBall";
 import { getDrawByNo, type DrawSummary } from "@/features/draws/api/drawHistoryApi";
 import { useDrawsByNo } from "@/features/draws/useDrawsByNo";
 import { parseLottoQr, type ParsedLottoGame } from "@/features/qr/parseLottoQr";
@@ -71,26 +72,35 @@ function VaultDrawCard({
   onDelete: () => void;
 }) {
   const winningSet = draw ? new Set(draw.winning_numbers) : null;
+  const qrUrl = tickets.find((t) => t.qrUrl)?.qrUrl;
   return (
     <View style={styles.vaultCard}>
       <View style={styles.vaultCardHeader}>
         <Text style={styles.vaultCardTitle}>{drawNo}회</Text>
         {draw && (
-          <Text style={styles.vaultCardWinningNumbers} numberOfLines={1}>
-            {draw.winning_numbers.join(", ")} + {draw.bonus_number}
-          </Text>
+          <View style={styles.vaultCardWinningBalls}>
+            {draw.winning_numbers.map((n) => (
+              <LottoBall key={n} number={n} size="xs" />
+            ))}
+            <Text style={styles.vaultCardPlus}>+</Text>
+            <LottoBall number={draw.bonus_number} size="xs" />
+          </View>
         )}
         <Pressable hitSlop={8} onPress={onDelete}>
           <Text style={styles.vaultCardDeleteIcon}>🗑️</Text>
         </Pressable>
       </View>
+      {qrUrl && (
+        <Pressable style={styles.vaultCardOfficialLink} onPress={() => WebBrowser.openBrowserAsync(qrUrl)}>
+          <Text style={styles.vaultCardOfficialLinkText}>동행복권에서 원본 확인 ↗</Text>
+        </Pressable>
+      )}
       {withGameLabel(tickets).map(({ ticket, label }) => (
         <View key={ticket.id} style={styles.vaultCardGame}>
           <Text style={styles.vaultCardGameIndex}>{label}</Text>
           <TicketNumberRow
             numbers={ticket.numbers}
             winningSet={winningSet}
-            bonusNumber={draw?.bonus_number}
             ballSize="xs"
             containerStyle={styles.vaultCardBalls}
             plainTextStyle={styles.vaultCardNumberPlain}
@@ -212,8 +222,16 @@ export default function ScanScreen() {
         addTickets(
           data.games.map((g) =>
             g.amountPending
-              ? { drawNo: data.drawNo, numbers: g.numbers, purchaseType: g.type }
-              : { drawNo: data.drawNo, numbers: g.numbers, purchaseType: g.type, checked: true, rank: g.rank, prizeAmount: g.prizeAmount },
+              ? { drawNo: data.drawNo, numbers: g.numbers, purchaseType: g.type, qrUrl: data.qrUrl }
+              : {
+                  drawNo: data.drawNo,
+                  numbers: g.numbers,
+                  purchaseType: g.type,
+                  checked: true,
+                  rank: g.rank,
+                  prizeAmount: g.prizeAmount,
+                  qrUrl: data.qrUrl,
+                },
           ),
         );
         // 금액 집계가 아직 안 끝난 게임이 있으면(1~3등 파리뮤추얼 금액 null), 다음 보관함
@@ -231,6 +249,7 @@ export default function ScanScreen() {
             drawNo: data.drawNo,
             numbers: g.numbers,
             purchaseType: g.type,
+            qrUrl: data.qrUrl,
           })),
         );
         scheduleDrawReminder(data.drawNo).catch((err) => reportError(err, "mylotto-reminder"));
@@ -637,8 +656,11 @@ const styles = StyleSheet.create({
   },
   vaultCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   vaultCardTitle: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
-  vaultCardWinningNumbers: { flex: 1, fontSize: 11, color: colors.textMuted, textAlign: "right" },
+  vaultCardWinningBalls: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
+  vaultCardPlus: { fontSize: 11, fontWeight: "700", color: colors.textMuted, marginHorizontal: 1 },
   vaultCardDeleteIcon: { fontSize: 16 },
+  vaultCardOfficialLink: { alignSelf: "flex-end" },
+  vaultCardOfficialLinkText: { fontSize: 11, fontWeight: "700", color: colors.primary },
   vaultCardGame: {
     flexDirection: "row",
     alignItems: "center",

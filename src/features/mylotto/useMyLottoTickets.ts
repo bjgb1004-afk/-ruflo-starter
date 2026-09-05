@@ -23,12 +23,15 @@ export interface MyLottoTicket {
   checked: boolean;
   rank: WinRank;
   prizeAmount: number;
+  // QR 스캔 시 원본으로 찍힌 동행복권 URL - 보관함에서도 "원본 확인" 링크를 열 수 있게 저장한다.
+  // 이 필드가 생기기 전에 저장된 기존 티켓은 undefined라 그 카드에는 링크를 표시하지 않는다.
+  qrUrl?: string;
 }
 
 // 이미 결과가 나온 회차를 스캔한 경우 저장 시점에 바로 checked/rank/prizeAmount를 채워 넣을 수
 // 있도록 선택 필드로 둔다. 생략하면(추첨 전 저장) checked=false로 시작해 나중에 markChecked로 갱신한다.
 export type NewTicketInput = Pick<MyLottoTicket, "drawNo" | "numbers" | "purchaseType"> &
-  Partial<Pick<MyLottoTicket, "checked" | "rank" | "prizeAmount">>;
+  Partial<Pick<MyLottoTicket, "checked" | "rank" | "prizeAmount" | "qrUrl">>;
 
 interface MyLottoState {
   tickets: Record<string, MyLottoTicket>;
