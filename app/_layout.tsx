@@ -18,6 +18,7 @@ import { reportError } from "@/lib/errorLog";
 import { initAnalytics } from "@/lib/analytics";
 import { useAuth } from "@/features/auth/useAuth";
 import { useFavoritesCloudSync } from "@/features/favorites/useFavoritesCloudSync";
+import { cleanupLegacyDrawReminders } from "@/features/mylotto/drawReminders";
 import { colors } from "@/constants/theme";
 // 지오펜스 백그라운드 태스크는 앱 로드 시점에 반드시 최상위에서 등록되어야
 // OS가 재시작 후 백그라운드에서 앱을 깨울 때도 태스크를 찾을 수 있다.
@@ -69,6 +70,7 @@ export default function RootLayout() {
     initSentry();
     initAnalytics();
     initAuth();
+    cleanupLegacyDrawReminders().catch((err) => reportError(err, "cleanup-legacy-reminders"));
   }, [initAuth]);
 
   // 숫자 전용 폰트가 준비되기 전에 화면이 먼저 그려지면 순위/점수 숫자가
