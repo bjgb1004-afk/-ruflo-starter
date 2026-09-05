@@ -4,6 +4,7 @@ import { Stack } from "expo-router";
 import { SystemBars } from "react-native-edge-to-edge";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryCache, MutationCache } from "@tanstack/react-query";
+import * as Updates from "expo-updates";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -72,6 +73,24 @@ export default function RootLayout() {
     initAuth();
     cleanupLegacyDrawReminders().catch((err) => reportError(err, "cleanup-legacy-reminders"));
   }, [initAuth]);
+
+  // 기본 동작(체크 후 백그라운드 다운로드만 해두고 "다음번" 재실행에서야 적용)은 사용자가
+  // 두 번 완전 재시작해야 최신 코드를 보는 상황을 만든다 - 받자마자 그 자리에서 한 번 더
+  // 리로드해 앱을 한 번만 열어도 최신 버전이 뜨게 한다. Updates.isEnabled는 개발 빌드/Expo
+  // Go에서 false라 프로덕션 빌드에서만 동작한다.
+  useEffect(() => {
+    if (!Updates.isEnabled) return;
+    (async () => {
+      try {
+        const { isAvailable } = await Updates.checkForUpdateAsync();
+        if (!isAvailable) return;
+        await Updates.fetchUpdateAsync();
+        await Updates.reloadAsync();
+      } catch (err) {
+        reportError(err, "ota-update-check");
+      }
+    })();
+  }, []);
 
   // 숫자 전용 폰트가 준비되기 전에 화면이 먼저 그려지면 순위/점수 숫자가
   // 시스템 폰트로 한 번 렌더링됐다가 폰트로 바뀌면서 깜빡이므로, 로딩 완료까지 대기한다.
