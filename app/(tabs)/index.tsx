@@ -1,4 +1,4 @@
-import { StyleSheet, View, ActivityIndicator, Text, TextInput, Pressable, FlatList, Modal } from "react-native";
+import { StyleSheet, View, ActivityIndicator, Text, TextInput, Pressable, FlatList, Modal, Linking } from "react-native";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -29,7 +29,11 @@ export default function MapScreen() {
   const router = useRouter();
   const { breakpoint } = useResponsive();
   const [showLocationPermissionGuide, setShowLocationPermissionGuide] = useState(false);
-  const [hasShownLocationGuide, setHasShownLocationGuide] = useState(false);
+  // AsyncStorage 조회가 끝났는지만 추적한다 - "이번에 안내를 띄웠는지"와 혼동하면 안 된다.
+  // 예전엔 이 값이 "처음 보여줄 때만" true가 됐는데, 그러면 안내를 이미 본 사용자는
+  // guideCheckDone이 영원히 false로 남아 아래 locationError 분기가 스피너에서 못 빠져나왔다
+  // (권한을 거부한 재방문 사용자가 무한 로딩에 갇히는 버그).
+  const [guideCheckDone, setGuideCheckDone] = useState(false);
   const { location, error: locationError } = useCurrentLocation();
 
   // 앱 첫 진입 시 한 번만 위치 권한 안내 모달 표시
@@ -38,9 +42,9 @@ export default function MapScreen() {
       const shown = await AsyncStorage.getItem("location-permission-guide-shown");
       if (!shown) {
         setShowLocationPermissionGuide(true);
-        setHasShownLocationGuide(true);
         await AsyncStorage.setItem("location-permission-guide-shown", "true");
       }
+      setGuideCheckDone(true);
     })();
   }, []);
 
@@ -186,7 +190,7 @@ export default function MapScreen() {
 
   const isSearchMode = debouncedQuery.length > 0;
 
-  if (locationError && !hasShownLocationGuide) {
+  if (locationError && !guideCheckDone) {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
@@ -197,7 +201,10 @@ export default function MapScreen() {
   if (locationError) {
     return (
       <View style={styles.center}>
-        <Text>위치 권한이 필요합니다: {locationError}</Text>
+        <Text style={styles.locationErrorText}>위치 권한이 필요합니다: {locationError}</Text>
+        <Pressable style={styles.locationErrorButton} onPress={() => Linking.openSettings()}>
+          <Text style={styles.locationErrorButtonText}>설정에서 권한 허용하기</Text>
+        </Pressable>
       </View>
     );
   }
@@ -324,6 +331,15 @@ const styles = StyleSheet.create({
   mapWrap: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyText: { color: colors.textMuted, fontSize: 14 },
+  locationErrorText: { paddingHorizontal: spacing.lg, textAlign: "center", color: colors.textMuted },
+  locationErrorButton: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+  },
+  locationErrorButtonText: { color: "#fff", fontWeight: "700" },
   modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.5)" },
   modalBackdropTouchable: { ...StyleSheet.absoluteFillObject },
   modalCard: {
