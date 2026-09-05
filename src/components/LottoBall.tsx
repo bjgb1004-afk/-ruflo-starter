@@ -82,9 +82,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 50,
   },
+  // 반투명 흰 테두리 2px로는 실기기 화면에서 거의 안 보여, "본번호 2개 + 보너스 1개"를
+  // 3개 일치로 착각해 5등인 줄 알았는데 낙첨으로 뜨는 문의로 이어졌다 - 짙은 테두리로
+  // 확실히 구분되게 한다.
   ballBonus: {
-    borderWidth: 2,
-    borderColor: "rgba(255, 255, 255, 0.5)",
+    borderWidth: 3,
+    borderColor: "#000",
   },
   text: {
     fontWeight: "700",

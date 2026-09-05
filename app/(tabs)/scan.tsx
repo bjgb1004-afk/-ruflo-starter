@@ -5,9 +5,11 @@ import { useIsFocused } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
+import { useQuery } from "@tanstack/react-query";
 import { reportError } from "@/lib/errorLog";
 import { TicketNumberRow } from "@/components/TicketNumberRow";
-import { getDrawByNo, type DrawSummary } from "@/features/draws/api/drawHistoryApi";
+import { LottoBall } from "@/components/LottoBall";
+import { getDrawByNo, getLatestDraw, type DrawSummary } from "@/features/draws/api/drawHistoryApi";
 import { useDrawsByNo } from "@/features/draws/useDrawsByNo";
 import { parseLottoQr, type ParsedLottoGame } from "@/features/qr/parseLottoQr";
 import { computeWinRank, getPrizeAmount, type WinRank } from "@/features/qr/checkWinnings";
@@ -96,6 +98,32 @@ function VaultDrawCard({
           </View>
         </View>
       ))}
+    </View>
+  );
+}
+
+// QR을 찍자마자 "이게 3개 맞은 건가 아닌가"를 그 자리에서 눈으로 대조할 수 있게, 최신
+// 회차 당첨번호를 보관함 목록 위에 함께 보여준다. 보관함 카드의 색공 하이라이트만으론
+// 어떤 번호가 실제 당첨번호인지 몰라 착각하기 쉬웠다(보너스만 맞은 걸 3개 일치로 오인한 문의).
+function LatestDrawBanner() {
+  const { data: latest } = useQuery({
+    queryKey: ["draws", "latest"],
+    queryFn: getLatestDraw,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+  if (!latest) return null;
+
+  return (
+    <View style={styles.latestDrawBanner}>
+      <Text style={styles.latestDrawTitle}>{latest.draw_no}회 당첨번호</Text>
+      <View style={styles.latestDrawBalls}>
+        {latest.winning_numbers.map((n) => (
+          <LottoBall key={n} number={n} size="xs" />
+        ))}
+        <Text style={styles.latestDrawPlus}>+</Text>
+        <LottoBall number={latest.bonus_number} size="xs" isBonus />
+      </View>
     </View>
   );
 }
@@ -428,6 +456,7 @@ export default function ScanScreen() {
             </Pressable>
           </View>
         </View>
+        <LatestDrawBanner />
         {recentTickets.length === 0 ? (
           <View style={styles.vaultEmpty}>
             <Text style={styles.vaultEmptyText}>스캔한 복권이 여기에 저장돼요</Text>
@@ -612,6 +641,17 @@ const styles = StyleSheet.create({
   vaultPanelTitle: { fontSize: 15, fontWeight: "800", color: colors.textPrimary },
   vaultPanelMore: { fontSize: 12, fontWeight: "700", color: colors.primary },
   vaultPanelClearAll: { fontSize: 12, fontWeight: "600", color: colors.textMuted },
+  latestDrawBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.goldLight,
+  },
+  latestDrawTitle: { fontSize: 12, fontWeight: "700", color: colors.textPrimary },
+  latestDrawBalls: { flexDirection: "row", alignItems: "center", gap: 4 },
+  latestDrawPlus: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
   vaultList: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.lg },
   vaultEmpty: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.lg },
   vaultEmptyText: { fontSize: 13, color: colors.textMuted },
