@@ -17,6 +17,7 @@ import {
 import { initSentry } from "@/lib/sentry";
 import { reportError } from "@/lib/errorLog";
 import { initAnalytics } from "@/lib/analytics";
+import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/features/auth/useAuth";
 import { useFavoritesCloudSync } from "@/features/favorites/useFavoritesCloudSync";
 import { cleanupLegacyDrawReminders } from "@/features/mylotto/drawReminders";
@@ -90,6 +91,21 @@ export default function RootLayout() {
         reportError(err, "ota-update-check");
       }
     })();
+  }, []);
+
+  // 로또 추첨은 매주 토요일 20시35분 KST - GitHub Actions의 schedule 트리거는 정시성이
+  // 없어(부하 시 몇 시간 지연/스킵 가능, 실측으로 확인됨) 추첨 후 시간대에 앱을 여는 순간
+  // 서버에 최신 회차 반영을 재촉한다. 요일/시간을 여기서 먼저 걸러 그 외엔 서버 호출 자체를
+  // 안 만든다 - 어차피 그 시간대가 아니면 신규 회차가 있을 수 없다. 실제 "먼저 연 사람만
+  // 트리거, 이후엔 무시"는 Edge Function 쪽 sync_lock 원자적 UPDATE로 처리한다.
+  useEffect(() => {
+    const now = new Date();
+    const kstHour = (now.getUTCHours() + 9) % 24;
+    const kstDay = new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCDay(); // 0=일 ... 6=토
+    const isDrawWindow = kstDay === 6 && kstHour >= 20;
+    if (!isDrawWindow) return;
+
+    supabase.functions.invoke("trigger-draw-sync").catch((err) => reportError(err, "trigger-draw-sync"));
   }, []);
 
   // 숫자 전용 폰트가 준비되기 전에 화면이 먼저 그려지면 순위/점수 숫자가

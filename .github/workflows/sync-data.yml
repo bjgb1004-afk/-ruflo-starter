@@ -22,6 +22,11 @@ on:
     # 반영이 늦어졌을 경우를 대비한 최종 안전망. 평소엔 신규 회차가 없어 그냥 스킵된다.
     - cron: '0 18 * * *'
 
+  # 앱이 열릴 때 Supabase Edge Function(trigger-draw-sync)이 최신 회차 누락을 감지하면
+  # 정시성 없는 schedule 트리거를 기다리지 않고 즉시 이 이벤트로 깨운다.
+  repository_dispatch:
+    types: [sync-draw]
+
   # 수동 실행
   workflow_dispatch:
     inputs:
