@@ -16,9 +16,9 @@ interface MoreMenuItem {
 // 추후 메뉴가 늘어나도 이 배열에 항목만 추가하면 되도록 데이터 기반으로 구성한다.
 // QR 당첨확인이 탭으로 나가고, 즐겨찾기가 그 자리로 들어왔다(design.txt 요구사항).
 const MENU_ITEMS: MoreMenuItem[] = [
-  { key: "favorites", emoji: "⭐", label: "즐겨찾기", href: "/favorites" },
-  { key: "stats", emoji: "📊", label: "회차별 당첨현황", href: "/stats" },
-  { key: "settings", emoji: "⚙️", label: "앱 설정", href: "/settings" },
+  { key: "favorites", emoji: "⭐", label: "즐겨찾기", href: "/more/favorites" },
+  { key: "stats", emoji: "📊", label: "회차별 당첨현황", href: "/more/stats" },
+  { key: "settings", emoji: "⚙️", label: "앱 설정", href: "/more/settings" },
 ];
 
 export default function MoreScreen() {

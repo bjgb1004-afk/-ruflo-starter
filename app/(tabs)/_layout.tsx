@@ -39,16 +39,14 @@ export default function TabsLayout() {
           tabBarIcon: ({ focused }) => <TabIcon emoji="📷" focused={focused} />,
         }}
       />
-      {/* 즐겨찾기/지역 통계/설정은 탭바에서 빼서 "더보기" 하위 메뉴로 옮긴다(design.txt
-          요구사항 - 즐겨찾기는 이번에 QR당첨확인과 자리를 바꿈). href: null로 탭바 노출만
-          숨기고 라우트 자체는 유지해, 더보기 화면에서 router.push로 그대로 이동할 수 있게 한다. */}
-      <Tabs.Screen name="favorites" options={{ title: "즐겨찾기", href: null }} />
-      <Tabs.Screen name="stats" options={{ title: "회차별 당첨현황", href: null }} />
-      <Tabs.Screen name="settings" options={{ title: "설정", href: null }} />
+      {/* 즐겨찾기/회차별 당첨현황/설정은 탭바에 안 보이고 "더보기" 하위 스택
+          (app/(tabs)/more/_layout.tsx)에서 화면과 헤더를 관리한다. 이 탭의 headerShown을
+          꺼서 하위 스택 헤더와 중복되지 않게 한다. */}
       <Tabs.Screen
         name="more"
         options={{
           title: "더보기",
+          headerShown: false,
           // 이모지(⋯)는 iOS/Android 폰트 렌더링 차이로 세로 정렬이 어긋날 수 있어
           // 벡터 아이콘으로 대체 - 다른 탭과 달리 텍스트 글리프가 아니라 SVG라 플랫폼 간 일관됨.
           // color는 tabBarActiveTintColor/tabBarInactiveTintColor가 자동으로 넘겨준다.
