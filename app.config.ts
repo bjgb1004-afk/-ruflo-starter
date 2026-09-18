@@ -31,13 +31,30 @@ const config: ExpoConfig = {
   },
   android: {
     package: "com.gzc.lottomap",
-    versionCode: 1,
+    // version(1.0.0)은 그대로 둔다 - runtimeVersion 정책이 appVersion이라 버전을 올리면
+    // 기존 1.0.0 사용자와 OTA 런타임이 갈라져서, JS 수정을 한 번의 eas update로 양쪽에
+    // 보낼 수 없게 된다. 스토어 업로드에 필요한 것은 versionCode 증가뿐이다.
+    versionCode: 2,
     jsEngine: "hermes",
     adaptiveIcon: {
       foregroundImage: "./assets/images/adaptive-icon.png",
       backgroundColor: "#ffffff",
     },
     permissions: ["ACCESS_BACKGROUND_LOCATION", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+    // 라이브러리 매니페스트가 병합으로 끌고 오는, 이 앱이 쓰지 않는 권한들을 제거한다
+    // (Play Console 출시 상세에 권한 36개로 노출되던 것 중 불필요분).
+    // - RECORD_AUDIO: expo-camera가 녹화용으로 선언. QR 스캔만 하고 recordAsync/video
+    //   모드를 쓰지 않아 필요 없다. 플러그인 옵션(recordAudioAndroid:false)은 추가를
+    //   막을 뿐이고, expo-camera 자체 매니페스트 선언은 이 목록으로만 제거된다.
+    // - READ/WRITE_EXTERNAL_STORAGE: expo-file-system(expo-updates 등의 전이 의존성)이
+    //   선언. 앱 코드에서 직접 쓰는 곳이 없고 앱 전용 디렉터리만 사용한다.
+    // - SYSTEM_ALERT_WINDOW: react-native 디버그 매니페스트의 개발자 오버레이용.
+    blockedPermissions: [
+      "android.permission.RECORD_AUDIO",
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+      "android.permission.SYSTEM_ALERT_WINDOW",
+    ],
     config: {
       googleMaps: {
         apiKey: process.env.GOOGLE_MAPS_API_KEY_ANDROID,
@@ -69,12 +86,14 @@ const config: ExpoConfig = {
       "expo-camera",
       {
         cameraPermission: "로또 용지 QR코드로 당첨 여부를 확인하기 위해 카메라를 사용합니다.",
+        recordAudioAndroid: false,
       },
     ],
     "expo-font",
     "expo-web-browser",
     "./plugins/withMapAppQueries",
     "./plugins/withAndroidLargeHeap",
+    "./plugins/withAndroidMinify",
     // Android 15 엣지투엣지에서는 StatusBar.setBackgroundColor 등이 조용히 무시돼서
     // expo-status-bar의 style만으로는 상태바 배경/아이콘 색이 제대로 안 먹는다(흰 배경에
     // 흰 아이콘이 겹쳐 안 보이는 문제로 실기기에서 확인됨) - react-native-edge-to-edge의

@@ -73,8 +73,7 @@ const RankingRow = memo(function RankingRow({
           </Text>
           <Text style={styles.meta}>
             1등 {item.first_prize_count}회
-            {item.second_prize_count > 0 ? ` · 2등 ${item.second_prize_count}회` : ""} · 점수{" "}
-            {Math.round(item.store_score)}
+            {item.second_prize_count > 0 ? ` · 2등 ${item.second_prize_count}회` : ""}
           </Text>
         </View>
         <Pressable onPress={handleToggleAlert} hitSlop={10} style={styles.bellButton}>
