@@ -34,6 +34,18 @@ const SIDO_ALIASES: Record<string, string> = {
   제주도: "제주특별자치도",
 };
 
+// 동행복권 원본 주소에 폐지·개칭 전 지명이 그대로 남아 있어, 같은 지역이 시/군/구
+// 목록에 유령 항목으로 따로 잡히던 것들. 실측으로 확인된 표기만 넣는다.
+// (진해시는 마산시와 같은 2010년 창원 통합 건이라 아직 데이터엔 없어도 같이 둔다.)
+const DISTRICT_RENAMES: Record<string, { sido?: string; sigungu: string }> = {
+  "인천광역시 남구": { sigungu: "미추홀구" }, // 2018년 개칭
+  "인천광역시 검단구": { sigungu: "서구" }, // 검단은 서구 관할, 검단구는 존재한 적 없음
+  "인천광역시 서해구": { sigungu: "서구" }, // 존재하지 않는 표기 (원창동 = 서구)
+  "경상남도 마산시": { sigungu: "창원시" }, // 2010년 창원시 통합
+  "경상남도 진해시": { sigungu: "창원시" }, // 2010년 창원시 통합
+  "경상북도 군위군": { sido: "대구광역시", sigungu: "군위군" }, // 2023년 대구 편입
+};
+
 // 층/호/괄호/구분 특수문자 등 매칭에 방해되는 불용어
 const NOISE_PATTERNS: RegExp[] = [
   /\([^)]*\)/g, // 괄호 안 내용 (우편번호, 참고사항 등)
@@ -80,7 +92,19 @@ export function normalizeAddress(rawAddress: string): NormalizedAddress {
   address = normalizeWhitespace(address);
   address = normalizeSido(address);
 
-  const [sido, sigungu] = address.split(" ");
+  const parts = address.split(" ");
+  let sido: string | null = parts[0] ?? null;
+  // 두 번째 토큰을 무조건 시/군/구로 받아들이면 안 된다. 세종특별자치시는 산하에
+  // 시/군/구가 아예 없어서 바로 도로명("세종특별자치시 한누리대로 …")이 오는데,
+  // 그게 그대로 시/군/구로 저장돼 랭킹 화면 "시/군/구 선택"에 도로명 24종이 떴다.
+  let sigungu: string | null = parts[1] && /[시군구]$/.test(parts[1]) ? parts[1] : null;
+
+  const rename = sigungu ? DISTRICT_RENAMES[`${sido} ${sigungu}`] : undefined;
+  if (rename) {
+    address = address.replace(`${sido} ${sigungu}`, `${rename.sido ?? sido} ${rename.sigungu}`);
+    sido = rename.sido ?? sido;
+    sigungu = rename.sigungu;
+  }
 
   // 예: "테헤란로 123-4" -> 본번 123, 부번 4 / "테헤란로 123" -> 본번 123, 부번 0
   const match = address.match(/(\d+)(?:-(\d+))?\s*$/);
