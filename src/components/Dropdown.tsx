@@ -1,5 +1,6 @@
 import { memo, useCallback, useState } from "react";
 import { FlatList, Modal, Pressable, StyleSheet, Text } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, spacing, radius } from "@/constants/theme";
 
 interface Props<T> {
@@ -16,6 +17,9 @@ interface Props<T> {
 // 한 줄만 차지하고, 누르면 전체 목록이 모달로 뜬다. FlatList라 옵션이 많아도 가볍다.
 function DropdownInner<T>({ placeholder, value, options, getKey, getLabel, onSelect }: Props<T>) {
   const [open, setOpen] = useState(false);
+  // 엣지투엣지라 모달 시트가 기기 하단 내비게이션 바 아래까지 그려진다 - 인셋만큼
+  // 더 띄우지 않으면 목록 마지막 항목(지역 이름)이 하단바에 가려 안 보인다.
+  const insets = useSafeAreaInsets();
   const handleClose = useCallback(() => setOpen(false), []);
   const handleSelect = useCallback(
     (item: T) => {
@@ -35,7 +39,10 @@ function DropdownInner<T>({ placeholder, value, options, getKey, getLabel, onSel
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={handleClose}>
         <Pressable style={styles.backdrop} onPress={handleClose}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+          <Pressable
+            style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}
+            onPress={(e) => e.stopPropagation()}
+          >
             <Text style={styles.sheetTitle}>{placeholder}</Text>
             <FlatList
               data={options}

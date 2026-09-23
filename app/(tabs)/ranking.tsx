@@ -153,18 +153,17 @@ export default function RankingScreen() {
   // 시군구 드롭다운 목록 - 위 랭킹 조회와 별개로, 시/도 선택 시점에 그 시/도 전체의
   // 구/군 목록을 한 번만 가져온다 (구/군을 고른 뒤에도 목록 자체는 안 바뀌어야 하므로
   // allStores를 재사용하지 않는다).
+  // DISTINCT는 반드시 서버(sigungu_list RPC)에서 해야 한다. 예전엔 매장 행을 통째로
+  // 긁어와 클라이언트에서 중복 제거했는데, PostgREST가 응답을 1000행에서 잘라버려
+  // 매장이 많은 서울/경기는 구/군 절반이 목록에서 통째로 빠졌다.
   const { data: cities = [] } = useQuery<string[]>({
     queryKey: ["stores", "ranking", "cities", selectedProvince],
     queryFn: async (): Promise<string[]> => {
-      const { data, error } = (await supabase
-        .from("store_ranking_stats")
-        .select("sigungu")
-        .eq("sido", selectedProvince!)
-        .not("sigungu", "is", null)
-        .limit(5000)) as any;
+      const { data, error } = await (supabase.rpc as any)("sigungu_list", {
+        p_sido: selectedProvince!,
+      });
       if (error) throw error;
-      const names: string[] = (data ?? []).map((r: any) => r.sigungu as string);
-      return Array.from(new Set(names)).sort();
+      return ((data ?? []) as any[]).map((r) => r.sigungu as string);
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
