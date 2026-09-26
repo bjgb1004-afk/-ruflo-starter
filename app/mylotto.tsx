@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-nati
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMyLottoTickets, LOTTO_UNIT_PRICE, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
-import { useAutoCheckTickets } from "@/features/mylotto/useAutoCheckTickets";
 import { groupTicketsByDraw, withGameLabel, type TicketGroup } from "@/features/mylotto/groupTickets";
 import { computeVaultSummary, computeFrequentNumbers } from "@/features/mylotto/stats";
 import { WinningCard } from "@/features/mylotto/components/WinningCard";
@@ -178,7 +177,8 @@ const TicketGroupCard = ({
 };
 
 export default function MyLottoScreen() {
-  useAutoCheckTickets();
+  // 결과 대조(useAutoCheckTickets)는 app/_layout.tsx에서 앱 단위로 돌린다 - 이 화면에만
+  // 두면 스캔 탭 보관함이 갱신되지 않는다.
   const router = useRouter();
   const { breakpoint } = useResponsive();
   const ticketsMap = useMyLottoTickets((s) => s.tickets);

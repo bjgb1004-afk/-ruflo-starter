@@ -118,22 +118,47 @@ async function resolvePrizeStoreIdsSafely(
   }
 }
 
-// 배출점 조회 실패로 빈 배열로 저장된 회차를 이후 실행에서 메운다. 메인 루프는
-// lastStoredDrawNo+1부터만 돌기 때문에, 이 재시도가 없으면 그 회차 배출점은 영구 누락된다.
-async function backfillMissingStoreIds(index: StoreGridIndex): Promise<void> {
+// 배출점 소스는 추첨 직후 목록을 한 번에 다 올리지 않고 조금씩 채운다(1243회 실측:
+// 22:45에 93건이던 게 15분 뒤 104건). 즉 추첨 당일 첫 수집은 거의 항상 부분 수집이고,
+// 조회가 실패하면 0건이다. 메인 루프는 lastStoredDrawNo+1부터만 돌아 이미 저장된 회차를
+// 다시 보지 않으므로, 이 보정이 없으면 그 부분/빈 상태가 영구히 굳는다.
+//
+// 언제까지 재시도할지: 당첨자 수만큼 배출점이 다 모일 때까지로 하면, 폐업/미등록으로
+// stores에 영원히 매칭되지 않는 매장이 있어 끝나지 않는다. 그래서 "발표 후 RECHECK_DAYS
+// 동안, 아직 당첨자 수보다 적으면 다시 조회"로 기간을 끊는다(안전망 cron이 매일 돌아 그
+// 사이에 며칠치 재시도 기회가 있다).
+const RECHECK_DAYS = 8;
+const RECENT_DRAWS_TO_RECHECK = 3;
+
+async function backfillPrizeStoreIds(index: StoreGridIndex): Promise<void> {
   const { data, error } = await supabaseAdmin
     .from("draw_history")
-    .select("draw_no, first_prize_winner_count, first_prize_store_ids")
+    .select(
+      "draw_no, draw_date, first_prize_winner_count, second_prize_winner_count, first_prize_store_ids, second_prize_store_ids",
+    )
     .order("draw_no", { ascending: false })
-    .limit(5);
+    .limit(RECENT_DRAWS_TO_RECHECK);
   if (error) throw error;
 
+  const cutoff = Date.now() - RECHECK_DAYS * 24 * 60 * 60 * 1000;
+
   for (const row of data ?? []) {
-    if ((row.first_prize_store_ids?.length ?? 0) > 0) continue;
-    if (!row.first_prize_winner_count) continue;
+    if (new Date(row.draw_date).getTime() < cutoff) continue;
+
+    const storedFirst = row.first_prize_store_ids?.length ?? 0;
+    const storedSecond = row.second_prize_store_ids?.length ?? 0;
+    const isComplete =
+      storedFirst >= (row.first_prize_winner_count ?? 0) &&
+      storedSecond >= (row.second_prize_winner_count ?? 0);
+    if (isComplete) continue;
 
     const { first, second } = await resolvePrizeStoreIdsSafely(row.draw_no, index);
-    if (first.length === 0 && second.length === 0) continue;
+    // 응답이 일시적으로 비거나 더 적게 오는 경우(장애/구조 변경)에 이미 저장된 배출점을
+    // 덮어써 지우지 않는다. 합계로 비교하면 2등이 늘어난 만큼 1등이 줄어드는 교환이
+    // 통과해버리므로(1등 배출점은 배너/랭킹의 핵심 데이터) 등수별로 각각 본다.
+    const grew = first.length > storedFirst || second.length > storedSecond;
+    const shrank = first.length < storedFirst || second.length < storedSecond;
+    if (!grew || shrank) continue;
 
     const { error: updateError } = await supabaseAdmin
       .from("draw_history")
@@ -143,7 +168,9 @@ async function backfillMissingStoreIds(index: StoreGridIndex): Promise<void> {
       console.error(`  ❌ 회차 ${row.draw_no} 배출점 보정 실패: ${updateError.message}`);
       continue;
     }
-    console.log(`  ♻️ 회차 ${row.draw_no} 배출점 보정: 1등 ${first.length}건 / 2등 ${second.length}건`);
+    console.log(
+      `  ♻️ 회차 ${row.draw_no} 배출점 보정: 1등 ${storedFirst}→${first.length}건 / 2등 ${storedSecond}→${second.length}건`,
+    );
   }
 }
 
@@ -249,7 +276,7 @@ async function main() {
       }
     }
 
-    await backfillMissingStoreIds(storeIndex);
+    await backfillPrizeStoreIds(storeIndex);
 
     console.log("");
     console.log("✅ 완료!");

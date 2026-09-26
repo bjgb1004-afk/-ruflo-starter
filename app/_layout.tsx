@@ -21,6 +21,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/features/auth/useAuth";
 import { useFavoritesCloudSync } from "@/features/favorites/useFavoritesCloudSync";
 import { cleanupLegacyDrawReminders } from "@/features/mylotto/drawReminders";
+import { useAutoCheckTickets } from "@/features/mylotto/useAutoCheckTickets";
 import { colors } from "@/constants/theme";
 // 지오펜스 백그라운드 태스크는 앱 로드 시점에 반드시 최상위에서 등록되어야
 // OS가 재시작 후 백그라운드에서 앱을 깨울 때도 태스크를 찾을 수 있다.
@@ -61,6 +62,11 @@ const asyncStoragePersister = createAsyncStoragePersister({
 export default function RootLayout() {
   const initAuth = useAuth((s) => s.init);
   useFavoritesCloudSync();
+  // 보관함 티켓의 추첨 결과 대조는 mylotto.tsx(전체 목록) 안에만 있었다 - 같은 "추첨 전"
+  // 배지를 그리는 스캔 탭 보관함(scan.tsx)에서는 대조가 돌지 않아, 추첨이 끝나고 서버에
+  // 결과가 있어도 전체 목록 화면을 한 번 열기 전까지 계속 "추첨 전"으로 보였다. 화면이
+  // 아니라 앱 단위의 관심사이므로 루트에서 한 번만 돌린다.
+  useAutoCheckTickets();
 
   const [fontsLoaded] = useFonts({
     SpaceGrotesk_400Regular,
