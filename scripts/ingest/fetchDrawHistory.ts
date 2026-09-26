@@ -99,6 +99,54 @@ async function resolvePrizeStoreIds(
   return { first: [...first], second: [...second] };
 }
 
+// 배출점 소스(lottorich.co.kr)는 개인 운영 사이트라 네트워크 오류/일시 장애가 실제로 난다
+// (1243회: `fetch failed`). 이 실패가 당첨번호 upsert까지 막으면 draw_history에 회차 자체가
+// 없어져 앱 보관함이 추첨 후에도 "추첨 대기"로 남는다 - 배출점은 없어도 되는 부가 정보이므로
+// 빈 배열로 진행하고 backfillMissingStoreIds()가 다음 실행에서 채운다.
+async function resolvePrizeStoreIdsSafely(
+  drwNo: number,
+  index: StoreGridIndex,
+): Promise<{ first: string[]; second: string[] }> {
+  try {
+    return await resolvePrizeStoreIds(drwNo, index);
+  } catch (error) {
+    console.warn(
+      `  ⚠️ 배출점 조회 실패(${error instanceof Error ? error.message : String(error)}) - ` +
+        `당첨번호만 먼저 저장하고 다음 실행에서 배출점을 채운다`,
+    );
+    return { first: [], second: [] };
+  }
+}
+
+// 배출점 조회 실패로 빈 배열로 저장된 회차를 이후 실행에서 메운다. 메인 루프는
+// lastStoredDrawNo+1부터만 돌기 때문에, 이 재시도가 없으면 그 회차 배출점은 영구 누락된다.
+async function backfillMissingStoreIds(index: StoreGridIndex): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from("draw_history")
+    .select("draw_no, first_prize_winner_count, first_prize_store_ids")
+    .order("draw_no", { ascending: false })
+    .limit(5);
+  if (error) throw error;
+
+  for (const row of data ?? []) {
+    if ((row.first_prize_store_ids?.length ?? 0) > 0) continue;
+    if (!row.first_prize_winner_count) continue;
+
+    const { first, second } = await resolvePrizeStoreIdsSafely(row.draw_no, index);
+    if (first.length === 0 && second.length === 0) continue;
+
+    const { error: updateError } = await supabaseAdmin
+      .from("draw_history")
+      .update({ first_prize_store_ids: first, second_prize_store_ids: second })
+      .eq("draw_no", row.draw_no);
+    if (updateError) {
+      console.error(`  ❌ 회차 ${row.draw_no} 배출점 보정 실패: ${updateError.message}`);
+      continue;
+    }
+    console.log(`  ♻️ 회차 ${row.draw_no} 배출점 보정: 1등 ${first.length}건 / 2등 ${second.length}건`);
+  }
+}
+
 async function getLastStoredDrawNo(): Promise<number> {
   const { data, error } = await supabaseAdmin
     .from("draw_history")
@@ -141,7 +189,7 @@ async function main() {
       try {
         console.log(`📄 회차 ${draw.drwNo} (${draw.drwNoDate}): 당첨번호 ${draw.numbers.join("-")}+${draw.bnusNo}`);
 
-        const { first: firstPrizeStoreIds, second: secondPrizeStoreIds } = await resolvePrizeStoreIds(
+        const { first: firstPrizeStoreIds, second: secondPrizeStoreIds } = await resolvePrizeStoreIdsSafely(
           draw.drwNo,
           storeIndex,
         );
@@ -201,9 +249,15 @@ async function main() {
       }
     }
 
+    await backfillMissingStoreIds(storeIndex);
+
     console.log("");
     console.log("✅ 완료!");
     console.log(`   저장: ${inserted}건 / 실패: ${failed}건`);
+
+    // 지금까지는 저장 0건/실패 1건이어도 exit 0이라 GitHub Actions가 초록불로 끝났다
+    // (1243회 누락이 며칠 묻힐 수 있던 이유). 회차 저장 실패는 실패로 드러낸다.
+    if (failed > 0) process.exitCode = 1;
   } catch (error) {
     console.error("❌ 배치 실행 실패:", error instanceof Error ? error.message : String(error));
     process.exit(1);
