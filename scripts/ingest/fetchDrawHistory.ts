@@ -5,6 +5,7 @@
 // 실행: npm run ingest:draws (GitHub Actions sync-data.yml에서 매일 1회 자동 실행)
 import { supabaseAdmin } from "./lib/supabaseAdmin";
 import { fetchLottorichDraw } from "./lib/lottorichStores";
+import { fetchDhlotteryWinStores, type WinStoreRecord } from "./lib/dhlotteryWinStores";
 import { loadAllStores, buildGrid, findMatch, type StoreGridIndex } from "./lib/storeMatcher";
 
 // 동행복권 공식 API(dhlottery.co.kr)가 2026-08 기준 모든 조회에 302(/error.html)를
@@ -69,16 +70,31 @@ async function fetchDrawFromMirror(drwNo: number): Promise<NormalizedDraw | null
   };
 }
 
-// 회차별 1·2등 배출점 조회 - lottorich.co.kr 판매점 API가 seq=회차번호로 필터링하면
-// 그 회차 당첨매장만(좌표 포함, API 키 불필요) 돌려준다. stores 테이블과 반경 200m+
-// 이름유사도 매칭으로 store_id를 확정한다. (fullayer.com도 같은 방식으로 동작했었으나
-// 개인 운영 사이트라 메인이 다른 주제로 개편되는 등 폐쇄 위험이 있어 더 오래되고
-// 안정적인 lottorich.co.kr로 교체함 - 1236회로 검증: 1등 11건이 공식 발표와 정확히 일치)
+// 배출점 레코드는 동행복권 공식 경로에서 받고(dhlotteryWinStores.ts), 그게 비거나 실패할
+// 때만 기존 lottorich.co.kr 경로로 떨어진다. 공식 쪽이 회차 당첨자 수와 정확히 일치하는
+// 반면(1243회 1등 12건) lottorich는 같은 회차에서 파싱 가능한 레코드가 7건뿐이었다 -
+// 좌표 없는 레코드를 버려야 해서 생기는 손실이다. 폴백을 남기는 이유는 배출점 소스 하나가
+// 죽었을 때 회차 저장까지 막히던 사고를 겪었기 때문이다(resolvePrizeStoreIdsSafely 주석 참고).
+async function fetchWinStoreRecords(drwNo: number): Promise<WinStoreRecord[]> {
+  try {
+    const official = await fetchDhlotteryWinStores(drwNo);
+    if (official.length > 0) return official;
+    console.warn(`  ⚠️ 공식 배출점 0건 - lottorich.co.kr로 폴백`);
+  } catch (error) {
+    console.warn(
+      `  ⚠️ 공식 배출점 조회 실패(${error instanceof Error ? error.message : String(error)}) - ` +
+        `lottorich.co.kr로 폴백`,
+    );
+  }
+  return fetchLottorichDraw(drwNo);
+}
+
+// 회차별 1·2등 배출점을 stores 테이블과 반경 200m + 이름유사도로 매칭해 store_id를 확정한다.
 async function resolvePrizeStoreIds(
   drwNo: number,
   index: StoreGridIndex,
 ): Promise<{ first: string[]; second: string[] }> {
-  const records = await fetchLottorichDraw(drwNo);
+  const records = await fetchWinStoreRecords(drwNo);
   const first = new Set<string>();
   const second = new Set<string>();
   let unmatched = 0;
