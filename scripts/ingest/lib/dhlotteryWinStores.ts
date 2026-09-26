@@ -21,8 +21,14 @@ const USER_AGENT = "Mozilla/5.0 (compatible; LottoMapEnrichBot/1.0; +personal-pr
 // (1243회 127건 중 8건, 1242회 113건 중 5건이 이 레코드였다.)
 const ONLINE_PURCHASE_SHOP_ID = "51100000";
 
+export type PurchaseType = "자동" | "수동" | "반자동";
+
 export interface WinStoreRecord extends MatchCandidate {
   rank: 1 | 2;
+  // 응답의 atmtPsvYnTxt. 실측으로 자동/수동/반자동 세 값만 나오고(1000회에 반자동 1건),
+  // draw_first_prize_methods.purchase_type의 체크 제약과 정확히 같다. 그 외 값이 오면
+  // 추정하지 않고 null로 둔다.
+  purchaseType: PurchaseType | null;
 }
 
 interface DhWinShopRaw {
@@ -31,6 +37,11 @@ interface DhWinShopRaw {
   wnShpRnk: number | null;
   shpLat: number | null;
   shpLot: number | null;
+  atmtPsvYnTxt: string | null;
+}
+
+function toPurchaseType(raw: string | null): PurchaseType | null {
+  return raw === "자동" || raw === "수동" || raw === "반자동" ? raw : null;
 }
 
 export async function fetchDhlotteryWinStores(drawNo: number): Promise<WinStoreRecord[]> {
@@ -45,6 +56,14 @@ export async function fetchDhlotteryWinStores(drawNo: number): Promise<WinStoreR
     if (raw.ltShpId === ONLINE_PURCHASE_SHOP_ID) return [];
     if (raw.wnShpRnk !== 1 && raw.wnShpRnk !== 2) return [];
     if (!raw.shpNm || typeof raw.shpLat !== "number" || typeof raw.shpLot !== "number") return [];
-    return [{ storeName: raw.shpNm, latitude: raw.shpLat, longitude: raw.shpLot, rank: raw.wnShpRnk }];
+    return [
+      {
+        storeName: raw.shpNm,
+        latitude: raw.shpLat,
+        longitude: raw.shpLot,
+        rank: raw.wnShpRnk,
+        purchaseType: toPurchaseType(raw.atmtPsvYnTxt),
+      },
+    ];
   });
 }

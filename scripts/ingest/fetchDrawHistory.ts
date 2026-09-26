@@ -1,17 +1,21 @@
-// 동행복권 공개 API에서 최신 회차 당첨 정보를 수집하고,
-// 1·2등 배출 판매점을 lottorich.co.kr 좌표 매칭으로 stores와 연결해
-// draw_history 테이블에 upsert한다.
+// 최신 회차 당첨번호(미러)와 1·2등 배출 판매점(동행복권 공식 경로)을 수집해 draw_history에
+// upsert하고, 1등 구매방식(자동/수동)을 draw_first_prize_methods에 반영한다.
 //
 // 실행: npm run ingest:draws (GitHub Actions sync-data.yml에서 매일 1회 자동 실행)
 import { supabaseAdmin } from "./lib/supabaseAdmin";
-import { fetchLottorichDraw } from "./lib/lottorichStores";
-import { fetchDhlotteryWinStores, type WinStoreRecord } from "./lib/dhlotteryWinStores";
-import { loadAllStores, buildGrid, findMatch, type StoreGridIndex } from "./lib/storeMatcher";
+import {
+  fetchWinStoreRecords,
+  resolveWinStores,
+  syncFirstPrizeMethods,
+  type ResolvedWinStores,
+} from "./lib/winStoreResolver";
+import { loadAllStores, buildGrid, type StoreGridIndex } from "./lib/storeMatcher";
 
-// 동행복권 공식 API(dhlottery.co.kr)가 2026-08 기준 모든 조회에 302(/error.html)를
-// 반환해 사용 불가 상태다 - 신규/과거 회차 모두 막혀 일시 장애로 보기 어렵다.
-// 대신 매주 자동 갱신되는 오픈소스 미러(smok95/lotto)를 단일 소스로 사용한다 - 당첨번호,
-// 보너스, 1~5등 배당까지 한 번의 요청으로 모두 제공해 기존 dhlottery+미러 이중 조회보다 단순하다.
+// 당첨번호는 동행복권 구 경로(common.do?method=getLottoNumber)가 2026-09-26 재실측에서도
+// 302로 홈으로 튕겨(UA·Referer·세션쿠키를 다 붙여도 동일) 여전히 못 쓴다. 대신 매주 자동
+// 갱신되는 오픈소스 미러(smok95/lotto)를 쓴다 - 당첨번호, 보너스, 1~5등 배당까지 한 번의
+// 요청으로 모두 준다. 배출점은 개편으로 열린 공식 경로를 쓰므로(lib/dhlotteryWinStores.ts)
+// "공식은 전부 막혔다"로 뭉뚱그리면 안 된다 - 막힌 건 이 당첨번호 경로다.
 const MIRROR_ENDPOINT = "https://raw.githubusercontent.com/smok95/lotto/master/results/";
 
 interface MirrorDrawResponse {
@@ -70,67 +74,42 @@ async function fetchDrawFromMirror(drwNo: number): Promise<NormalizedDraw | null
   };
 }
 
-// 배출점 레코드는 동행복권 공식 경로에서 받고(dhlotteryWinStores.ts), 그게 비거나 실패할
-// 때만 기존 lottorich.co.kr 경로로 떨어진다. 공식 쪽이 회차 당첨자 수와 정확히 일치하는
-// 반면(1243회 1등 12건) lottorich는 같은 회차에서 파싱 가능한 레코드가 7건뿐이었다 -
-// 좌표 없는 레코드를 버려야 해서 생기는 손실이다. 폴백을 남기는 이유는 배출점 소스 하나가
-// 죽었을 때 회차 저장까지 막히던 사고를 겪었기 때문이다(resolvePrizeStoreIdsSafely 주석 참고).
-async function fetchWinStoreRecords(drwNo: number): Promise<WinStoreRecord[]> {
+// 배출점 조회·매칭은 과거 회차 재수집(rebuildWinStoresFromOfficial.ts)과 규칙이 같아야 해서
+// lib/winStoreResolver.ts에 있다. 여기서는 그 실패가 당첨번호 저장을 막지 않게만 감싼다:
+// 배출점 소스는 네트워크 오류/일시 장애가 실제로 나는데(1243회: lottorich `fetch failed`)
+// 그게 upsert까지 막으면 draw_history에 회차 자체가 없어져 앱 보관함이 추첨 후에도
+// "추첨 전"으로 남는다. 배출점은 없어도 되는 부가 정보이므로 빈 값으로 진행하고
+// backfillPrizeStoreIds()가 다음 실행에서 채운다.
+async function resolvePrizeStoresSafely(drwNo: number, index: StoreGridIndex): Promise<ResolvedWinStores> {
   try {
-    const official = await fetchDhlotteryWinStores(drwNo);
-    if (official.length > 0) return official;
-    console.warn(`  ⚠️ 공식 배출점 0건 - lottorich.co.kr로 폴백`);
-  } catch (error) {
-    console.warn(
-      `  ⚠️ 공식 배출점 조회 실패(${error instanceof Error ? error.message : String(error)}) - ` +
-        `lottorich.co.kr로 폴백`,
-    );
-  }
-  return fetchLottorichDraw(drwNo);
-}
-
-// 회차별 1·2등 배출점을 stores 테이블과 반경 200m + 이름유사도로 매칭해 store_id를 확정한다.
-async function resolvePrizeStoreIds(
-  drwNo: number,
-  index: StoreGridIndex,
-): Promise<{ first: string[]; second: string[] }> {
-  const records = await fetchWinStoreRecords(drwNo);
-  const first = new Set<string>();
-  const second = new Set<string>();
-  let unmatched = 0;
-
-  for (const record of records) {
-    const store = findMatch(record, index);
-    if (!store) {
-      unmatched++;
-      continue;
+    const records = await fetchWinStoreRecords(drwNo);
+    const resolved = resolveWinStores(records, index);
+    if (resolved.unmatched > 0) {
+      console.warn(`[draw ${drwNo}] 매장 매칭 실패(미등록/폐업 가능): ${resolved.unmatched}건`);
     }
-    (record.rank === 1 ? first : second).add(store.id);
-  }
-
-  if (unmatched > 0) {
-    console.warn(`[draw ${drwNo}] 매장 매칭 실패(미등록/폐업 가능): ${unmatched}건`);
-  }
-
-  return { first: [...first], second: [...second] };
-}
-
-// 배출점 소스(lottorich.co.kr)는 개인 운영 사이트라 네트워크 오류/일시 장애가 실제로 난다
-// (1243회: `fetch failed`). 이 실패가 당첨번호 upsert까지 막으면 draw_history에 회차 자체가
-// 없어져 앱 보관함이 추첨 후에도 "추첨 대기"로 남는다 - 배출점은 없어도 되는 부가 정보이므로
-// 빈 배열로 진행하고 backfillMissingStoreIds()가 다음 실행에서 채운다.
-async function resolvePrizeStoreIdsSafely(
-  drwNo: number,
-  index: StoreGridIndex,
-): Promise<{ first: string[]; second: string[] }> {
-  try {
-    return await resolvePrizeStoreIds(drwNo, index);
+    return resolved;
   } catch (error) {
     console.warn(
       `  ⚠️ 배출점 조회 실패(${error instanceof Error ? error.message : String(error)}) - ` +
         `당첨번호만 먼저 저장하고 다음 실행에서 배출점을 채운다`,
     );
-    return { first: [], second: [] };
+    return { first: [], second: [], firstMethods: new Map(), unmatched: 0 };
+  }
+}
+
+// 구매방식은 공식 경로에서만 오므로(lottorich 폴백엔 없음) 빈 결과일 때 건드리면 안 된다 -
+// 기존 pyony.com 스크래핑(fetchPurchaseMethods.ts)으로 채워둔 과거 데이터를 지워버린다.
+async function syncFirstPrizeMethodsIfAvailable(
+  drwNo: number,
+  firstMethods: ResolvedWinStores["firstMethods"],
+): Promise<void> {
+  if (firstMethods.size === 0) return;
+  try {
+    await syncFirstPrizeMethods(drwNo, firstMethods);
+    console.log(`  🏷️ 1등 구매방식 ${firstMethods.size}건 반영`);
+  } catch (error) {
+    // 구매방식은 부가 정보다 - 실패해도 회차/배출점 수집을 중단시키지 않는다.
+    console.error(`  ❌ ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -168,7 +147,7 @@ async function backfillPrizeStoreIds(index: StoreGridIndex): Promise<void> {
       storedSecond >= (row.second_prize_winner_count ?? 0);
     if (isComplete) continue;
 
-    const { first, second } = await resolvePrizeStoreIdsSafely(row.draw_no, index);
+    const { first, second, firstMethods } = await resolvePrizeStoresSafely(row.draw_no, index);
     // 응답이 일시적으로 비거나 더 적게 오는 경우(장애/구조 변경)에 이미 저장된 배출점을
     // 덮어써 지우지 않는다. 합계로 비교하면 2등이 늘어난 만큼 1등이 줄어드는 교환이
     // 통과해버리므로(1등 배출점은 배너/랭킹의 핵심 데이터) 등수별로 각각 본다.
@@ -187,6 +166,7 @@ async function backfillPrizeStoreIds(index: StoreGridIndex): Promise<void> {
     console.log(
       `  ♻️ 회차 ${row.draw_no} 배출점 보정: 1등 ${storedFirst}→${first.length}건 / 2등 ${storedSecond}→${second.length}건`,
     );
+    await syncFirstPrizeMethodsIfAvailable(row.draw_no, firstMethods);
   }
 }
 
@@ -232,23 +212,23 @@ async function main() {
       try {
         console.log(`📄 회차 ${draw.drwNo} (${draw.drwNoDate}): 당첨번호 ${draw.numbers.join("-")}+${draw.bnusNo}`);
 
-        const { first: firstPrizeStoreIds, second: secondPrizeStoreIds } = await resolvePrizeStoreIdsSafely(
-          draw.drwNo,
-          storeIndex,
-        );
+        const {
+          first: firstPrizeStoreIds,
+          second: secondPrizeStoreIds,
+          firstMethods,
+        } = await resolvePrizeStoresSafely(draw.drwNo, storeIndex);
 
         console.log(`  • 1등 배출점: ${firstPrizeStoreIds.length}건, 2등 배출점: ${secondPrizeStoreIds.length}건`);
 
-        // lottorich.co.kr도 예고 없이 API 응답 구조나 서비스 자체가 바뀔 수 있다
-        // (실제로 이전에 쓰던 fullayer.com이 이런 이유로 대체된 전례가 있음). 그렇게 되면
-        // fetchLottorichDraw가 조용히 빈 배열만 반환해 "당첨자는 있는데 배출점 0건"이던
-        // 예전 DATA_GO_KR_API_KEY 문제가 티 안 나게 재발할 수 있다 - 당첨자 수(0보다 큼)와
-        // 매칭된 배출점 수(0)가 어긋나면 명시적으로 경고해 GitHub Actions 로그에서 바로
-        // 눈에 띄게 한다.
+        // 배출점 소스는 예고 없이 응답 구조나 서비스 자체가 바뀔 수 있다(쓰던 fullayer.com이
+        // 실제로 그래서 교체됐고, 공식 경로도 2026-09 개편으로 주소가 바뀐 것이다). 그렇게
+        // 되면 조회 함수가 조용히 빈 배열만 반환해 "당첨자는 있는데 배출점 0건"이던 예전
+        // DATA_GO_KR_API_KEY 문제가 티 안 나게 재발한다 - 당첨자 수(0보다 큼)와 매칭된
+        // 배출점 수(0)가 어긋나면 명시적으로 경고해 GitHub Actions 로그에서 바로 눈에 띄게 한다.
         if (draw.firstPrizeWinnerCount > 0 && firstPrizeStoreIds.length === 0) {
           console.warn(
             `  ⚠️ 1등 당첨자가 ${draw.firstPrizeWinnerCount}명인데 배출점이 0건입니다 - ` +
-              `lottorich.co.kr API 구조가 바뀌었을 가능성이 있습니다. 확인 필요.`,
+              `배출점 소스(공식/lottorich) 응답 구조가 바뀌었을 가능성이 있습니다. 확인 필요.`,
           );
         }
 
@@ -280,6 +260,8 @@ async function main() {
         } else {
           console.log(`  ✅ 저장 완료`);
           inserted += 1;
+          // draw_first_prize_methods.draw_no가 draw_history를 참조하므로 회차 저장 뒤에 넣는다.
+          await syncFirstPrizeMethodsIfAvailable(draw.drwNo, firstMethods);
         }
       } catch (error) {
         console.error(`❌ 회차 ${draw.drwNo} 처리 실패:`, error instanceof Error ? error.message : String(error));
