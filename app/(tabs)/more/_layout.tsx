@@ -9,7 +9,7 @@ export default function MoreLayout() {
   return (
     <Stack>
       <Stack.Screen name="index" options={{ title: "더보기" }} />
-      <Stack.Screen name="generator" options={{ title: "천재 번호생성기" }} />
+      <Stack.Screen name="generator" options={{ title: "천재들의 한수" }} />
       <Stack.Screen name="favorites" options={{ title: "즐겨찾기" }} />
       <Stack.Screen name="stats" options={{ title: "회차별 당첨현황" }} />
       <Stack.Screen name="settings" options={{ title: "앱 설정" }} />

@@ -12,10 +12,9 @@ import {
 } from "@/features/generator/geniusGenerator";
 
 const LETTERS = ["A", "B", "C", "D", "E"];
-const DAY_KO = ["월", "화", "수", "목", "금"];
 
-// 천재 번호생성기: 천재 1명이 회차마다 A~E 5게임을 낸다. 같은 회차에는 누가 봐도 같은 번호이고,
-// 스레드(@gzclab)에 요일별로 올라가는 번호와 똑같다. 확률을 높인다는 표현은 쓰지 않는다.
+// 한 명이 회차마다 A~E 5게임을 낸다. 같은 회차에는 누가 봐도 같은 번호다.
+// 확률을 높인다는 표현은 쓰지 않는다.
 export default function GeneratorScreen() {
   const { breakpoint } = useResponsive();
   const drawNo = useMemo(() => upcomingDrawNo(), []);
@@ -27,10 +26,10 @@ export default function GeneratorScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Text style={[styles.title, { fontSize: getResponsiveFontSize(20, breakpoint) }]}>
-          {drawNo}회 천재 5인의 번호
+          {drawNo}회 천재들의 한수
         </Text>
         <Text style={styles.subtitle}>
-          천재마다 5게임씩, 이번 회차 내내 같은 번호예요. 스레드 @gzclab에 요일별로 올라가요.
+          한 명당 5게임씩, 이번 회차 내내 같은 번호예요.
         </Text>
       </View>
 
@@ -45,7 +44,6 @@ export default function GeneratorScreen() {
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
             >
-              <Text style={[styles.chipDay, active && styles.chipTextActive]}>{DAY_KO[g.weekday]}</Text>
               <Text style={[styles.chipName, active && styles.chipTextActive]}>{g.name}</Text>
             </Pressable>
           );
@@ -95,7 +93,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipDay: { fontSize: 12, color: colors.textMuted, fontWeight: "600" },
   chipName: { fontSize: 13, color: colors.textPrimary, fontWeight: "600" },
   chipTextActive: { color: "#FFFFFF" },
   card: {
