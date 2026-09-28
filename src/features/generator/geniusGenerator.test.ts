@@ -2,6 +2,7 @@ import {
   GENIUSES,
   comboKey,
   generateGeniusGames,
+  generateExtraGames,
   generateStoreGame,
   geniusOfToday,
   passesCommonFilters,
@@ -465,6 +466,26 @@ describe("parity with the Threads automation", () => {
         expect(actual).toEqual(expected);
       }
     }
+  });
+});
+
+describe("generateExtraGames", () => {
+  it("never repeats a combo across rounds and stays valid", () => {
+    for (const g of GENIUSES) {
+      const seen = new Set(generateGeniusGames(g.id, 1244).map(comboKey));
+      for (let round = 1; round <= 10; round++) {
+        const games = generateExtraGames(g.id, 1244, round);
+        expect(games).toHaveLength(5);
+        expect(games.every(passesCommonFilters)).toBe(true);
+        for (const key of games.map(comboKey)) {
+          expect(seen.has(key)).toBe(false);
+          seen.add(key);
+        }
+      }
+    }
+  });
+  it("gives the same numbers for the same round", () => {
+    expect(generateExtraGames("euler", 1244, 3)).toEqual(generateExtraGames("euler", 1244, 3));
   });
 });
 

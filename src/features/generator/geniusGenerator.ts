@@ -289,6 +289,19 @@ export function generateGeniusGames(
   return games;
 }
 
+// "한 번 더 뽑기". round=1이면 고정 5게임 다음 5게임, 2면 그 다음 5게임...
+// 앞 회차에서 이미 나온 조합을 전부 제외하고 같은 천재 방식으로 다시 뽑으므로 중복이 없다.
+// round가 같으면 언제 눌러도 같은 번호가 나온다 - 껐다 켜도 아까 받은 번호가 그대로다.
+export function generateExtraGames(geniusId: GeniusId, drawNo: number, round: number): number[][] {
+  const seen = new Set<string>();
+  let games = generateGeniusGames(geniusId, drawNo);
+  for (let i = 0; i < round; i++) {
+    for (const g of games) seen.add(comboKey(g));
+    games = generateGeniusGames(geniusId, drawNo, seen);
+  }
+  return games;
+}
+
 // 명당(판매점이나 지역) 이름으로 뽑는 1게임. 같은 주에는 같은 번호. 스레드 자동답글과 같은 규칙.
 export function generateStoreGame(key: string, drawNo: number): number[] {
   const rng = mulberry32(hashString(`${drawNo}|store|${key}`));

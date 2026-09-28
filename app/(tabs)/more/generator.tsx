@@ -5,6 +5,7 @@ import { colors, spacing, radius, cardShadow } from "@/constants/theme";
 import { useResponsive, getResponsiveFontSize } from "@/utils/responsive";
 import {
   GENIUSES,
+  generateExtraGames,
   generateGeniusGames,
   geniusOfToday,
   upcomingDrawNo,
@@ -19,8 +20,19 @@ export default function GeneratorScreen() {
   const { breakpoint } = useResponsive();
   const drawNo = useMemo(() => upcomingDrawNo(), []);
   const [selected, setSelected] = useState<GeniusId>(() => (geniusOfToday() ?? GENIUSES[0]).id);
+  // 추가로 뽑은 횟수. 천재를 바꾸면 처음부터 다시 센다.
+  const [extraRounds, setExtraRounds] = useState(0);
   const genius = GENIUSES.find((g) => g.id === selected) ?? GENIUSES[0];
   const games = useMemo(() => generateGeniusGames(genius.id, drawNo), [genius.id, drawNo]);
+  const extras = useMemo(
+    () => Array.from({ length: extraRounds }, (_, i) => generateExtraGames(genius.id, drawNo, i + 1)),
+    [genius.id, drawNo, extraRounds],
+  );
+
+  const pickGenius = (id: GeniusId) => {
+    setSelected(id);
+    setExtraRounds(0);
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -39,7 +51,7 @@ export default function GeneratorScreen() {
           return (
             <Pressable
               key={g.id}
-              onPress={() => setSelected(g.id)}
+              onPress={() => pickGenius(g.id)}
               style={[styles.chip, active && styles.chipActive]}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
@@ -65,6 +77,30 @@ export default function GeneratorScreen() {
           </View>
         ))}
       </View>
+
+      {extras.map((set, round) => (
+        <View key={`extra-${round}`} style={styles.card}>
+          <Text style={styles.extraLabel}>더 뽑기 {round + 1}회</Text>
+          {set.map((game, i) => (
+            <View key={game.join(",")} style={styles.gameRow}>
+              <Text style={styles.letter}>{LETTERS[i]}</Text>
+              <View style={styles.balls}>
+                {game.map((n) => (
+                  <LottoBall key={n} number={n} size="small" />
+                ))}
+              </View>
+            </View>
+          ))}
+        </View>
+      ))}
+
+      <Pressable
+        style={styles.more}
+        onPress={() => setExtraRounds((n) => n + 1)}
+        accessibilityRole="button"
+      >
+        <Text style={styles.moreText}>한 번 더 뽑기</Text>
+      </Pressable>
 
       <Text style={styles.disclaimer}>
         천재들의 수학 방식으로 재미 삼아 만든 번호이며, 당첨 확률을 높이거나 당첨을 보장하지
@@ -103,6 +139,14 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   name: { fontWeight: "700", color: colors.primaryDark },
+  extraLabel: { fontSize: 13, fontWeight: "700", color: colors.textSecondary },
+  more: {
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+  },
+  moreText: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
   achievement: { fontSize: 12, color: colors.textMuted },
   method: { fontSize: 13, lineHeight: 19, color: colors.textSecondary, marginBottom: spacing.xs },
   gameRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: 2 },
