@@ -1,38 +1,33 @@
-# 과거 회차 배출점을 동행복권 공식 경로로 재수집한다.
+# 과거 회차 배출점을 동행복권 공식 경로로 재수집한다. 한 번 눌러두면 끝까지 간다.
 #
-# 왜 30분마다 조금씩 도는가: 공식 서버가 연속 요청을 IP째 끊는다. TCP connect 단계에서
-# 드랍되고(UND_ERR_CONNECT_TIMEOUT) curl도 같이 죽는다 - Node 문제가 아니다. 2026-09-28
-# 실측으로 로컬은 48회차, GitHub Actions 러너는 31회차 만에 막혔다. 간격을 0.12초에서
-# 1초로 늘렸더니 오히려 더 빨리 막혔으니 간격이 아니라 누적 요청량에 걸리는 것이고,
-# 러너 IP가 매번 달라도 막히므로 IP를 바꾸는 걸로도 안 된다. 그래서 한 번에 20회차만
-# 돌고(임계치 31보다 넉넉히 아래) 다음 실행에서 이어간다. 어디까지 했는지는 Supabase
-# rebuild_progress 테이블 한 행에 남는다.
+# 왜 20회차씩 나눠서 러너를 바꿔 가며 도는가: 공식 서버가 연속 요청을 IP째 끊는다. TCP
+# connect 단계에서 드랍되고(UND_ERR_CONNECT_TIMEOUT) curl도 같이 죽으니 Node 문제가 아니다.
+# 2026-09-28 실측으로 로컬은 48회차, Actions 러너는 31회차 만에 막혔고, 간격을 0.12초에서
+# 1초로 늘렸더니 오히려 더 빨리 막혔다 - 간격이 아니라 한 IP가 쓸 수 있는 누적 요청량에
+# 걸린다. 그래서 job 하나가 20회차만(임계치 31보다 넉넉히 아래) 돌고 끝내고, 다음 job이
+# 새 러너(=새 IP)에서 이어받는다. 어디까지 했는지는 Supabase rebuild_progress 한 행에 남는다.
 #
-# 982회차 ÷ 20 = 약 50번 실행 = 30분 간격이면 하루 정도. 다 끝나면 스크립트가
-# REBUILD_COMPLETE 를 찍고, 그때 명당 랭킹을 재계산한 뒤 이 스케줄을 스스로 끈다.
+# cron을 쓰지 않는 이유: 이 저장소에서 GitHub schedule이 통째로 스킵되는 걸 여러 번 실측했다
+# (sync-data.yml 주석 참고). 2026-09-28에도 30분 cron이 두 번 연속 안 떴다. 그래서 스케줄
+# 대신 matrix job을 줄세워서 한 번의 실행 안에서 끝낸다.
 #
-# Actions 사용량: 이 저장소는 Public이라 무료 분이 무제한이다. (Private였다면 실행당
-# 약 2분 × 48회/일 = 96분/일이라 월 2,000분 무료 한도를 약 20일 만에 소진한다.)
+# 막힌 job은 진행 포인터를 옮기지 않으므로 다음 job이 같은 구간을 새 IP로 다시 한다 -
+# 빠지는 회차가 없다. 다 끝난 뒤의 job들은 "더 돌 게 없다"만 찍고 바로 끝난다.
+#
+# Actions 사용량: 이 저장소는 Public이라 무료 분이 무제한이다. (Private였다면 job당 약 2분
+# × 50개 = 100분이라, 월 2,000분 무료 한도로 20번 실행할 수 있는 양이다.)
 name: 배출점 공식 재수집
 
 on:
-  schedule:
-    # 30분마다. GitHub의 schedule은 통째로 스킵될 수 있지만(이 저장소에서 실측됨)
-    # 여기선 그냥 진도가 조금 늦어질 뿐이라 문제가 없다.
-    - cron: '*/30 * * * *'
-
   workflow_dispatch:
     inputs:
-      from:
-        description: '시작 회차 (비우면 이어서)'
+      rounds:
+        description: '몇 조각까지 돌지 (20회차 × N)'
         required: false
-        type: string
-      to:
-        description: '끝 회차 (비우면 이어서)'
-        required: false
+        default: '50'
         type: string
       chunk:
-        description: '한 번에 돌 회차 수 (from/to 비웠을 때)'
+        description: '한 조각에 돌 회차 수'
         required: false
         default: '20'
         type: string
@@ -48,28 +43,40 @@ on:
         type: choice
         options: ['true', 'false']
 
-# 이전 실행이 아직 돌고 있으면 겹치지 않게 기다린다 - 포인터가 꼬이면 안 된다.
+# 두 번 눌러도 겹쳐 돌지 않게 - 진행 포인터가 꼬이면 안 된다.
 concurrency:
   group: rebuild-win-stores
   cancel-in-progress: false
 
 permissions:
   contents: read
-  actions: write # 다 끝났을 때 이 워크플로를 스스로 끄기 위해 필요
 
 env:
   NODE_VERSION: '24'
   WORKING_DIR: 'scripts/ingest'
-  # 감소 회차도 반영한다. 감소는 데이터 손실이 아니라, 폐업/상호변경으로 사라진 가게의
-  # 1등이 옛 파이프라인에서 1km쯤 떨어진 엉뚱한 옆 가게에 잘못 붙어 있던 걸 지우는 것이다
-  # (2026-09-28 321/972/1070회로 확인). "없어진 가게는 뺀다"가 정해진 방침이다.
-  SHRINK_FLAG: '--allow-shrink'
 
 jobs:
-  rebuild:
-    name: 배출점 재수집
+  plan:
+    name: 조각 나누기
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    outputs:
+      rounds: ${{ steps.mk.outputs.rounds }}
+    steps:
+      - id: mk
+        run: echo "rounds=$(seq 1 ${{ inputs.rounds || '50' }} | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
+
+  rebuild:
+    name: 재수집 ${{ matrix.round }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # 한 줄로 세운다. 동시에 돌리면 같은 구간을 두 job이 겹쳐 처리한다.
+      max-parallel: 1
+      # 한 조각이 막혀도 나머지는 계속 간다 - 다음 조각이 새 IP로 다시 시도한다.
+      fail-fast: false
+      matrix:
+        round: ${{ fromJson(needs.plan.outputs.rounds) }}
 
     steps:
       - uses: actions/checkout@v4
@@ -83,40 +90,40 @@ jobs:
       - name: 📦 의존성 설치
         run: cd ${{ env.WORKING_DIR }} && npm ci
 
-      - name: 🔁 재수집
-        id: rebuild
+      - name: 🔁 재수집 (20회차)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DRY_RUN: ${{ inputs.dry_run == 'true' && '1' || '0' }}
           REQUEST_DELAY_MS: ${{ inputs.delay_ms || '1500' }}
+        # 감소 회차도 반영한다. 감소는 데이터 손실이 아니라, 폐업/상호변경으로 사라진
+        # 가게의 1등이 옛 파이프라인에서 1km쯤 떨어진 엉뚱한 옆 가게에 잘못 붙어 있던 걸
+        # 지우는 것이다(2026-09-28 321/972/1070회로 확인). "없어진 가게는 뺀다"가 방침이다.
         run: |
-          set -o pipefail # tee 뒤에서 스크립트 실패가 묻히지 않게
           cd ${{ env.WORKING_DIR }}
-          ARGS="$SHRINK_FLAG"
-          if [ -n "${{ inputs.from }}" ]; then
-            ARGS="$ARGS --from=${{ inputs.from }}"
-            if [ -n "${{ inputs.to }}" ]; then ARGS="$ARGS --to=${{ inputs.to }}"; fi
-          else
-            ARGS="$ARGS --chunk=${{ inputs.chunk || '20' }}"
-          fi
-          echo "실행: npm run ingest:rebuild-winstores -- $ARGS"
-          npm run ingest:rebuild-winstores -- $ARGS | tee rebuild.log
-          if grep -q REBUILD_COMPLETE rebuild.log; then echo "complete=true" >> "$GITHUB_OUTPUT"; fi
+          npm run ingest:rebuild-winstores -- --allow-shrink --chunk=${{ inputs.chunk || '20' }}
 
-      # 배출점이 바뀌면 명당 랭킹이 옛 누적값 위에 남으므로 다시 계산한다. 회차마다
-      # 돌릴 필요는 없어서 전부 끝났을 때 한 번만 한다.
-      - name: 🏆 명당 랭킹 재계산
-        if: steps.rebuild.outputs.complete == 'true'
+  finish:
+    name: 명당 랭킹 재계산
+    needs: rebuild
+    if: ${{ always() && inputs.dry_run != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: '${{ env.WORKING_DIR }}/package.json'
+
+      - name: 📦 의존성 설치
+        run: cd ${{ env.WORKING_DIR }} && npm ci
+
+      # 배출점이 바뀌면 명당 랭킹이 옛 누적값 위에 남으므로 다시 계산한다. 중간까지만
+      # 진행됐어도 지금 상태 기준으로 다시 계산하는 게 맞다.
+      - name: 🏆 랭킹 재계산
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: cd ${{ env.WORKING_DIR }} && npm run ingest:refresh-rankings
-
-      # 끝났는데 30분마다 계속 깨우면 낭비다. 스스로 끈다 - 다시 돌릴 일이 생기면
-      # Actions 탭에서 Enable workflow 를 누르면 된다.
-      - name: 🛑 스케줄 끄기
-        if: steps.rebuild.outputs.complete == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow disable rebuild-win-stores.yml --repo "${{ github.repository }}"
