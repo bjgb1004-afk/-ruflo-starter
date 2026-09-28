@@ -8,6 +8,7 @@
 //   DRY_RUN=1 npx tsx scripts/ingest/rebuildWinStoresFromOfficial.ts --from=1200 --to=1243
 //   npx tsx scripts/ingest/rebuildWinStoresFromOfficial.ts                      (실제 반영)
 //   REQUEST_DELAY_MS=600 npx tsx ... --from=776 --to=951                         (실패분만 다시)
+//   npx tsx ... --chunk=20 --allow-shrink                                        (이어서 20회차만)
 // 반영 후에는 npm run ingest:refresh-rankings 를 돌려 랭킹을 다시 계산해야 한다.
 //
 // 공식 서버는 연속 요청을 스로틀한다 - 2026-09-28 실측으로 982회차를 120ms 간격으로 돌린
@@ -29,6 +30,9 @@ const ABORT_AFTER_CONSECUTIVE_FAILURES = 10;
 // 새 결과가 기존보다 배출점이 적으면 데이터를 잃는 쪽이라 기본적으로 쓰지 않는다.
 // 감소분까지 반영하려면 --allow-shrink 를 붙인다(감소 원인을 확인한 뒤에만).
 const ALLOW_SHRINK = process.argv.includes("--allow-shrink");
+// --chunk=N 이면 rebuild_progress에 남은 지점부터 N회차만 돌고 포인터를 옮긴다. 공식
+// 서버가 연속 요청을 IP째 끊기 때문에 한 번에 다 돌 수 없어서 나눠 돌리는 모드다.
+const PROGRESS_ID = "win-stores";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -81,10 +85,54 @@ async function loadDraws(from: number | null, to: number | null): Promise<DrawRo
   return rows;
 }
 
+async function readProgress(): Promise<number> {
+  const { data, error } = await (supabaseAdmin as any)
+    .from("rebuild_progress")
+    .select("next_draw_no")
+    .eq("id", PROGRESS_ID)
+    .single<{ next_draw_no: number }>();
+  if (error) throw new Error(`진행 상황 조회 실패: ${error.message}`);
+  return data.next_draw_no;
+}
+
+async function writeProgress(nextDrawNo: number): Promise<void> {
+  const { error } = await (supabaseAdmin as any)
+    .from("rebuild_progress")
+    .update({ next_draw_no: nextDrawNo, updated_at: new Date().toISOString() })
+    .eq("id", PROGRESS_ID);
+  if (error) throw new Error(`진행 상황 저장 실패: ${error.message}`);
+}
+
+async function maxDrawNo(): Promise<number> {
+  const { data, error } = await supabaseAdmin
+    .from("draw_history")
+    .select("draw_no")
+    .order("draw_no", { ascending: false })
+    .limit(1)
+    .single<{ draw_no: number }>();
+  if (error) throw new Error(`마지막 회차 조회 실패: ${error.message}`);
+  return data.draw_no;
+}
+
 async function main() {
   console.log(`🔁 배출점 공식 경로 재수집 ${DRY_RUN ? "(DRY RUN - 쓰기 없음)" : "(실제 반영)"}`);
 
-  const draws = await loadDraws(argValue("from"), argValue("to"));
+  const chunk = argValue("chunk");
+  let from = argValue("from");
+  let to = argValue("to");
+  if (chunk !== null) {
+    const last = await maxDrawNo();
+    from = await readProgress();
+    to = from + chunk - 1;
+    if (from > last) {
+      // 워크플로가 이 줄을 보고 스케줄을 스스로 끈다.
+      console.log(`REBUILD_COMPLETE 마지막 회차 ${last}까지 끝났습니다 - 더 돌 게 없습니다.`);
+      return;
+    }
+    console.log(`📎 이어서 ${from}~${to}회 (마지막 회차 ${last})`);
+  }
+
+  const draws = await loadDraws(from, to);
   console.log(`📍 대상 회차: ${draws.length}건 (${draws[0]?.draw_no}~${draws[draws.length - 1]?.draw_no})`);
 
   const stores = await loadAllStores();
@@ -93,6 +141,8 @@ async function main() {
 
   const stat = { grew: 0, same: 0, shrank: 0, skipped: 0, empty: 0, failed: 0, methods: 0, unmatched: 0 };
   let consecutiveFailures = 0;
+  // 확실히 처리한 마지막 회차. 조회 실패는 여기 안 들어가므로 다음 실행이 그 자리에서 다시 한다.
+  let handledThrough: number | null = null;
   let firstBefore = 0;
   let firstAfter = 0;
   const shrankDraws: string[] = [];
@@ -106,6 +156,7 @@ async function main() {
       const records = await fetchWithRetry(row.draw_no);
       if (records.length === 0) {
         stat.empty += 1;
+        handledThrough = row.draw_no;
         continue; // 공식에 데이터가 없는 옛 회차 - 기존 값을 그대로 둔다
       }
       resolved = resolveWinStores(records, index);
@@ -150,6 +201,7 @@ async function main() {
     // 안 맞아 findMatch가 버린 건지(resolved.unmatched) 가리기 전에 덮으면 데이터를 잃는다.
     if (shrinking && !ALLOW_SHRINK) {
       stat.skipped += 1;
+      handledThrough = row.draw_no;
       await sleep(REQUEST_DELAY_MS);
       continue;
     }
@@ -170,7 +222,13 @@ async function main() {
       stat.methods += resolved.firstMethods.size;
     }
 
+    handledThrough = row.draw_no;
     await sleep(REQUEST_DELAY_MS);
+  }
+
+  if (chunk !== null && !DRY_RUN && handledThrough !== null) {
+    await writeProgress(handledThrough + 1);
+    console.log(`📎 다음 실행은 ${handledThrough + 1}회부터 이어갑니다.`);
   }
 
   console.log("");

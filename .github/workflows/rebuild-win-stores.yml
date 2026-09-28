@@ -1,52 +1,75 @@
-# 과거 회차 배출점을 동행복권 공식 경로로 재수집한다. 수동 실행 전용.
+# 과거 회차 배출점을 동행복권 공식 경로로 재수집한다.
 #
-# 로컬에서 돌리면 안 되는 이유: 공식 서버가 연속 요청을 IP째 막는다. 2026-09-28 실측으로
-# 120ms 간격 982회차는 중간 176건이 통째로 타임아웃 + 종료 후 curl/ping까지 죽었고,
-# 다음 날 700ms로 다시 돌렸을 땐 48회차 만에 막혔다(단발 간격이 아니라 누적 요청량에
-# 걸리는 것으로 보인다). Actions 러너는 실행마다 IP가 달라 이 문제를 피한다.
+# 왜 30분마다 조금씩 도는가: 공식 서버가 연속 요청을 IP째 끊는다. TCP connect 단계에서
+# 드랍되고(UND_ERR_CONNECT_TIMEOUT) curl도 같이 죽는다 - Node 문제가 아니다. 2026-09-28
+# 실측으로 로컬은 48회차, GitHub Actions 러너는 31회차 만에 막혔다. 간격을 0.12초에서
+# 1초로 늘렸더니 오히려 더 빨리 막혔으니 간격이 아니라 누적 요청량에 걸리는 것이고,
+# 러너 IP가 매번 달라도 막히므로 IP를 바꾸는 걸로도 안 된다. 그래서 한 번에 20회차만
+# 돌고(임계치 31보다 넉넉히 아래) 다음 실행에서 이어간다. 어디까지 했는지는 Supabase
+# rebuild_progress 테이블 한 행에 남는다.
 #
-# 막히면 스크립트가 10회차 연속 실패 시 스스로 멈추고 이어서 돌릴 --from 값을 찍는다.
-# 그 값으로 from 만 바꿔 다시 실행하면 된다.
-name: 배출점 공식 재수집 (수동)
+# 982회차 ÷ 20 = 약 50번 실행 = 30분 간격이면 하루 정도. 다 끝나면 스크립트가
+# REBUILD_COMPLETE 를 찍고, 그때 명당 랭킹을 재계산한 뒤 이 스케줄을 스스로 끈다.
+#
+# Actions 사용량: 이 저장소는 Public이라 무료 분이 무제한이다. (Private였다면 실행당
+# 약 2분 × 48회/일 = 96분/일이라 월 2,000분 무료 한도를 약 20일 만에 소진한다.)
+name: 배출점 공식 재수집
 
 on:
+  schedule:
+    # 30분마다. GitHub의 schedule은 통째로 스킵될 수 있지만(이 저장소에서 실측됨)
+    # 여기선 그냥 진도가 조금 늦어질 뿐이라 문제가 없다.
+    - cron: '*/30 * * * *'
+
   workflow_dispatch:
     inputs:
       from:
-        description: '시작 회차 (비우면 전체)'
+        description: '시작 회차 (비우면 이어서)'
         required: false
         type: string
       to:
-        description: '끝 회차 (비우면 전체)'
+        description: '끝 회차 (비우면 이어서)'
         required: false
+        type: string
+      chunk:
+        description: '한 번에 돌 회차 수 (from/to 비웠을 때)'
+        required: false
+        default: '20'
         type: string
       delay_ms:
         description: '회차 간 간격(ms)'
         required: false
-        default: '1000'
+        default: '1500'
         type: string
       dry_run:
         description: '미리보기만 (쓰기 없음)'
-        required: false
-        default: 'true'
-        type: choice
-        options: ['true', 'false']
-      allow_shrink:
-        description: '배출점이 줄어드는 회차도 반영'
         required: false
         default: 'false'
         type: choice
         options: ['true', 'false']
 
+# 이전 실행이 아직 돌고 있으면 겹치지 않게 기다린다 - 포인터가 꼬이면 안 된다.
+concurrency:
+  group: rebuild-win-stores
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write # 다 끝났을 때 이 워크플로를 스스로 끄기 위해 필요
+
 env:
   NODE_VERSION: '24'
   WORKING_DIR: 'scripts/ingest'
+  # 감소 회차도 반영한다. 감소는 데이터 손실이 아니라, 폐업/상호변경으로 사라진 가게의
+  # 1등이 옛 파이프라인에서 1km쯤 떨어진 엉뚱한 옆 가게에 잘못 붙어 있던 걸 지우는 것이다
+  # (2026-09-28 321/972/1070회로 확인). "없어진 가게는 뺀다"가 정해진 방침이다.
+  SHRINK_FLAG: '--allow-shrink'
 
 jobs:
   rebuild:
     name: 배출점 재수집
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -61,24 +84,39 @@ jobs:
         run: cd ${{ env.WORKING_DIR }} && npm ci
 
       - name: 🔁 재수집
+        id: rebuild
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DRY_RUN: ${{ inputs.dry_run == 'true' && '1' || '0' }}
-          REQUEST_DELAY_MS: ${{ inputs.delay_ms }}
+          REQUEST_DELAY_MS: ${{ inputs.delay_ms || '1500' }}
         run: |
+          set -o pipefail # tee 뒤에서 스크립트 실패가 묻히지 않게
           cd ${{ env.WORKING_DIR }}
-          ARGS=""
-          if [ -n "${{ inputs.from }}" ]; then ARGS="$ARGS --from=${{ inputs.from }}"; fi
-          if [ -n "${{ inputs.to }}" ]; then ARGS="$ARGS --to=${{ inputs.to }}"; fi
-          if [ "${{ inputs.allow_shrink }}" = "true" ]; then ARGS="$ARGS --allow-shrink"; fi
+          ARGS="$SHRINK_FLAG"
+          if [ -n "${{ inputs.from }}" ]; then
+            ARGS="$ARGS --from=${{ inputs.from }}"
+            if [ -n "${{ inputs.to }}" ]; then ARGS="$ARGS --to=${{ inputs.to }}"; fi
+          else
+            ARGS="$ARGS --chunk=${{ inputs.chunk || '20' }}"
+          fi
           echo "실행: npm run ingest:rebuild-winstores -- $ARGS"
-          npm run ingest:rebuild-winstores -- $ARGS
+          npm run ingest:rebuild-winstores -- $ARGS | tee rebuild.log
+          if grep -q REBUILD_COMPLETE rebuild.log; then echo "complete=true" >> "$GITHUB_OUTPUT"; fi
 
-      # 배출점이 바뀌면 명당 랭킹이 옛 누적값 위에 남아 있으므로 같이 다시 계산한다.
+      # 배출점이 바뀌면 명당 랭킹이 옛 누적값 위에 남으므로 다시 계산한다. 회차마다
+      # 돌릴 필요는 없어서 전부 끝났을 때 한 번만 한다.
       - name: 🏆 명당 랭킹 재계산
-        if: ${{ inputs.dry_run != 'true' }}
+        if: steps.rebuild.outputs.complete == 'true'
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: cd ${{ env.WORKING_DIR }} && npm run ingest:refresh-rankings
+
+      # 끝났는데 30분마다 계속 깨우면 낭비다. 스스로 끈다 - 다시 돌릴 일이 생기면
+      # Actions 탭에서 Enable workflow 를 누르면 된다.
+      - name: 🛑 스케줄 끄기
+        if: steps.rebuild.outputs.complete == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow disable rebuild-win-stores.yml --repo "${{ github.repository }}"
