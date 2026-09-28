@@ -9,7 +9,8 @@
     "ingest:winning-stores": "tsx fetchWinningStores.ts",
     "ingest:draws": "tsx fetchDrawHistory.ts",
     "ingest:refresh-rankings": "tsx refreshRankingStats.ts",
-    "ingest:notify": "tsx sendMylottoNotifications.ts"
+    "ingest:notify": "tsx sendMylottoNotifications.ts",
+    "ingest:rebuild-winstores": "tsx rebuildWinStoresFromOfficial.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

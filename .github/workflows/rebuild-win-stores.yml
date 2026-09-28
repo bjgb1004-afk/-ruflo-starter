@@ -1,0 +1,84 @@
+# 과거 회차 배출점을 동행복권 공식 경로로 재수집한다. 수동 실행 전용.
+#
+# 로컬에서 돌리면 안 되는 이유: 공식 서버가 연속 요청을 IP째 막는다. 2026-09-28 실측으로
+# 120ms 간격 982회차는 중간 176건이 통째로 타임아웃 + 종료 후 curl/ping까지 죽었고,
+# 다음 날 700ms로 다시 돌렸을 땐 48회차 만에 막혔다(단발 간격이 아니라 누적 요청량에
+# 걸리는 것으로 보인다). Actions 러너는 실행마다 IP가 달라 이 문제를 피한다.
+#
+# 막히면 스크립트가 10회차 연속 실패 시 스스로 멈추고 이어서 돌릴 --from 값을 찍는다.
+# 그 값으로 from 만 바꿔 다시 실행하면 된다.
+name: 배출점 공식 재수집 (수동)
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: '시작 회차 (비우면 전체)'
+        required: false
+        type: string
+      to:
+        description: '끝 회차 (비우면 전체)'
+        required: false
+        type: string
+      delay_ms:
+        description: '회차 간 간격(ms)'
+        required: false
+        default: '1000'
+        type: string
+      dry_run:
+        description: '미리보기만 (쓰기 없음)'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+      allow_shrink:
+        description: '배출점이 줄어드는 회차도 반영'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['true', 'false']
+
+env:
+  NODE_VERSION: '24'
+  WORKING_DIR: 'scripts/ingest'
+
+jobs:
+  rebuild:
+    name: 배출점 재수집
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: '${{ env.WORKING_DIR }}/package.json'
+
+      - name: 📦 의존성 설치
+        run: cd ${{ env.WORKING_DIR }} && npm ci
+
+      - name: 🔁 재수집
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ inputs.dry_run == 'true' && '1' || '0' }}
+          REQUEST_DELAY_MS: ${{ inputs.delay_ms }}
+        run: |
+          cd ${{ env.WORKING_DIR }}
+          ARGS=""
+          if [ -n "${{ inputs.from }}" ]; then ARGS="$ARGS --from=${{ inputs.from }}"; fi
+          if [ -n "${{ inputs.to }}" ]; then ARGS="$ARGS --to=${{ inputs.to }}"; fi
+          if [ "${{ inputs.allow_shrink }}" = "true" ]; then ARGS="$ARGS --allow-shrink"; fi
+          echo "실행: npm run ingest:rebuild-winstores -- $ARGS"
+          npm run ingest:rebuild-winstores -- $ARGS
+
+      # 배출점이 바뀌면 명당 랭킹이 옛 누적값 위에 남아 있으므로 같이 다시 계산한다.
+      - name: 🏆 명당 랭킹 재계산
+        if: ${{ inputs.dry_run != 'true' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: cd ${{ env.WORKING_DIR }} && npm run ingest:refresh-rankings
