@@ -7,7 +7,13 @@
 //   DRY_RUN=1 npx tsx scripts/ingest/rebuildWinStoresFromOfficial.ts            (전체 미리보기, 쓰기 없음)
 //   DRY_RUN=1 npx tsx scripts/ingest/rebuildWinStoresFromOfficial.ts --from=1200 --to=1243
 //   npx tsx scripts/ingest/rebuildWinStoresFromOfficial.ts                      (실제 반영)
+//   REQUEST_DELAY_MS=600 npx tsx ... --from=776 --to=951                         (실패분만 다시)
 // 반영 후에는 npm run ingest:refresh-rankings 를 돌려 랭킹을 다시 계산해야 한다.
+//
+// 공식 서버는 연속 요청을 스로틀한다 - 2026-09-28 실측으로 982회차를 120ms 간격으로 돌린
+// 결과 중간 176회차가 통째로 ConnectTimeout이 되고 끝난 뒤엔 IP 자체가 막혀 curl·ping도
+// 죽었다(수십 분 뒤 복구). 그래서 기본 간격을 넉넉히 두고 회차당 재시도를 붙였다. 그래도
+// 연속 실패가 쌓이면 스로틀로 보고 즉시 중단한다 - 계속 때리면 차단이 길어진다.
 import { supabaseAdmin } from "./lib/supabaseAdmin";
 import { loadAllStores, buildGrid } from "./lib/storeMatcher";
 import { fetchDhlotteryWinStores } from "./lib/dhlotteryWinStores";
@@ -15,9 +21,28 @@ import { resolveWinStores, syncFirstPrizeMethods } from "./lib/winStoreResolver"
 
 const DRY_RUN = process.env.DRY_RUN === "1";
 // 공식 서버에 회차당 1요청뿐이지만 1200회차를 연속으로 때리는 셈이라 간격을 둔다.
-const REQUEST_DELAY_MS = 120;
+// 120ms로는 스로틀에 걸렸다(위 주석) - 실측 기반으로 500ms를 기본값으로 둔다.
+const REQUEST_DELAY_MS = Number(process.env.REQUEST_DELAY_MS ?? 500);
+const FETCH_TRIES = 4;
+// 이만큼 연속으로 실패하면 회차 문제가 아니라 차단이다 - 더 때리지 않고 끝낸다.
+const ABORT_AFTER_CONSECUTIVE_FAILURES = 10;
+// 새 결과가 기존보다 배출점이 적으면 데이터를 잃는 쪽이라 기본적으로 쓰지 않는다.
+// 감소분까지 반영하려면 --allow-shrink 를 붙인다(감소 원인을 확인한 뒤에만).
+const ALLOW_SHRINK = process.argv.includes("--allow-shrink");
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// 스로틀·일시적 네트워크 오류는 회차 단위로 재시도한다. 첫 시도 실패 후 1s, 3s, 7s.
+async function fetchWithRetry(drawNo: number) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fetchDhlotteryWinStores(drawNo);
+    } catch (error) {
+      if (attempt >= FETCH_TRIES - 1) throw error;
+      await sleep(1000 * (2 ** attempt + attempt));
+    }
+  }
+}
 
 function argValue(name: string): number | null {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
@@ -66,7 +91,8 @@ async function main() {
   const index = buildGrid(stores);
   console.log(`🏪 ${stores.length}개 매장 로드 완료\n`);
 
-  const stat = { grew: 0, same: 0, shrank: 0, empty: 0, failed: 0, methods: 0 };
+  const stat = { grew: 0, same: 0, shrank: 0, skipped: 0, empty: 0, failed: 0, methods: 0, unmatched: 0 };
+  let consecutiveFailures = 0;
   let firstBefore = 0;
   let firstAfter = 0;
   const shrankDraws: string[] = [];
@@ -77,31 +103,55 @@ async function main() {
 
     let resolved;
     try {
-      const records = await fetchDhlotteryWinStores(row.draw_no);
+      const records = await fetchWithRetry(row.draw_no);
       if (records.length === 0) {
         stat.empty += 1;
         continue; // 공식에 데이터가 없는 옛 회차 - 기존 값을 그대로 둔다
       }
       resolved = resolveWinStores(records, index);
+      consecutiveFailures = 0;
     } catch (error) {
       console.error(`  ❌ ${row.draw_no}회 조회 실패: ${error instanceof Error ? error.message : String(error)}`);
       stat.failed += 1;
+      consecutiveFailures += 1;
+      if (consecutiveFailures >= ABORT_AFTER_CONSECUTIVE_FAILURES) {
+        console.error(
+          `
+🛑 ${consecutiveFailures}회차 연속 실패 - 공식 서버 차단으로 보고 ${row.draw_no}회에서 중단합니다.
+` +
+            `   잠시 뒤 --from=${row.draw_no - consecutiveFailures + 1} 로 이어서 돌리세요.`,
+        );
+        break;
+      }
       await sleep(REQUEST_DELAY_MS);
       continue;
     }
 
+    const shrinking = resolved.first.length < storedFirst;
     firstBefore += storedFirst;
-    firstAfter += resolved.first.length;
-
-    if (resolved.first.length < storedFirst) {
+    // 감소 회차는 쓰지 않으므로 기존 값이 그대로 남는다 - 합계도 그렇게 센다.
+    firstAfter += shrinking && !ALLOW_SHRINK ? storedFirst : resolved.first.length;
+    stat.unmatched += resolved.unmatched;
+    if (shrinking) {
       stat.shrank += 1;
-      if (shrankDraws.length < 20) {
-        shrankDraws.push(`${row.draw_no}회 ${storedFirst}→${resolved.first.length}`);
+      if (shrankDraws.length < 30) {
+        shrankDraws.push(
+          `${row.draw_no}회 ${storedFirst}→${resolved.first.length}` +
+            (resolved.unmatched > 0 ? `(미매칭 ${resolved.unmatched})` : ""),
+        );
       }
     } else if (resolved.first.length > storedFirst || resolved.second.length !== storedSecond) {
       stat.grew += 1;
     } else {
       stat.same += 1;
+    }
+
+    // 감소 회차는 건드리지 않는다. 공식 응답이 실제로 적은 건지, 좌표·상호가 stores와
+    // 안 맞아 findMatch가 버린 건지(resolved.unmatched) 가리기 전에 덮으면 데이터를 잃는다.
+    if (shrinking && !ALLOW_SHRINK) {
+      stat.skipped += 1;
+      await sleep(REQUEST_DELAY_MS);
+      continue;
     }
 
     if (!DRY_RUN) {
@@ -125,12 +175,16 @@ async function main() {
 
   console.log("");
   console.log(`✅ ${DRY_RUN ? "미리보기" : "반영"} 완료`);
-  console.log(`   증가/변화: ${stat.grew}회차 · 동일: ${stat.same}회차 · 감소: ${stat.shrank}회차`);
+  console.log(
+    `   증가/변화: ${stat.grew}회차 · 동일: ${stat.same}회차 · 감소: ${stat.shrank}회차` +
+      (ALLOW_SHRINK ? " (감소분도 반영)" : ` (그중 ${stat.skipped}회차는 쓰지 않고 건너뜀)`),
+  );
+  console.log(`   stores 테이블에서 못 찾아 버린 배출점 레코드: ${stat.unmatched}건`);
   console.log(`   공식 데이터 없음(건너뜀): ${stat.empty}회차 · 실패: ${stat.failed}회차`);
   console.log(`   1등 배출점 합계: ${firstBefore} → ${firstAfter}건`);
   console.log(`   1등 구매방식: ${stat.methods}건`);
   if (shrankDraws.length > 0) {
-    console.log(`   ⚠️ 감소한 회차(최대 20개): ${shrankDraws.join(", ")}`);
+    console.log(`   ⚠️ 감소한 회차(최대 30개): ${shrankDraws.join(", ")}`);
   }
   if (!DRY_RUN) {
     console.log("");
