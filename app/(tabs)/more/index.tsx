@@ -11,12 +11,14 @@ interface MoreMenuItem {
   emoji: string;
   label: string;
   href: Href;
+  // 아직 유저에게 공개하지 않은 메뉴. 공개할 때 이 줄만 지우면 된다.
+  adminOnly?: boolean;
 }
 
 // 추후 메뉴가 늘어나도 이 배열에 항목만 추가하면 되도록 데이터 기반으로 구성한다.
 // QR 당첨확인이 탭으로 나가고, 즐겨찾기가 그 자리로 들어왔다(design.txt 요구사항).
 const MENU_ITEMS: MoreMenuItem[] = [
-  { key: "generator", emoji: "🎲", label: "천재 번호생성기", href: "/more/generator" },
+  { key: "generator", emoji: "🎲", label: "천재 번호생성기", href: "/more/generator", adminOnly: true },
   { key: "favorites", emoji: "⭐", label: "즐겨찾기", href: "/more/favorites" },
   { key: "stats", emoji: "📊", label: "회차별 당첨현황", href: "/more/stats" },
   { key: "settings", emoji: "⚙️", label: "앱 설정", href: "/more/settings" },
@@ -32,7 +34,7 @@ export default function MoreScreen() {
     () =>
       isAdmin
         ? [...MENU_ITEMS, { key: "admin", emoji: "🛠️", label: "관리자", href: "/admin" as Href }]
-        : MENU_ITEMS,
+        : MENU_ITEMS.filter((item) => !item.adminOnly),
     [isAdmin],
   );
 
