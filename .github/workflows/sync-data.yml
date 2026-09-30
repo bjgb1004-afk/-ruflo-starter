@@ -84,18 +84,23 @@ jobs:
           
           echo "📊 설정 완료"
 
-      - name: 🏪 판매점 데이터 수집
-        if: ${{ github.event.inputs.skip_stores != 'true' }}
+      # 2026-09-30: 이 단계는 비활성화 상태다. ingest:stores(fetchStoresFromCSV.ts)는
+      # 개발자 로컬 PC의 Windows 절대경로(C:\Users\pc\Downloads\...)를 하드코딩한 일회성
+      # 부트스트랩 스크립트라 Actions 러너(Ubuntu)에서는 파일이 없어 매번 ENOENT로 죽는다.
+      # 예전엔 `|| echo`로 실패를 삼켜서 겉보기엔 "✅ 성공"으로 찍혔을 뿐, 판매점 마스터
+      # 데이터는 2025-06-07 로컬 1회성 CSV 임포트 이후 실질적으로 갱신된 적이 없다(주소
+      # 오류·유령 레코드가 안 걸러지는 원인 중 하나 - 흥부네 주소 오류 감사 참고).
+      # 재활성화 조건: CSV를 저장소에 커밋해 상대경로로 바꾸거나, DATA_GO_KR_API_KEY로
+      # 공공데이터포털 API를 직접 호출하도록 fetchStoresFromCSV.ts를 다시 쓸 것.
+      - name: 🏪 판매점 데이터 수집 (비활성 - 아래 주석 참고)
+        if: false
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           VWORLD_API_KEY: ${{ secrets.VWORLD_API_KEY }}
         run: |
           cd ${{ env.WORKING_DIR }}
-          echo "📍 Step 1/3: 판매점 수집..."
-          echo "ℹ️  현재 시드 데이터 또는 CSV 사용"
-          npm run ingest:stores || echo "⚠️  판매점 수집 완료 (데이터 소스 구현 필요)"
-          echo "✅ Step 1 완료"
+          npm run ingest:stores
 
       - name: 🎰 당첨 회차 및 배출점 수집
         if: ${{ github.event.inputs.skip_draws != 'true' }}
