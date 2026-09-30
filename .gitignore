@@ -32,3 +32,6 @@ fullayer-win-records.json
 
 # graphify 스킬 산출물
 graphify-out/
+
+# 백테스트 실행 결과 (재생성 가능)
+scripts/backtest-result.json
