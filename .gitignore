@@ -29,3 +29,6 @@ fullayer-win-records.json
 
 # git worktrees (subagent-driven-development 등에서 사용)
 .worktrees/
+
+# graphify 스킬 산출물
+graphify-out/
