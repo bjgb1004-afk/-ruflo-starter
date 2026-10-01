@@ -260,11 +260,16 @@ export default function MyLottoScreen() {
           저장된 복권이 없어요
         </Text>
         <Text style={[styles.emptySubtext, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
-          QR 스캔 후 보관함에 저장하면 여기에 모여요.
+          QR 스캔 후 보관함에 저장하면 여기에 모여요. 번호를 직접 적어 넣어도 돼요.
         </Text>
         <Pressable style={styles.scanButton} onPress={() => router.push("/scan")}>
           <Text style={[styles.scanButtonText, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
             QR 스캔하러 가기
+          </Text>
+        </Pressable>
+        <Pressable style={styles.entryButton} onPress={() => router.push("/ticket-entry")}>
+          <Text style={[styles.entryButtonText, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
+            번호 직접 입력
           </Text>
         </Pressable>
       </View>
@@ -274,6 +279,12 @@ export default function MyLottoScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: spacing.lg + insets.bottom }]}>
+        <Pressable style={styles.entryButton} onPress={() => router.push("/ticket-entry")} accessibilityRole="button">
+          <Text style={[styles.entryButtonText, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
+            ＋ 번호 직접 입력
+          </Text>
+        </Pressable>
+
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
             수익률
@@ -361,6 +372,16 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   scanButtonText: { color: "#fff", fontWeight: "700" },
+  entryButton: {
+    marginTop: spacing.sm,
+    alignSelf: "center",
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.pill,
+  },
+  entryButtonText: { color: colors.primary, fontWeight: "700" },
   section: {
     gap: spacing.md,
     backgroundColor: colors.surface,
