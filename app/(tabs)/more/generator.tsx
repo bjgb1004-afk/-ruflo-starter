@@ -71,6 +71,7 @@ function GeniusSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "sm
   // 추가로 뽑은 횟수. 천재를 바꾸면 처음부터 다시 센다.
   const [extraRounds, setExtraRounds] = useState(0);
   const genius = GENIUSES.find((g) => g.id === selected) ?? GENIUSES[0];
+  const addTickets = useMyLottoTickets((s) => s.addTickets);
   const games = useMemo(() => generateGeniusGames(genius.id, drawNo), [genius.id, drawNo]);
   const extras = useMemo(
     () => Array.from({ length: extraRounds }, (_, i) => generateExtraGames(genius.id, drawNo, i + 1)),
@@ -81,6 +82,30 @@ function GeniusSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "sm
     setSelected(id);
     setExtraRounds(0);
   };
+
+  // 화면에 떠 있는 것 전부 - 기본 5게임에 '한 번 더 뽑기'로 추가된 세트까지.
+  const allGames = useMemo(() => [...games, ...extras.flat()], [games, extras]);
+
+  const share = useCallback(async () => {
+    const lines = allGames.map((game, i) => `${LETTERS[i % LETTERS.length]} ${game.join(", ")}`);
+    await Share.share({
+      message: [
+        `${drawNo}회 천재들의 한수 - ${genius.name}`,
+        "",
+        ...lines,
+        "",
+        "당첨 확률은 어떤 조합이든 같아요.",
+      ].join("\n"),
+    });
+  }, [allGames, drawNo, genius.name]);
+
+  const save = useCallback(() => {
+    addTickets(allGames.map((numbers) => ({ drawNo, numbers, purchaseType: null })));
+    Alert.alert(
+      "보관함에 저장했어요",
+      `${drawNo}회 ${allGames.length}게임을 보관함에 넣었어요. 추첨 후 자동으로 확인해 드려요.`,
+    );
+  }, [addTickets, allGames, drawNo]);
 
   return (
     <>
@@ -144,9 +169,18 @@ function GeniusSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "sm
         <Text style={styles.primaryButtonText}>한 번 더 뽑기</Text>
       </Pressable>
 
+      <View style={styles.buttonRow}>
+        <Pressable style={styles.secondaryButton} onPress={save} accessibilityRole="button">
+          <Text style={styles.secondaryButtonText}>보관함에 저장</Text>
+        </Pressable>
+        <Pressable style={styles.secondaryButton} onPress={share} accessibilityRole="button">
+          <Text style={styles.secondaryButtonText}>번호 보내기</Text>
+        </Pressable>
+      </View>
+
       <Text style={styles.disclaimer}>
-        천재들의 수학 방식으로 재미 삼아 만든 번호이며, 당첨 확률을 높이거나 당첨을 보장하지 않아요. 모든 번호 조합의
-        당첨 확률은 같아요. 로또는 만 19세 이상만 구매할 수 있어요.
+        천재들의 수학 방식으로 만든 번호이며, 당첨 확률을 높이거나 당첨을 보장하지 않아요. 모든 번호 조합의 당첨
+        확률은 같아요.
       </Text>
     </>
   );
@@ -225,8 +259,7 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
       </View>
 
       <Text style={styles.disclaimer}>
-        통계 참고용이며 당첨 확률을 높여주지 않습니다. 모든 번호 조합의 당첨 확률은 같아요. 로또는 만 19세 이상만 구매할
-        수 있어요.
+        통계 참고용이며 당첨 확률을 높여주지 않습니다. 모든 번호 조합의 당첨 확률은 같아요.
       </Text>
     </>
   );
