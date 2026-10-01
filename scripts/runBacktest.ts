@@ -4,10 +4,10 @@
 // 결과를 좋게 보이도록 조정하지 않는다. 나온 그대로 찍는다.
 import fs from "fs";
 import { supabaseAdmin } from "./ingest/lib/supabaseAdmin";
-import { runBacktest, splitByRatio } from "../src/features/backtest/engine";
-import { KOREAN_STRATEGIES } from "../src/features/backtest/strategies";
-import { judgeResults, matchProbability } from "../src/features/backtest/significance";
-import { DEFAULT_PARAMS, KOREA_LOTTO_6_45, type LottoDraw } from "../src/features/backtest/types";
+import { runRecipes, splitByRatio } from "../src/features/backtest/engine";
+import { PRESET_RECIPES } from "../src/features/backtest/recipes";
+import { judgeResults, theoreticalMeanMatches, verdictLabel } from "../src/features/backtest/significance";
+import { KOREA_LOTTO_6_45, type LottoDraw } from "../src/features/backtest/types";
 
 const PAGE = 1000;
 
@@ -62,104 +62,115 @@ async function main() {
     fromRound: argNumber("from"),
     toRound: argNumber("to"),
     seed: "backtest-v1",
-    params: DEFAULT_PARAMS,
   };
 
-  const run = runBacktest(draws, KOREAN_STRATEGIES, options);
+  const run = runRecipes(draws, PRESET_RECIPES, options);
 
   console.log("=".repeat(78));
   console.log("데이터 문제");
   console.log("=".repeat(78));
   console.log(run.issues.length === 0 ? "없음 (중복·누락·범위이탈·보너스 오류 0건)" : run.issues);
 
+  const first = run.results[0];
+  const split = splitByRatio(draws);
+
+  // 회차 수와 "분석에 쓰는 최근 데이터 창"은 다른 개념이다. 한 줄에 섞어 찍으면 화면에서도
+  // 섞여 나온다(882회차 vs 최근 20회).
   console.log("\n" + "=".repeat(78));
-  console.log(`백테스트: ${run.meta.testRange.from}~${run.meta.testRange.to}회 (${run.results[0].drawsTested}회차)`);
-  console.log(`전략당 회차마다 ${ticketCount}게임 = 전략당 ${run.results[0].totalTickets.toLocaleString()}게임`);
+  console.log("백테스트 조건");
   console.log("=".repeat(78));
+  console.log(`  백테스트 기간        ${run.meta.testRange.from} ~ ${run.meta.testRange.to}회`);
+  console.log(`  총 테스트 회차       ${first.drawsTested.toLocaleString()}회`);
+  console.log(`  회차당 게임          ${ticketCount}게임`);
+  console.log(`  총 게임              ${first.totalTickets.toLocaleString()}게임`);
+  console.log(`  분석에 쓰는 최근 창   레시피별 recentWindow (프리셋은 최근 20회)`);
+  console.log(`  이론 기준선(계산값)   ${theoreticalMeanMatches(rule).toFixed(4)}개 = ${rule.pickCount}²/${rule.maxNumber}, 표본오차 없음`);
 
   const verdicts = judgeResults(run.results, rule);
 
-  console.log("\n적중 개수 분포 (게임 수)");
-  console.log("전략".padEnd(18) + ["0개", "1개", "2개", "3개", "4개", "5개", "6개"].map((h) => h.padStart(9)).join(""));
-  for (const r of run.results) {
-    console.log(r.strategyName.padEnd(18) + r.matchCounts.map((c) => String(c).padStart(9)).join(""));
-  }
-  const total = run.results[0].totalTickets;
-  console.log(
-    "이론 기대값".padEnd(18) +
-      [0, 1, 2, 3, 4, 5, 6].map((k) => (matchProbability(k, rule) * total).toFixed(1).padStart(9)).join(""),
-  );
-
-  console.log("\n요약");
-  console.log(
-    "전략".padEnd(18) +
-      "평균적중".padStart(10) +
-      "95% 신뢰구간".padStart(22) +
-      "3개+".padStart(8) +
-      "4개+".padStart(8) +
-      "5개+".padStart(7) +
-      "1등".padStart(5),
-  );
-  for (let i = 0; i < run.results.length; i++) {
-    const r = run.results[i];
-    const v = verdicts[i];
-    console.log(
-      r.strategyName.padEnd(18) +
-        r.averageMatches.toFixed(4).padStart(10) +
-        `[${v.ci.lower.toFixed(4)}, ${v.ci.upper.toFixed(4)}]`.padStart(22) +
-        String(r.atLeast3).padStart(8) +
-        String(r.atLeast4).padStart(8) +
-        String(r.atLeast5).padStart(7) +
-        String(r.jackpot).padStart(5),
-    );
-  }
-  console.log(`\n무작위 조합의 이론적 기대 적중 = ${(rule.pickCount ** 2 / rule.maxNumber).toFixed(4)}개`);
-
-  console.log("\n무작위 대비 판정");
+  // 관측 건수와 기대 건수를 나란히 둔다. 같은 열에 섞으면 0.253이 p값으로 읽힌다.
+  console.log("\n" + "=".repeat(78));
+  console.log("적중 개수별 실제 발생 vs 무작위 기대");
+  console.log("=".repeat(78));
   for (const v of verdicts) {
     console.log(`\n[${v.strategyName}]`);
-    console.log(`  관측 평균 ${v.observedMean.toFixed(4)} vs 이론값 ${v.theoreticalMean.toFixed(4)}`);
-    console.log(`  95% 신뢰구간 [${v.ci.lower.toFixed(4)}, ${v.ci.upper.toFixed(4)}]`);
-    console.log(
-      `  → 신뢰구간이 이론값을 ${v.differsFromRandom ? "포함하지 않음 (차이 있음)" : "포함함 (차이 없음)"}`,
-    );
-    if (v.vsRandom) {
+    console.log("  적중수" + "실제 발생".padStart(12) + "무작위 기대".padStart(14) + "  판단");
+    for (const b of v.breakdown) {
+      if (b.matches < 3) continue;
       console.log(
-        `  무작위 전략과의 짝지은 순열검정: 차이 ${v.vsRandom.observedDifference.toFixed(5)}, p = ${v.vsRandom.pValue.toFixed(4)}` +
-          ` → ${v.vsRandom.pValue < 0.05 ? "유의" : "유의하지 않음"}`,
+        `  ${b.matches}개`.padEnd(8) +
+          b.observed.toLocaleString().padStart(10) +
+          b.expected.toFixed(3).padStart(14) +
+          (b.insufficient ? "  표본 부족 - 판단 불가" : ""),
       );
-    }
-    if (v.insufficientSamples.length > 0) {
-      console.log("  표본 부족으로 판단 불가:");
-      for (const s of v.insufficientSamples) console.log(`    - ${s}`);
     }
   }
 
-  // out-of-sample: 데이터를 시간순으로 나누고 마지막 구간만 따로 본다.
-  const split = splitByRatio(draws);
   console.log("\n" + "=".repeat(78));
-  console.log("Out-of-sample (마지막 15% 구간만)");
-  console.log(
-    `training ${split.training.from}~${split.training.to} | validation ${split.validation.from}~${split.validation.to} | test ${split.test.from}~${split.test.to}`,
-  );
+  console.log("요약 (이론 기준선 0.8000개와 비교)");
   console.log("=".repeat(78));
-
-  const oos = runBacktest(draws, KOREAN_STRATEGIES, {
-    ...options,
-    fromRound: split.test.from,
-    toRound: split.test.to,
-  });
-  const oosVerdicts = judgeResults(oos.results, rule);
-  console.log("전략".padEnd(18) + "평균적중".padStart(10) + "95% 신뢰구간".padStart(22) + "무작위와 차이".padStart(16));
-  for (let i = 0; i < oos.results.length; i++) {
-    const r = oos.results[i];
-    const v = oosVerdicts[i];
+  console.log("전략".padEnd(20) + "평균적중".padStart(9) + "기준선 대비".padStart(12) + "  95% 신뢰구간".padEnd(22) + "판정");
+  for (const v of verdicts) {
     console.log(
-      r.strategyName.padEnd(18) +
-        r.averageMatches.toFixed(4).padStart(10) +
-        `[${v.ci.lower.toFixed(4)}, ${v.ci.upper.toFixed(4)}]`.padStart(22) +
-        (v.differsFromRandom ? "있음" : "없음").padStart(16),
+      v.strategyName.padEnd(20) +
+        v.observedMean.toFixed(4).padStart(9) +
+        `${v.difference >= 0 ? "+" : ""}${v.difference.toFixed(4)}`.padStart(12) +
+        `  [${v.ci.lower.toFixed(4)}, ${v.ci.upper.toFixed(4)}]`.padEnd(22) +
+        verdictLabel(v),
     );
+  }
+  console.log("\n※ 완전 무작위는 기준선이 아니라 대조군 실측값이다. 표본오차가 있어 0.8000과 조금 다르게 나오는 것이 정상.");
+
+  console.log("\n" + "=".repeat(78));
+  console.log("4개 이상 적중이 무작위에서도 흔한가 (몬테카를로)");
+  console.log("=".repeat(78));
+  console.log("전략".padEnd(20) + "실제".padStart(6) + "무작위 평균".padStart(12) + "무작위 95% 범위".padStart(18) + "  무작위가 이만큼 낼 확률");
+  for (const v of verdicts) {
+    const mc = v.atLeast4;
+    console.log(
+      v.strategyName.padEnd(20) +
+        String(mc.observed).padStart(6) +
+        mc.randomMean.toFixed(1).padStart(12) +
+        `[${mc.randomRange[0]}, ${mc.randomRange[1]}]`.padStart(18) +
+        `  ${(mc.probabilityAtLeastObserved * 100).toFixed(1)}%`,
+    );
+  }
+
+  console.log("\n" + "=".repeat(78));
+  console.log("짝지은 순열검정 (내부용 - 화면에는 p값을 띄우지 않는다)");
+  console.log("=".repeat(78));
+  for (const v of verdicts) {
+    if (!v.vsRandom) continue;
+    console.log(
+      `${v.strategyName.padEnd(20)} 차이 ${v.vsRandom.observedDifference.toFixed(5)}, p = ${v.vsRandom.pValue.toFixed(4)}` +
+        ` → ${v.vsRandom.pValue < 0.05 ? "유의" : "유의하지 않음"}`,
+    );
+  }
+
+  // 설정을 고치는 것은 validation 구간을 보면서 한다. test 구간은 마지막에 한 번만 본다.
+  // 두 구간을 섞어 보면서 가중치를 만지면, 나온 숫자는 그 구간에 맞춘 결과일 뿐이다.
+  console.log("\n" + "=".repeat(78));
+  console.log("구간 분리");
+  console.log("=".repeat(78));
+  console.log(`  training    ${split.training.from}~${split.training.to}회 (과거 데이터, 분석 재료)`);
+  console.log(`  validation  ${split.validation.from}~${split.validation.to}회 (설정을 고칠 때 보는 구간)`);
+  console.log(`  test        ${split.test.from}~${split.test.to}회 (마지막에 한 번만, 설정 고친 뒤 재확인 금지)`);
+
+  for (const phase of ["validation", "test"] as const) {
+    const range = split[phase];
+    const oos = runRecipes(draws, PRESET_RECIPES, { ...options, fromRound: range.from, toRound: range.to });
+    const oosVerdicts = judgeResults(oos.results, rule);
+    console.log(`\n[${phase}] ${range.from}~${range.to}회 (${oos.results[0].drawsTested}회차, ${oos.results[0].totalTickets.toLocaleString()}게임)`);
+    console.log("전략".padEnd(20) + "평균적중".padStart(9) + "기준선 대비".padStart(12) + "  95% 신뢰구간".padEnd(22) + "판정");
+    for (const v of oosVerdicts) {
+      console.log(
+        v.strategyName.padEnd(20) +
+          v.observedMean.toFixed(4).padStart(9) +
+          `${v.difference >= 0 ? "+" : ""}${v.difference.toFixed(4)}`.padStart(12) +
+          `  [${v.ci.lower.toFixed(4)}, ${v.ci.upper.toFixed(4)}]`.padEnd(22) +
+          verdictLabel(v),
+      );
+    }
   }
 
   const outPath = "scripts/backtest-result.json";

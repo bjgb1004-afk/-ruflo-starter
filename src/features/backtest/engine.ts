@@ -10,11 +10,13 @@ import type {
   DataIssue,
   LottoDraw,
   LottoRule,
+  Recipe,
   Rng,
   RoundResult,
   Strategy,
 } from "./types";
 import { ALGORITHM_VERSION } from "./types";
+import { recipeStrategy } from "./recipes";
 
 // ---------- 난수 ----------
 
@@ -134,11 +136,7 @@ export function runBacktest(
   strategies: readonly Strategy[],
   options: BacktestOptions,
 ): BacktestRun {
-  const { rule, ticketCount, minimumHistory, fromRound, toRound, seed, params } = options;
-
-  if (params.candidateCount < rule.pickCount) {
-    throw new Error(`candidateCount(${params.candidateCount})가 pickCount(${rule.pickCount})보다 작다`);
-  }
+  const { rule, ticketCount, minimumHistory, fromRound, toRound, seed } = options;
 
   const sorted = [...draws].sort((a, b) => a.round - b.round);
   const issues = validateDraws(sorted, rule);
@@ -170,7 +168,7 @@ export function runBacktest(
 
     for (const acc of accumulators) {
       const rng = seededRng(`${seed}|${acc.strategy.id}|${target.round}`);
-      const tickets = acc.strategy.generate({ history, rule, rng, ticketCount, params });
+      const tickets = acc.strategy.generate({ history, rule, rng, ticketCount, targetRound: target.round });
 
       if (tickets.length !== ticketCount) {
         throw new Error(
@@ -234,9 +232,23 @@ export function runBacktest(
       dataRange: { from: sorted[0].round, to: sorted[sorted.length - 1].round, count: sorted.length },
       testRange: { from: testedFrom, to: testedTo },
       options,
+      recipes: [],
       executedAt: new Date().toISOString(),
     },
   };
+}
+
+/**
+ * 레시피 목록을 그대로 돌린다. 화면에서 부르는 진입점이며, 재현에 필요하도록 쓰인 레시피를
+ * meta에 그대로 담는다 - 같은 레시피와 같은 seed면 언제 다시 돌려도 같은 결과가 나온다.
+ */
+export function runRecipes(
+  draws: readonly LottoDraw[],
+  recipes: readonly Recipe[],
+  options: BacktestOptions,
+): BacktestRun {
+  const run = runBacktest(draws, recipes.map(recipeStrategy), options);
+  return { ...run, meta: { ...run.meta, recipes: [...recipes] } };
 }
 
 // ---------- 데이터 분리 (스펙 16장) ----------
