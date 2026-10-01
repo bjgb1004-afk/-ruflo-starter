@@ -1,6 +1,7 @@
 import { memo, useCallback } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { NearbyStoreRow } from "@/types/database.types";
+import { displayStoreName } from "@/features/stores/utils/storeName";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 const RANK_COLOR: Record<number, string> = {
@@ -33,7 +34,7 @@ export const TopStoresCarousel = memo(function TopStoresCarousel({ stores, onPre
               <Text style={styles.rankChipText}>{index + 1}</Text>
             </View>
             <Text style={styles.name} numberOfLines={1}>
-              {item.name}
+              {displayStoreName(item.name, item.address)}
             </Text>
             <Text style={styles.meta}>
               {(item.distance_m / 1000).toFixed(1)}km · 1등 {item.first_prize_count}회

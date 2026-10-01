@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { displayStoreName } from "@/features/stores/utils/storeName";
 import type { DrawHistory, StoreWinningRow } from "@/types/database.types";
 
 // RecentDrawSummary(당첨번호/당첨금 표시)와 useAutoCheckTickets/scan.tsx(등수/당첨금
@@ -84,16 +85,16 @@ export async function getLatestFirstPrizeWinners(): Promise<{
   // 매장 이름만 보여주면 되고 순위 데이터가 필요 없으니, stores 조회 결과를 그대로 쓴다.
   const { data: storeData, error: storeError } = await supabase
     .from("stores")
-    .select("id, name")
+    .select("id, name, address")
     .in("id", draw.first_prize_store_ids)
-    .returns<{ id: string; name: string }[]>();
+    .returns<{ id: string; name: string; address: string }[]>();
   if (storeError) throw storeError;
 
   const stores: LatestWinnerStore[] = (storeData ?? []).map((s) => ({
     drawNo: draw.draw_no,
     drawDate: draw.draw_date,
     storeId: s.id,
-    storeName: s.name,
+    storeName: displayStoreName(s.name, s.address),
   }));
 
   return { drawNo: draw.draw_no, drawDate: draw.draw_date, stores };
