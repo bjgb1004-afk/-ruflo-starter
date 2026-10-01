@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { ScrollView, View, Text, Pressable, StyleSheet, Share, Alert } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LottoBall } from "@/components/LottoBall";
 import { colors, spacing, radius, cardShadow } from "@/constants/theme";
 import { useResponsive, getResponsiveFontSize } from "@/utils/responsive";
@@ -31,11 +32,16 @@ const MODES: readonly { id: Mode; label: string }[] = [
 
 export default function GeneratorScreen() {
   const { breakpoint } = useResponsive();
+  // 제스처바가 있는 기기에서는 마지막 줄이 그 뒤로 들어가 안 읽힌다.
+  const insets = useSafeAreaInsets();
   const drawNo = useMemo(() => upcomingDrawNo(), []);
   const [mode, setMode] = useState<Mode>("genius");
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
+    >
       <View style={styles.tabs}>
         {MODES.map((m) => {
           const active = m.id === mode;

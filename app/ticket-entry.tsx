@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NumberPicker } from "@/components/NumberPicker";
 import { LottoBall } from "@/components/LottoBall";
 import { useMyLottoTickets } from "@/features/mylotto/useMyLottoTickets";
@@ -22,6 +23,8 @@ function fillRest(chosen: readonly number[]): number[] {
 
 export default function TicketEntryScreen() {
   const router = useRouter();
+  // 제스처바가 있는 기기에서는 마지막 줄이 그 뒤로 들어가 안 읽힌다.
+  const insets = useSafeAreaInsets();
   const drawNo = useMemo(() => upcomingDrawNo(), []);
   const addTickets = useMyLottoTickets((s) => s.addTickets);
   const tickets = useMyLottoTickets((s) => s.tickets);
@@ -47,7 +50,10 @@ export default function TicketEntryScreen() {
   }, [addTickets, drawNo, selected, router]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
+    >
       <View style={styles.header}>
         <Text style={styles.title}>{drawNo}회 번호 직접 입력</Text>
         <Text style={styles.subtitle}>

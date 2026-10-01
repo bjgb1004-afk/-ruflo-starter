@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { getDrawsForBacktest } from "@/features/backtest/api/backtestDrawsApi";
 import { runRecipes } from "@/features/backtest/engine";
@@ -41,6 +42,8 @@ function runOnce(draws: readonly LottoDraw[], rounds: number): Outcome {
 }
 
 export default function BacktestScreen() {
+  // 제스처바가 있는 기기에서는 마지막 줄이 그 뒤로 들어가 안 읽힌다.
+  const insets = useSafeAreaInsets();
   const { data: draws, isLoading, error } = useQuery({
     queryKey: ["backtest", "draws"],
     queryFn: getDrawsForBacktest,
@@ -86,7 +89,10 @@ export default function BacktestScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
+    >
       <View style={styles.header}>
         <Text style={styles.title}>번호 뽑는 방법, 과거에 통했나</Text>
         <Text style={styles.subtitle}>
