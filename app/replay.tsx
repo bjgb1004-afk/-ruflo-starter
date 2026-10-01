@@ -6,6 +6,8 @@ import { NumberPicker } from "@/components/NumberPicker";
 import { LottoBall } from "@/components/LottoBall";
 import { getDrawsForBacktest } from "@/features/backtest/api/backtestDrawsApi";
 import { replay, hitDescription, RANK_LABEL, type ReplayHit, type ReplayResult } from "@/features/backtest/replay";
+
+const won = (amount: number) => `${amount.toLocaleString()}원`;
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 const PICK_COUNT = 6;
@@ -86,9 +88,9 @@ export default function ReplayScreen() {
       contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>내 번호로 과거를 돌려보기</Text>
+        <Text style={styles.title}>내 번호가 놓친 당첨금</Text>
         <Text style={styles.subtitle}>
-          번호 6개를 고르면 그 번호로 지난 회차를 전부 사본 셈 치고 몇 등까지 갔는지 보여드려요.
+          번호 6개를 고르면 그 번호로 지난 회차를 전부 샀다고 치고 얼마를 받았을지 계산해 드려요.
         </Text>
       </View>
 
@@ -172,15 +174,16 @@ export default function ReplayScreen() {
       )}
 
       <Text style={styles.disclaimer}>
-        실제로 있었던 회차 결과로 맞춰본 거예요. 번호를 바꿔도 결과는 비슷하게 나와요 - 당첨 횟수를 늘리는 건 번호가
-        아니라 회차 수예요. 로또는 회차마다 독립이라 지난 기록이 다음 회차를 바꾸지는 못해요.
+        실제로 있었던 회차 결과로 맞춰본 금액이에요. 그때 사지 않았다면 받을 수 있는 돈은 아니에요. 번호를 바꿔도
+        금액은 비슷하게 나와요 - 당첨을 늘리는 건 번호가 아니라 회차 수예요. 로또는 회차마다 독립이라 지난 기록이
+        다음 회차를 바꾸지는 못해요.
       </Text>
     </ScrollView>
   );
 }
 
 function Results({ result, ticket }: { result: ReplayResult; ticket: readonly number[] }) {
-  const { best, hits, rankCounts, roundsPlayed, from, to } = result;
+  const { best, hits, rankCounts, prizeByRank, totalPrize, roundsPlayed, from, to } = result;
   const total = hits.length;
 
   const ranks = useMemo(
@@ -197,15 +200,18 @@ function Results({ result, ticket }: { result: ReplayResult; ticket: readonly nu
             <View style={styles.bestRow}>
               <Text style={styles.bestRank}>{RANK_LABEL[best.rank]}</Text>
               <Text style={styles.bestDetail}>
-                {best.round}회 · {hitDescription(best)}
+                {best.prize > 0 ? won(best.prize) : hitDescription(best)}
               </Text>
             </View>
-            {best.drawDate && <Text style={styles.note}>{best.drawDate} 추첨</Text>}
+            <Text style={styles.note}>
+              {best.round}회 · {hitDescription(best)}
+              {best.drawDate ? ` · ${best.drawDate} 추첨` : ""}
+            </Text>
             <HitBalls hit={best} ticket={ticket} />
           </>
         ) : (
           <Text style={styles.muted}>
-            이 구간에서는 3개 이상 맞은 회차가 없었어요. 구간을 늘리면 거의 나옵니다.
+            이 구간에서는 한 번도 당첨되지 않았어요. 구간을 늘리면 거의 나옵니다.
           </Text>
         )}
       </View>
@@ -215,13 +221,16 @@ function Results({ result, ticket }: { result: ReplayResult; ticket: readonly nu
           {from}~{to}회 · {roundsPlayed.toLocaleString()}회 돌려본 결과
         </Text>
         <View style={styles.totalRow}>
-          <Text style={styles.total}>{total.toLocaleString()}</Text>
-          <Text style={styles.totalUnit}>번 당첨</Text>
+          <Text style={styles.total}>{totalPrize.toLocaleString()}</Text>
+          <Text style={styles.totalUnit}>원</Text>
         </View>
+        <Text style={styles.note}>{total.toLocaleString()}번 당첨됐어요.</Text>
         {ranks.map((r) => (
           <View key={r} style={styles.row}>
-            <Text style={styles.rowLabel}>{RANK_LABEL[r]}</Text>
-            <Text style={styles.rowValue}>{rankCounts[r].toLocaleString()}번</Text>
+            <Text style={styles.rowLabel}>
+              {RANK_LABEL[r]} · {rankCounts[r].toLocaleString()}번
+            </Text>
+            <Text style={styles.rowValue}>{won(prizeByRank[r])}</Text>
           </View>
         ))}
         {total === 0 && <Text style={styles.muted}>당첨된 회차가 없었어요.</Text>}
@@ -237,7 +246,7 @@ function Results({ result, ticket }: { result: ReplayResult; ticket: readonly nu
                   {hit.round}회 {hit.drawDate ? `· ${hit.drawDate}` : ""}
                 </Text>
                 <Text style={styles.rowValue}>
-                  {RANK_LABEL[hit.rank]} · {hitDescription(hit)}
+                  {RANK_LABEL[hit.rank]} · {hit.prize > 0 ? won(hit.prize) : hitDescription(hit)}
                 </Text>
               </View>
               <HitBalls hit={hit} ticket={ticket} />

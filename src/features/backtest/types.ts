@@ -14,6 +14,11 @@ export interface LottoDraw {
   bonus?: number;
   /** 일본 Lotto 6의 세트구(A~J). 한국 6/45에는 없다. */
   setBall?: string;
+  /**
+   * 그 회차 1인당 당첨금(원). 1~3등만 둔다 - 당첨자 수로 나누는 등수라 회차마다 다르다.
+   * 4·5등은 법으로 금액이 정해져 있어 회차 데이터가 아니라 상수다(replay.ts FIXED_PRIZE).
+   */
+  prizePerWin?: Partial<Record<1 | 2 | 3, number>>;
 }
 
 export interface LottoRule {

@@ -10,6 +10,11 @@ interface Row {
   draw_date: string;
   winning_numbers: number[];
   bonus_number: number;
+  // 1등 금액은 982회 중 18회만 채워져 있다. 리플레이에서 1등이 걸릴 일은 사실상 없어
+  // (982회 돌려도 기대 0.00012회) 비어 있어도 화면에 영향이 없다.
+  first_prize_amount_per_win: number | null;
+  second_prize_amount_per_win: number | null;
+  third_prize_amount_per_win: number | null;
 }
 
 /** 오름차순 회차 전체. 백테스트 엔진이 바로 먹는 모양으로 바꿔 돌려준다. */
@@ -19,7 +24,10 @@ export async function getDrawsForBacktest(): Promise<LottoDraw[]> {
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
       .from("draw_history")
-      .select("draw_no, draw_date, winning_numbers, bonus_number")
+      .select(
+        "draw_no, draw_date, winning_numbers, bonus_number, " +
+          "first_prize_amount_per_win, second_prize_amount_per_win, third_prize_amount_per_win",
+      )
       .order("draw_no", { ascending: true })
       .range(from, from + PAGE - 1)
       .returns<Row[]>();
@@ -32,6 +40,11 @@ export async function getDrawsForBacktest(): Promise<LottoDraw[]> {
         drawDate: r.draw_date,
         numbers: r.winning_numbers,
         bonus: r.bonus_number,
+        prizePerWin: {
+          ...(r.first_prize_amount_per_win ? { 1: r.first_prize_amount_per_win } : {}),
+          ...(r.second_prize_amount_per_win ? { 2: r.second_prize_amount_per_win } : {}),
+          ...(r.third_prize_amount_per_win ? { 3: r.third_prize_amount_per_win } : {}),
+        },
       });
     }
     if (page.length < PAGE) break;
