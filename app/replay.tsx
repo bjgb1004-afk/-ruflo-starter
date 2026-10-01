@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
@@ -44,6 +44,8 @@ export default function ReplayScreen() {
   // 비어 있지 않다. 100회로 좁히면 200세트 중 13세트가 한 번도 등수에 못 든다.
   const [spanIndex, setSpanIndex] = useState(SPANS.length - 1);
   const [result, setResult] = useState<ReplayResult | null>(null);
+  // 결과는 버튼 아래에 생긴다. 안 옮겨주면 눌러도 화면이 그대로라 아무 일도 안 일어난 줄 안다.
+  const scrollRef = useRef<ScrollView>(null);
 
   const complete = selected.length === PICK_COUNT;
 
@@ -79,6 +81,7 @@ export default function ReplayScreen() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
     >
@@ -159,7 +162,14 @@ export default function ReplayScreen() {
         <Text style={styles.primaryButtonText}>돌려보기</Text>
       </Pressable>
 
-      {result && <Results result={result} ticket={selected} />}
+      {result && (
+        <View
+          style={styles.results}
+          onLayout={(e) => scrollRef.current?.scrollTo({ y: e.nativeEvent.layout.y, animated: true })}
+        >
+          <Results result={result} ticket={selected} />
+        </View>
+      )}
 
       <Text style={styles.disclaimer}>
         실제로 있었던 회차 결과로 맞춰본 거예요. 번호를 바꿔도 결과는 비슷하게 나와요 - 당첨 횟수를 늘리는 건 번호가
@@ -318,6 +328,7 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: { color: colors.primary, fontSize: 15, fontWeight: "700" },
   buttonDisabled: { opacity: 0.4 },
+  results: { gap: spacing.md },
   bestRow: { flexDirection: "row", alignItems: "baseline", gap: spacing.sm },
   bestRank: { fontSize: 30, fontWeight: "700", color: colors.primary, ...numericFont },
   bestDetail: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, ...numericFont },
