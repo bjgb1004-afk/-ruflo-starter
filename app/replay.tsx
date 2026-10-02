@@ -8,6 +8,7 @@ import { getDrawsForBacktest } from "@/features/backtest/api/backtestDrawsApi";
 import { replay, hitDescription, RANK_LABEL, type ReplayHit, type ReplayResult } from "@/features/backtest/replay";
 
 const won = (amount: number) => `${amount.toLocaleString()}원`;
+import { AdBanner } from "@/features/ads/AdBanner";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 const PICK_COUNT = 6;
@@ -178,6 +179,8 @@ export default function ReplayScreen() {
         금액은 비슷하게 나와요 - 당첨을 늘리는 건 번호가 아니라 회차 수예요. 로또는 회차마다 독립이라 지난 기록이
         다음 회차를 바꾸지는 못해요.
       </Text>
+
+      <AdBanner />
     </ScrollView>
   );
 }

@@ -20,6 +20,7 @@ import {
   type BandGame,
 } from "@/features/generator/bandGenerator";
 import { useMyLottoTickets } from "@/features/mylotto/useMyLottoTickets";
+import { AdBanner } from "@/features/ads/AdBanner";
 
 const LETTERS = ["A", "B", "C", "D", "E"];
 
@@ -64,6 +65,8 @@ export default function GeneratorScreen() {
       ) : (
         <BandSection drawNo={drawNo} breakpoint={breakpoint} />
       )}
+
+      <AdBanner />
     </ScrollView>
   );
 }

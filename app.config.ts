@@ -104,12 +104,27 @@ const config: ExpoConfig = {
     // DSN 자체가 비어있어(EXPO_PUBLIC_SENTRY_DSN 미설정) Sentry.init이 아무 동작도 안 하는
     // 상태라 지금 당장은 영향 없음 - DSN을 나중에 설정하면 이 플러그인도 그때 값 채우면 됨.
     "@sentry/react-native",
+    // AdMob. 앱 ID가 없으면 플러그인을 아예 안 넣는다 - 넣어두고 ID가 비면 SDK가 초기화에
+    // 실패하면서 앱이 실행 즉시 죽는다(AndroidManifest의 APPLICATION_ID가 빈 값이 되는 탓).
+    // ID가 없는 빌드는 광고만 없는 멀쩡한 앱이 된다.
+    //
+    // 광고를 실제로 띄울지는 여기서 안 정한다 - src/features/ads/config.ts의 ADS_ENABLED가
+    // 정하고, 그건 JS라 OTA로 켜고 끌 수 있다. SDK만 네이티브라 빌드에 미리 심어두는 것이다.
+    ...(process.env.ADMOB_ANDROID_APP_ID
+      ? [
+          [
+            "react-native-google-mobile-ads",
+            { androidAppId: process.env.ADMOB_ANDROID_APP_ID },
+          ] as [string, Record<string, unknown>],
+        ]
+      : []),
   ],
   extra: {
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
     posthogApiKey: process.env.EXPO_PUBLIC_POSTHOG_API_KEY,
+    admobBannerUnitId: process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID,
     eas: {
       projectId: "9eeff5c8-c217-4e45-9426-c0569f8c500e",
     },
