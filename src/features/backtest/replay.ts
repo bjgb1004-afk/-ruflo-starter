@@ -38,7 +38,7 @@ export interface ReplayResult {
   roundsPlayed: number;
   from: number;
   to: number;
-  /** 등수에 든 회차만. 성적 좋은 순, 같은 등수면 최근 회차가 앞. */
+  /** 등수에 든 회차만. 최근 회차가 앞. */
   hits: ReplayHit[];
   rankCounts: Record<HitRank, number>;
   /** 등수별 당첨금 합계(원). */
@@ -99,7 +99,16 @@ export function replay(
     });
   }
 
-  hits.sort((a, b) => a.rank - b.rank || b.round - a.round);
+  // 최근 회차부터 내려간다. 등수순으로 정렬하면 4등·5등이 뭉쳐서 회차가 튀어 보인다 -
+  // 목록은 "언제 됐나"를 읽는 자리고, "얼마나 잘 됐나"는 최고 기록 카드가 따로 맡는다.
+  hits.sort((a, b) => b.round - a.round);
+
+  // 최고 기록은 정렬과 따로 고른다. 등수가 낮을수록(1등에 가까울수록) 좋고, 같은 등수면
+  // 최근 것을 쓴다.
+  const best = hits.reduce<ReplayHit | null>(
+    (top, hit) => (!top || hit.rank < top.rank ? hit : top),
+    null,
+  );
 
   return {
     roundsPlayed: draws.length,
@@ -109,7 +118,7 @@ export function replay(
     rankCounts,
     prizeByRank,
     totalPrize: Object.values(prizeByRank).reduce((sum, won) => sum + won, 0),
-    best: hits[0] ?? null,
+    best,
   };
 }
 

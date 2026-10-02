@@ -25,11 +25,31 @@ describe("replay", () => {
     ]);
 
     expect(r.roundsPlayed).toBe(3);
-    expect(r.hits.map((h) => h.round)).toEqual([3, 1]); // 성적 좋은 순
+    expect(r.hits.map((h) => h.round)).toEqual([3, 1]); // 최근 회차가 앞
     expect(r.rankCounts).toEqual({ 1: 0, 2: 0, 3: 0, 4: 1, 5: 1 });
     expect(r.best?.round).toBe(3);
     expect(r.from).toBe(1);
     expect(r.to).toBe(3);
+  });
+
+  it("목록은 등수와 무관하게 최근 회차부터 내려간다", () => {
+    const r = replay(ticket, [
+      draw(10, [1, 2, 3, 4, 41, 42], 43), // 4등 - 성적은 더 좋지만 옛 회차
+      draw(20, [1, 2, 3, 40, 41, 42], 43), // 5등 - 최근
+      draw(30, [1, 2, 3, 43, 44, 45], 42), // 5등 - 가장 최근
+    ]);
+    expect(r.hits.map((h) => h.round)).toEqual([30, 20, 10]);
+    // 최고 기록은 정렬과 따로 고른다 - 목록 맨 앞이 아니라 등수가 제일 높은 회차다.
+    expect(r.best?.round).toBe(10);
+    expect(r.best?.rank).toBe(4);
+  });
+
+  it("최고 기록이 동률이면 최근 회차를 쓴다", () => {
+    const r = replay(ticket, [
+      draw(10, [1, 2, 3, 40, 41, 42], 43),
+      draw(20, [1, 2, 3, 43, 44, 45], 42),
+    ]);
+    expect(r.best?.round).toBe(20);
   });
 
   it("5개 + 보너스는 2등, 보너스 없으면 3등", () => {

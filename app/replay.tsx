@@ -22,6 +22,7 @@ const SPANS: readonly { label: string; rounds: number }[] = [
 ];
 
 // 등수에 든 회차가 많으면 전부 그리지 않는다. 전 회차를 돌리면 5등만 30번 가까이 나온다.
+// 최근 것부터 자르므로 잘려나가는 건 오래된 회차다.
 const HIT_LIST_LIMIT = 20;
 
 function fillRest(chosen: readonly number[]): number[] {
@@ -257,7 +258,7 @@ function Results({ result, ticket }: { result: ReplayResult; ticket: readonly nu
           ))}
           {hits.length > HIT_LIST_LIMIT && (
             <Text style={styles.note}>
-              성적 좋은 {HIT_LIST_LIMIT}회차만 보여드려요. 나머지 {hits.length - HIT_LIST_LIMIT}번도 당첨이에요.
+              최근 {HIT_LIST_LIMIT}회차만 보여드려요. 그 전에도 {hits.length - HIT_LIST_LIMIT}번 더 당첨됐어요.
             </Text>
           )}
         </View>
