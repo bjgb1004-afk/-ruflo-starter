@@ -5,6 +5,7 @@
   },
   "build": {
     "development": {
+      "environment": "development",
       "developmentClient": true,
       "distribution": "internal",
       "android": {
@@ -12,6 +13,7 @@
       }
     },
     "preview": {
+      "environment": "preview",
       "distribution": "internal",
       "channel": "preview",
       "android": {
@@ -19,12 +21,14 @@
       }
     },
     "production": {
+      "environment": "production",
       "channel": "production",
       "android": {
         "buildType": "app-bundle"
       }
     },
     "production-samsung": {
+      "environment": "production",
       "channel": "production",
       "android": {
         "buildType": "apk"
