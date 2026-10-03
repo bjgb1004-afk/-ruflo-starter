@@ -21,8 +21,23 @@ import {
 } from "@/features/generator/bandGenerator";
 import { useMyLottoTickets } from "@/features/mylotto/useMyLottoTickets";
 import { AdBanner } from "@/features/ads/AdBanner";
+import { needsAdForDraw, requestDraw, type DrawPermission } from "@/features/generator/requestDraw";
+import { useDrawCredits } from "@/features/generator/useDrawCredits";
 
 const LETTERS = ["A", "B", "C", "D", "E"];
+
+// 광고를 봐야 하는 버튼인지에 따라 문구가 달라진다. 유저가 누르기 전에 알아야 한다 -
+// 누르고 나서 광고가 뜨면 속은 기분이 든다(AdMob 정책도 유저가 고르게 하라고 요구한다).
+function drawButtonLabel(base: string, needsAd: boolean): string {
+  return needsAd ? `광고 보고 ${base}` : base;
+}
+
+// 뽑은 뒤에 한 번만 알려줄 말. 공짜로 뽑은 경우엔 아무 말도 안 한다.
+function drawNotice(permission: DrawPermission): string | null {
+  if (permission === "rewarded") return "고마워요! 앞으로 1시간은 광고 없이 마음껏 뽑을 수 있어요.";
+  if (permission === "ad-unavailable") return "지금은 보여드릴 광고가 없어서 한 번 그냥 드려요.";
+  return null;
+}
 
 type Mode = "genius" | "band";
 
@@ -79,6 +94,10 @@ function GeniusSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "sm
   const [extraRounds, setExtraRounds] = useState(0);
   const genius = GENIUSES.find((g) => g.id === selected) ?? GENIUSES[0];
   const addTickets = useMyLottoTickets((s) => s.addTickets);
+  // 광고를 봐야 하는 차례인지 보려면 저장된 값 전체가 필요하다(공짜 사용 목록 + 무제한 시간).
+  const credits = useDrawCredits();
+  // 광고를 불러오는 동안 또 눌러 두 편이 겹치는 걸 막는다.
+  const [drawing, setDrawing] = useState(false);
   const games = useMemo(() => generateGeniusGames(genius.id, drawNo), [genius.id, drawNo]);
   const extras = useMemo(
     () => Array.from({ length: extraRounds }, (_, i) => generateExtraGames(genius.id, drawNo, i + 1)),
@@ -89,6 +108,19 @@ function GeniusSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "sm
     setSelected(id);
     setExtraRounds(0);
   };
+
+  const drawMore = useCallback(async () => {
+    if (drawing) return;
+    setDrawing(true);
+    try {
+      const permission = await requestDraw(genius.id, drawNo);
+      setExtraRounds((n) => n + 1);
+      const notice = drawNotice(permission);
+      if (notice) Alert.alert("5게임 더 뽑았어요", notice);
+    } finally {
+      setDrawing(false);
+    }
+  }, [drawing, genius.id, drawNo]);
 
   // 화면에 떠 있는 것 전부 - 기본 5게임에 '한 번 더 뽑기'로 추가된 세트까지.
   const allGames = useMemo(() => [...games, ...extras.flat()], [games, extras]);
@@ -175,8 +207,15 @@ function GeniusSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "sm
         </View>
       ))}
 
-      <Pressable style={styles.primaryButton} onPress={() => setExtraRounds((n) => n + 1)} accessibilityRole="button">
-        <Text style={styles.primaryButtonText}>한 번 더 뽑기</Text>
+      <Pressable
+        style={[styles.primaryButton, drawing && styles.primaryButtonBusy]}
+        onPress={drawMore}
+        disabled={drawing}
+        accessibilityRole="button"
+      >
+        <Text style={styles.primaryButtonText}>
+          {drawing ? "잠시만요…" : drawButtonLabel("한 번 더 뽑기", needsAdForDraw(credits, genius.id, drawNo))}
+        </Text>
       </Pressable>
       <AdBanner />
 
@@ -206,11 +245,22 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
   const [games, setGames] = useState<BandGame[]>(() => generateDailyBandGames(dateKey));
   const [isToday, setIsToday] = useState(true);
   const addTickets = useMyLottoTickets((s) => s.addTickets);
+  const credits = useDrawCredits();
+  const [drawing, setDrawing] = useState(false);
 
-  const reroll = useCallback(() => {
-    setGames(generateBandGames());
-    setIsToday(false);
-  }, []);
+  const reroll = useCallback(async () => {
+    if (drawing) return;
+    setDrawing(true);
+    try {
+      const permission = await requestDraw("band", drawNo);
+      setGames(generateBandGames());
+      setIsToday(false);
+      const notice = drawNotice(permission);
+      if (notice) Alert.alert("새로 뽑았어요", notice);
+    } finally {
+      setDrawing(false);
+    }
+  }, [drawing, drawNo]);
 
   const share = useCallback(async () => {
     await Share.share({ message: formatThreadPost(games, { drawNo }) });
@@ -261,8 +311,15 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
         ))}
       </View>
 
-      <Pressable style={styles.primaryButton} onPress={reroll} accessibilityRole="button">
-        <Text style={styles.primaryButtonText}>다시 뽑기</Text>
+      <Pressable
+        style={[styles.primaryButton, drawing && styles.primaryButtonBusy]}
+        onPress={reroll}
+        disabled={drawing}
+        accessibilityRole="button"
+      >
+        <Text style={styles.primaryButtonText}>
+          {drawing ? "잠시만요…" : drawButtonLabel("다시 뽑기", needsAdForDraw(credits, "band", drawNo))}
+        </Text>
       </Pressable>
       <AdBanner />
 
@@ -331,6 +388,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: "center",
   },
+  primaryButtonBusy: { opacity: 0.6 },
   primaryButtonText: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
   buttonRow: { flexDirection: "row", gap: spacing.sm },
   secondaryButton: {

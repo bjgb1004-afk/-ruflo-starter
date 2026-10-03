@@ -29,7 +29,22 @@ export const ADS_ENABLED: boolean = Constants.expoConfig?.extra?.adsEnabled === 
 export const BANNER_UNIT_ID: string | undefined =
   Constants.expoConfig?.extra?.admobBannerUnitId || undefined;
 
+/**
+ * 보상형 광고(유저가 직접 눌러서 보고 번호를 더 뽑는) 유닛 ID.
+ * 비어 있으면 보상형 광고 기능 자체가 없는 것으로 보고, 뽑기를 전부 공짜로 돌린다.
+ */
+export const REWARDED_UNIT_ID: string | undefined =
+  Constants.expoConfig?.extra?.admobRewardedUnitId || undefined;
+
 /** 광고를 그릴 조건. 둘 중 하나라도 없으면 화면에서 자리마저 차지하지 않는다. */
 export function shouldShowAds(): boolean {
   return ADS_ENABLED && Boolean(BANNER_UNIT_ID);
+}
+
+/**
+ * 보상형 광고를 요구해도 되는 빌드인지. 꺼져 있거나 유닛 ID가 없으면 false -
+ * 그때는 광고를 못 보니 뽑기를 막아선 안 된다(막으면 기능이 사라진 것처럼 보인다).
+ */
+export function shouldGateWithRewardedAd(): boolean {
+  return ADS_ENABLED && Boolean(REWARDED_UNIT_ID);
 }

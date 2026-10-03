@@ -125,6 +125,7 @@ const config: ExpoConfig = {
     sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
     posthogApiKey: process.env.EXPO_PUBLIC_POSTHOG_API_KEY,
     admobBannerUnitId: process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID,
+    admobRewardedUnitId: process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID,
     // 광고를 띄울지. 문자열 "true"만 켜진 것으로 본다 - 환경변수가 없거나 오타면 꺼진 쪽으로.
     adsEnabled: process.env.EXPO_PUBLIC_ADS_ENABLED === "true",
     eas: {
