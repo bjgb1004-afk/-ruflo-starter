@@ -227,11 +227,12 @@ export default function ScanScreen() {
         addTickets(
           data.games.map((g) =>
             g.amountPending
-              ? { drawNo: data.drawNo, numbers: g.numbers, purchaseType: g.type, qrUrl: data.qrUrl }
+              ? { drawNo: data.drawNo, numbers: g.numbers, purchaseType: g.type, qrUrl: data.qrUrl, purchased: true }
               : {
                   drawNo: data.drawNo,
                   numbers: g.numbers,
                   purchaseType: g.type,
+                  purchased: true,
                   checked: true,
                   rank: g.rank,
                   prizeAmount: g.prizeAmount,
@@ -255,6 +256,7 @@ export default function ScanScreen() {
             numbers: g.numbers,
             purchaseType: g.type,
             qrUrl: data.qrUrl,
+            purchased: true,
           })),
         );
         scheduleDrawReminder(data.drawNo).catch((err) => reportError(err, "mylotto-reminder"));

@@ -24,7 +24,7 @@
 `eas update` 하면 그날 켜진다:
 
 ```
-npx eas env:create --environment production --name EXPO_PUBLIC_ADS_ENABLED --value "true"
+npx eas env:set --environment production --name EXPO_PUBLIC_ADS_ENABLED --value "true"
 npx eas update --channel production --environment production -p android -m "광고 켬" --non-interactive
 ```
 
@@ -38,8 +38,8 @@ AdMob 사정인지" 구분이 안 된다. 구글이 주는 **시험용 ID는 항
 먼저 확인한다:
 
 ```
-npx eas env:create --environment preview --name EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID   --value "ca-app-pub-3940256099942544/6300978111"
-npx eas env:create --environment preview --name EXPO_PUBLIC_ADS_ENABLED --value "true"
+npx eas env:set --environment preview --name EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID   --value "ca-app-pub-3940256099942544/6300978111"
+npx eas env:set --environment preview --name EXPO_PUBLIC_ADS_ENABLED --value "true"
 ```
 이러면 **내 폰에서는 시험 광고가 보이고, 유저 폰은 그대로 꺼져 있다.**
 
@@ -65,10 +65,14 @@ EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID=ca-app-pub-XXXXXXXX/XXXXXXXX
 
 EAS 빌드 서버에도 같은 값이 필요하다:
 ```
-npx eas env:create --environment production --name ADMOB_ANDROID_APP_ID --value "..."
-npx eas env:create --environment production --name EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID --value "..."
+npx eas env:set --name EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID --value "..."   --visibility plaintext --type string --environment production --environment preview --non-interactive
 ```
-preview 환경에도 동일하게. (현재 두 환경의 변수 값은 같다.)
+`--environment`를 두 번 쓰면 양쪽에 한 번에 들어간다. `env:create`는 폐기 예정이라 `env:set`을 쓴다.
+비밀값이 아니라 설치 파일에 그대로 박히는 공개 ID이므로 `plaintext`로 둔다 - 가려두면 나중에
+뭐가 들어갔는지 확인할 수 없다.
+
+**앱 ID는 2026-10-03에 이미 넣었다**: `ADMOB_ANDROID_APP_ID=ca-app-pub-4850161179932319~9276130840`
+(production·preview 양쪽 확인함). 남은 건 위의 배너 광고 단위 ID 하나다.
 
 ### 2-3. Firebase / FCM (같은 빌드에 묶을 것)
 1. https://console.firebase.google.com 프로젝트 생성

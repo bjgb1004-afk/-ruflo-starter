@@ -66,7 +66,7 @@ export default function ReplayScreen() {
   }, [draws, complete, selected, spanIndex]);
 
   const save = useCallback(() => {
-    const added = addTickets([{ drawNo, numbers: selected, purchaseType: null }]);
+    const added = addTickets([{ drawNo, numbers: selected, purchaseType: null, purchased: false }]);
     Alert.alert(
       added > 0 ? "보관함에 저장했어요" : "이미 보관함에 있어요",
       added > 0

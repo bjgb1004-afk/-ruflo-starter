@@ -110,7 +110,7 @@ function GeniusSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "sm
 
   const save = useCallback(() => {
     // 같은 회차에 이미 있는 번호는 건너뛴다. 화면에 뜬 개수가 아니라 실제로 넣은 개수를 말한다.
-    const added = addTickets(allGames.map((numbers) => ({ drawNo, numbers, purchaseType: null })));
+    const added = addTickets(allGames.map((numbers) => ({ drawNo, numbers, purchaseType: null, purchased: false })));
     Alert.alert(
       added > 0 ? "보관함에 저장했어요" : "이미 보관함에 있어요",
       added > 0
@@ -218,7 +218,7 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
   }, [games, drawNo]);
 
   const save = useCallback(() => {
-    const added = addTickets(games.map((g) => ({ drawNo, numbers: g.numbers, purchaseType: null })));
+    const added = addTickets(games.map((g) => ({ drawNo, numbers: g.numbers, purchaseType: null, purchased: false })));
     Alert.alert(
       added > 0 ? "보관함에 저장했어요" : "이미 보관함에 있어요",
       added > 0

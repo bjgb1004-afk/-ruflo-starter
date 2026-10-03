@@ -2,7 +2,12 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMyLottoTickets, LOTTO_UNIT_PRICE, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
+import {
+  useMyLottoTickets,
+  LOTTO_UNIT_PRICE,
+  isPurchased,
+  type MyLottoTicket,
+} from "@/features/mylotto/useMyLottoTickets";
 import { groupTicketsByDraw, withGameLabel, type TicketGroup } from "@/features/mylotto/groupTickets";
 import { computeVaultSummary, computeFrequentNumbers } from "@/features/mylotto/stats";
 import { WinningCard } from "@/features/mylotto/components/WinningCard";
@@ -135,12 +140,15 @@ const TicketGroupCard = ({
   onDelete,
   breakpoint,
   draw,
+  // 안 산 번호 묶음에는 금액을 찍지 않는다 - "5,000원치"라고 쓰면 쓰지 않은 돈이 된다.
+  purchased = true,
 }: {
   group: TicketGroup;
   onShare: (t: MyLottoTicket) => void;
   onDelete: (group: TicketGroup) => void;
   breakpoint: "small" | "medium" | "large";
   draw: DrawSummary | null | undefined;
+  purchased?: boolean;
 }) => {
   // 회차(그룹)마다 따로 접고 펼 수 있게 - 보관함에 여러 회차가 쌓이면 전부 펼쳐진 채로
   // 쭉 나열되어 원하는 회차를 찾기 번거롭다는 피드백. 기본은 펼침 상태로 둬서 기존
@@ -161,7 +169,8 @@ const TicketGroupCard = ({
             </Text>
           </View>
           <Text style={[styles.groupSpent, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
-            {formatWon(group.tickets.length * LOTTO_UNIT_PRICE)}치 · {group.tickets.length}게임
+            {purchased ? `${formatWon(group.tickets.length * LOTTO_UNIT_PRICE)}치 · ` : ""}
+            {group.tickets.length}게임
           </Text>
         </Pressable>
         <Pressable hitSlop={8} style={styles.deleteButton} onPress={() => onDelete(group)}>
@@ -185,6 +194,13 @@ export default function MyLottoScreen() {
   const removeTicket = useMyLottoTickets((s) => s.removeTicket);
   const clearAll = useMyLottoTickets((s) => s.clearAll);
   const tickets = useMemo(() => Object.values(ticketsMap).sort((a, b) => b.savedAt.localeCompare(a.savedAt)), [ticketsMap]);
+  // 실제로 산 것과 번호만 저장해둔 것을 섞지 않는다. 섞으면 안 산 번호가 구매액에 들어가고
+  // 목록에서도 어느 게 산 건지 구분이 안 된다.
+  const boughtGroups = useMemo(() => groupTicketsByDraw(tickets.filter(isPurchased)), [tickets]);
+  const savedGroups = useMemo(
+    () => groupTicketsByDraw(tickets.filter((t) => !isPurchased(t))),
+    [tickets],
+  );
   const ticketGroups = useMemo(() => groupTicketsByDraw(tickets), [tickets]);
 
   // 보관함 카드의 번호를 실제 당첨번호와 매칭해 색칠하려면 회차별 당첨번호가 필요하다.
@@ -285,15 +301,20 @@ export default function MyLottoScreen() {
           </Text>
         </Pressable>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
-            수익률
-          </Text>
-          <RoiBars spent={summary.totalSpent} won={summary.totalWon} breakpoint={breakpoint} />
-          <Text style={[styles.summaryFootnote, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
-            총 {summary.totalTickets}게임 · 당첨 {summary.winCount}건
-          </Text>
-        </View>
+        {summary.totalTickets > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
+              수익률
+            </Text>
+            <RoiBars spent={summary.totalSpent} won={summary.totalWon} breakpoint={breakpoint} />
+            <Text style={[styles.summaryFootnote, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
+              산 복권 {summary.totalTickets}게임 · 당첨 {summary.winCount}건
+              {summary.savedOnlyTickets > 0
+                ? ` · 저장만 한 번호 ${summary.savedOnlyTickets}게임은 빼고 셌어요`
+                : ""}
+            </Text>
+          </View>
+        )}
 
         {frequentNumbers.length > 0 && (
           <View style={styles.section}>
@@ -313,28 +334,62 @@ export default function MyLottoScreen() {
           </View>
         )}
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
-              내 복권 목록
-            </Text>
-            <Pressable hitSlop={8} onPress={handleClearAll}>
-              <Text style={[styles.clearAllText, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
-                전체삭제
+        {boughtGroups.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
+                내가 산 복권
               </Text>
-            </Pressable>
+              <Pressable hitSlop={8} onPress={handleClearAll}>
+                <Text style={[styles.clearAllText, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
+                  전체삭제
+                </Text>
+              </Pressable>
+            </View>
+            {boughtGroups.map((g) => (
+              <TicketGroupCard
+                key={g.drawNo}
+                group={g}
+                onShare={handleShare}
+                onDelete={handleDeleteGroup}
+                breakpoint={breakpoint}
+                draw={drawsByNo.get(g.drawNo)}
+              />
+            ))}
           </View>
-          {ticketGroups.map((g) => (
-            <TicketGroupCard
-              key={g.drawNo}
-              group={g}
-              onShare={handleShare}
-              onDelete={handleDeleteGroup}
-              breakpoint={breakpoint}
-              draw={drawsByNo.get(g.drawNo)}
-            />
-          ))}
-        </View>
+        )}
+
+        {savedGroups.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
+                저장만 한 번호
+              </Text>
+              {boughtGroups.length === 0 && (
+                <Pressable hitSlop={8} onPress={handleClearAll}>
+                  <Text style={[styles.clearAllText, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
+                    전체삭제
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+            <Text style={[styles.summaryFootnote, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
+              아직 사지 않은 번호예요. 수익률에는 안 들어가요. 이 번호로 실제로 사서 QR을 찍으면
+              산 복권으로 옮겨져요.
+            </Text>
+            {savedGroups.map((g) => (
+              <TicketGroupCard
+                key={g.drawNo}
+                group={g}
+                onShare={handleShare}
+                onDelete={handleDeleteGroup}
+                breakpoint={breakpoint}
+                draw={drawsByNo.get(g.drawNo)}
+                purchased={false}
+              />
+            ))}
+          </View>
+        )}
 
         <Text style={[styles.dataLossNotice, { fontSize: getResponsiveFontSize(11, breakpoint) }]}>
           ⚠️ 보관함은 이 기기에만 저장돼요. 앱을 삭제하면 저장된 복권 내역이 함께 사라질 수 있어요.

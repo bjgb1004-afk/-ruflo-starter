@@ -42,7 +42,7 @@ export default function TicketEntryScreen() {
   );
 
   const save = useCallback(() => {
-    addTickets([{ drawNo, numbers: selected, purchaseType: "수동" }]);
+    addTickets([{ drawNo, numbers: selected, purchaseType: "수동", purchased: true }]);
     Alert.alert("보관함에 저장했어요", `${drawNo}회 1게임을 넣었어요. 추첨 후 자동으로 확인해 드려요.`, [
       { text: "계속 입력", onPress: () => setSelected([]) },
       { text: "보관함 열기", onPress: () => router.replace("/mylotto") },
