@@ -14,6 +14,9 @@ android/
 
 # Google Play 서비스 계정 키 (EAS submit 자동화용, 절대 커밋 금지)
 google-play-service-account.json
+# Firebase 서비스 계정 키(알림을 보내는 쪽 열쇠) - 이건 진짜 비밀값이다.
+# google-services.json(앱에 들어가는 식별 정보)과 다르다. EAS에 올리고 로컬 파일은 지운다.
+*firebase-adminsdk*.json
 
 # supabase local
 supabase/.branches/
