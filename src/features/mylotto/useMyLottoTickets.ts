@@ -35,7 +35,8 @@ export type NewTicketInput = Pick<MyLottoTicket, "drawNo" | "numbers" | "purchas
 
 interface MyLottoState {
   tickets: Record<string, MyLottoTicket>;
-  addTickets: (inputs: NewTicketInput[]) => void;
+  /** 실제로 넣은 게임 수를 돌려준다. 같은 회차·같은 번호는 건너뛰므로 inputs 길이와 다를 수 있다. */
+  addTickets: (inputs: NewTicketInput[]) => number;
   markChecked: (id: string, rank: WinRank, prizeAmount: number) => void;
   removeTicket: (id: string) => void;
   clearAll: () => void;
@@ -58,6 +59,8 @@ export const useMyLottoTickets = create<MyLottoState>()(
         // 해도 중복 저장되지 않게, 같은 회차+같은 번호 조합이 이미 있으면 건너뛴다. 그대로 두면
         // 보관함 통계(총 구매액)가 부풀려지고, 추첨 후 같은 결과로 알림도 두 번 온다.
         const existingKeys = new Set(Object.values(next).map((t) => `${t.drawNo}:${t.numbers.join(",")}`));
+        // 건너뛴 건 화면에서 알아야 한다. 안 그러면 두 번 누른 사람에게 "저장했어요"라고 거짓말한다.
+        let added = 0;
         for (const input of inputs) {
           const key = `${input.drawNo}:${input.numbers.join(",")}`;
           if (existingKeys.has(key)) continue;
@@ -72,8 +75,10 @@ export const useMyLottoTickets = create<MyLottoState>()(
             rank: input.rank ?? null,
             prizeAmount: input.prizeAmount ?? 0,
           };
+          added += 1;
         }
         set({ tickets: next });
+        return added;
       },
 
       markChecked: (id, rank, prizeAmount) => {

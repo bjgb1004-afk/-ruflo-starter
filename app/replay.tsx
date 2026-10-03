@@ -1,11 +1,13 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { NumberPicker } from "@/components/NumberPicker";
 import { LottoBall } from "@/components/LottoBall";
 import { getDrawsForBacktest } from "@/features/backtest/api/backtestDrawsApi";
 import { replay, hitDescription, RANK_LABEL, type ReplayHit, type ReplayResult } from "@/features/backtest/replay";
+import { upcomingDrawNo } from "@/features/generator/geniusGenerator";
+import { useMyLottoTickets } from "@/features/mylotto/useMyLottoTickets";
 
 const won = (amount: number) => `${amount.toLocaleString()}원`;
 import { AdBanner } from "@/features/ads/AdBanner";
@@ -48,6 +50,9 @@ export default function ReplayScreen() {
   // 비어 있지 않다. 100회로 좁히면 200세트 중 13세트가 한 번도 등수에 못 든다.
   const [spanIndex, setSpanIndex] = useState(SPANS.length - 1);
   const [result, setResult] = useState<ReplayResult | null>(null);
+  // 지난 회차를 되짚어 보다 "이 번호로 실제로 사 보겠다"가 되는 흐름이라, 저장은 다음 회차로 넣는다.
+  const drawNo = useMemo(() => upcomingDrawNo(), []);
+  const addTickets = useMyLottoTickets((s) => s.addTickets);
   // 결과는 버튼 아래에 생긴다. 안 옮겨주면 눌러도 화면이 그대로라 아무 일도 안 일어난 줄 안다.
   const scrollRef = useRef<ScrollView>(null);
 
@@ -59,6 +64,16 @@ export default function ReplayScreen() {
     const slice = Number.isFinite(rounds) ? draws.slice(Math.max(0, draws.length - rounds)) : draws;
     setResult(replay(selected, slice));
   }, [draws, complete, selected, spanIndex]);
+
+  const save = useCallback(() => {
+    const added = addTickets([{ drawNo, numbers: selected, purchaseType: null }]);
+    Alert.alert(
+      added > 0 ? "보관함에 저장했어요" : "이미 보관함에 있어요",
+      added > 0
+        ? `${drawNo}회로 넣었어요. 추첨 후 자동으로 확인해 드려요.`
+        : `${drawNo}회에 같은 번호가 이미 저장돼 있어요.`,
+    );
+  }, [addTickets, drawNo, selected]);
 
   // 번호나 구간을 바꾸면 지난 결과는 더 이상 그 번호의 것이 아니다.
   const pick = useCallback((next: number[]) => {
@@ -165,6 +180,17 @@ export default function ReplayScreen() {
       >
         <Text style={styles.primaryButtonText}>돌려보기</Text>
       </Pressable>
+
+      <View style={styles.buttonRow}>
+        <Pressable
+          style={[styles.secondaryButton, !complete && styles.buttonDisabled]}
+          onPress={save}
+          disabled={!complete}
+          accessibilityRole="button"
+        >
+          <Text style={styles.secondaryButtonText}>이 번호 보관함에 저장</Text>
+        </Pressable>
+      </View>
 
       {result && (
         <View

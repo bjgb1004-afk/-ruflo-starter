@@ -109,10 +109,13 @@ function GeniusSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "sm
   }, [allGames, drawNo, genius.name]);
 
   const save = useCallback(() => {
-    addTickets(allGames.map((numbers) => ({ drawNo, numbers, purchaseType: null })));
+    // 같은 회차에 이미 있는 번호는 건너뛴다. 화면에 뜬 개수가 아니라 실제로 넣은 개수를 말한다.
+    const added = addTickets(allGames.map((numbers) => ({ drawNo, numbers, purchaseType: null })));
     Alert.alert(
-      "보관함에 저장했어요",
-      `${drawNo}회 ${allGames.length}게임을 보관함에 넣었어요. 추첨 후 자동으로 확인해 드려요.`,
+      added > 0 ? "보관함에 저장했어요" : "이미 보관함에 있어요",
+      added > 0
+        ? `${drawNo}회 ${added}게임을 보관함에 넣었어요. 추첨 후 자동으로 확인해 드려요.`
+        : `${drawNo}회에 같은 번호가 이미 저장돼 있어요.`,
     );
   }, [addTickets, allGames, drawNo]);
 
@@ -215,8 +218,13 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
   }, [games, drawNo]);
 
   const save = useCallback(() => {
-    addTickets(games.map((g) => ({ drawNo, numbers: g.numbers, purchaseType: null })));
-    Alert.alert("보관함에 저장했어요", `${drawNo}회 ${games.length}게임을 보관함에 넣었어요. 추첨 후 자동으로 확인해 드려요.`);
+    const added = addTickets(games.map((g) => ({ drawNo, numbers: g.numbers, purchaseType: null })));
+    Alert.alert(
+      added > 0 ? "보관함에 저장했어요" : "이미 보관함에 있어요",
+      added > 0
+        ? `${drawNo}회 ${added}게임을 보관함에 넣었어요. 추첨 후 자동으로 확인해 드려요.`
+        : `${drawNo}회에 같은 번호가 이미 저장돼 있어요.`,
+    );
   }, [addTickets, games, drawNo]);
 
   return (
