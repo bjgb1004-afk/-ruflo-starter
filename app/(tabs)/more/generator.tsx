@@ -65,8 +65,6 @@ export default function GeneratorScreen() {
       ) : (
         <BandSection drawNo={drawNo} breakpoint={breakpoint} />
       )}
-
-      <AdBanner />
     </ScrollView>
   );
 }
@@ -180,6 +178,7 @@ function GeniusSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "sm
       <Pressable style={styles.primaryButton} onPress={() => setExtraRounds((n) => n + 1)} accessibilityRole="button">
         <Text style={styles.primaryButtonText}>한 번 더 뽑기</Text>
       </Pressable>
+      <AdBanner />
 
       <View style={styles.buttonRow}>
         <Pressable style={styles.secondaryButton} onPress={save} accessibilityRole="button">
@@ -265,6 +264,7 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
       <Pressable style={styles.primaryButton} onPress={reroll} accessibilityRole="button">
         <Text style={styles.primaryButtonText}>다시 뽑기</Text>
       </Pressable>
+      <AdBanner />
 
       <View style={styles.buttonRow}>
         <Pressable style={styles.secondaryButton} onPress={save} accessibilityRole="button">

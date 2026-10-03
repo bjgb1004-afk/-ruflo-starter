@@ -8,6 +8,10 @@ import { BANNER_UNIT_ID, shouldShowAds } from "./config";
 // 네이티브 모듈을 파일 맨 위에서 import하지 않는다. 지금 폰에 깔린 개발빌드처럼 SDK가 없는
 // 빌드에서는 그 import 한 줄로 앱이 통째로 죽는다. 광고를 켜기로 한 뒤에야 불러온다.
 
+// SDK가 없는 빌드에서 광고를 켜두면 이 화면을 열 때마다 같은 오류가 쌓인다(관리자 화면의
+// "최근 7일 오류"가 그것만으로 덮인다). 빌드 전에 미리 켜두는 게 정상 운영이라 한 번만 남긴다.
+let reportedMissing = false;
+
 export function AdBanner() {
   const [Ad, setAd] = useState<{ BannerAd: React.ComponentType<Record<string, unknown>>; size: string } | null>(null);
 
@@ -19,7 +23,10 @@ export function AdBanner() {
       setAd({ BannerAd: mod.BannerAd, size: mod.BannerAdSize.ANCHORED_ADAPTIVE_BANNER });
     } catch (err) {
       // SDK가 없는 빌드다. 광고만 안 뜨고 화면은 그대로 돌아간다.
-      reportError(err, "ads:module-missing");
+      if (!reportedMissing) {
+        reportedMissing = true;
+        reportError(err, "ads:module-missing");
+      }
     }
   }, []);
 
