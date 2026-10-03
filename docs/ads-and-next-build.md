@@ -80,8 +80,37 @@ npx eas env:set --name EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID --value "..."   --visibi
 | 변수 | production | preview |
 |---|---|---|
 | `ADMOB_ANDROID_APP_ID` | `ca-app-pub-4850161179932319~9276130840` | 같음 |
-| `EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID` | `ca-app-pub-4850161179932319/5088281854` (진짜) | `ca-app-pub-3940256099942544/6300978111` (구글 시험용) |
-| `EXPO_PUBLIC_ADS_ENABLED` | `true` (2026-10-03 켬) | `true` |
+| `EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID` | **지움**(배너 안 띄움) — 진짜 ID는 `ca-app-pub-4850161179932319/5088281854` | `ca-app-pub-3940256099942544/6300978111` (구글 시험용) |
+| `EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID` | `ca-app-pub-4850161179932319/3173399109` (진짜) | `ca-app-pub-3940256099942544/5224354917` (구글 시험용) |
+| `EXPO_PUBLIC_ADS_ENABLED` | `false` | `false` |
+
+### 2026-10-03에 한 번 사고가 났다 — 꼭 읽을 것
+
+`EXPO_PUBLIC_ADS_ENABLED=true`로 둔 채 OTA를 올렸는데, **유저 폰에 깔린 빌드(9/18)에는 광고
+SDK가 아예 없었다**(SDK는 10/2에 package.json에 들어갔다). 광고 자리가 있는 천재들의 한수
+화면을 열면 앱이 강제종료됐다. 스토어 버전도 같이 당했다(production 채널은 `main` 브랜치를 본다).
+
+고친 방법 두 가지:
+- 스위치를 양쪽 다 `false`로 되돌리고 OTA 재배포
+- `AdBanner`가 `require` 성공만 믿지 않고 `MobileAds().initialize()`가 끝난 뒤에만 배너를 그린다
+
+**규칙: 광고 스위치는 SDK가 들어간 빌드가 유저 폰에 깔린 뒤에 켠다.** 스위치를 먼저 켜는 건
+광고가 아니라 강제종료를 켜는 것이다.
+
+### 배너는 당분간 안 띄운다
+
+하루 유저 50명 기준 배너는 하루 100~300원인데 화면은 늘 지저분하다. 같은 유저 수에서 보상형은
+1,000~3,000원이고, 유저가 직접 눌러서 본다. 그래서 production에서는 배너 유닛 ID를 지워뒀다
+(코드는 그대로 있고, ID가 비면 배너를 그리지 않는다). 유저가 늘면 위 ID를 다시 넣으면 된다.
+
+### 보상형 광고 규칙 (코드에 들어간 것)
+
+- 뽑기 버튼 6개(천재 5명 + 번호대) 각각 **한 회차에 한 번은 공짜**
+- 그 뒤엔 광고 한 편 → **1시간 동안 6개 버튼 전부 무제한**(`PASS_DURATION_MS`)
+- 광고를 못 띄우면 **그냥 한 번 주고 1시간은 안 준다** — 비행기모드로 버텨도 얻는 게 없고,
+  광고 재고가 없는 건 유저 잘못이 아니다
+- 규칙은 `src/features/generator/requestDraw.ts`, 기억은 `useDrawCredits.ts`,
+  검사는 `requestDraw.test.ts`
 
 **내 폰(preview)에는 일부러 시험용 ID를 넣었다.** 진짜 ID로 내 폰에 광고를 띄우면 내가 내 광고를
 보고 누르는 셈이 되어 AdMob이 부정 트래픽으로 계정에 경고를 준다. 시험용 ID는 항상 광고가 채워지고
