@@ -13,14 +13,35 @@
 - `react-native-google-mobile-ads@17.2.0` 설치
 - `app.config.ts`에 플러그인 배선. **`ADMOB_ANDROID_APP_ID`가 없으면 플러그인을 아예 안 넣는다** —
   넣어두고 ID가 비면 앱이 실행 즉시 죽기 때문이다. ID 없이 빌드하면 광고만 없는 멀쩡한 앱이 된다
-- `src/features/ads/config.ts` — `ADS_ENABLED = false`. **광고는 꺼져 있다**
+- `src/features/ads/config.ts` — 켜고 끄는 스위치. **환경변수 `EXPO_PUBLIC_ADS_ENABLED`가
+  "true"일 때만 켜진다.** 없거나 오타면 꺼진 쪽으로 간다. 지금은 양쪽 환경 모두 안 넣었으니 꺼져 있다
 - `src/features/ads/AdBanner.tsx` — 꺼져 있으면 아무것도 안 그린다. 네이티브 모듈을 파일 상단에서
   import하지 않아 **SDK 없는 빌드(지금 폰의 개발빌드)에서도 안 죽는다**
 - 배너 자리: `app/replay.tsx`(놓친 당첨금), `app/(tabs)/more/generator.tsx`(천재들의 한수) 하단.
   **지도에는 안 넣었다** — 앱의 핵심 화면이라
 
-**광고를 켜는 건 빌드가 아니라 OTA다.** `ADS_ENABLED = true`로 바꾸고 `eas update` 하면 그날 켜진다.
-유저가 쌓인 뒤에 켜면 된다.
+**광고를 켜는 건 빌드가 아니라 OTA다.** 코드는 손대지 않는다 — EAS 환경변수만 바꾸고
+`eas update` 하면 그날 켜진다:
+
+```
+npx eas env:create --environment production --name EXPO_PUBLIC_ADS_ENABLED --value "true"
+npx eas update --channel production --environment production -p android -m "광고 켬" --non-interactive
+```
+
+**채널마다 따로 켜진다.** 그래서 내 폰(preview)에서만 켜 보고 유저(production)는 끈 채로 둘 수 있다.
+예전처럼 코드에 박힌 상수였다면 켜 보려고 고친 코드가 프로덕션 배포에 한 번만 섞여도 유저 폰에
+광고가 나가버린다.
+
+### 승인 전에 광고가 뜨는지 먼저 확인하는 법
+AdMob은 계정을 만들어도 광고가 바로 채워지지 않는다(심사·초기 지연). 그래서 "안 뜨는 게 내 실수인지
+AdMob 사정인지" 구분이 안 된다. 구글이 주는 **시험용 ID는 항상 채워진다** — preview 환경에만 넣어
+먼저 확인한다:
+
+```
+npx eas env:create --environment preview --name EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID   --value "ca-app-pub-3940256099942544/6300978111"
+npx eas env:create --environment preview --name EXPO_PUBLIC_ADS_ENABLED --value "true"
+```
+이러면 **내 폰에서는 시험 광고가 보이고, 유저 폰은 그대로 꺼져 있다.**
 
 ---
 
@@ -39,6 +60,8 @@
 ADMOB_ANDROID_APP_ID=ca-app-pub-XXXXXXXX~XXXXXXXX
 EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID=ca-app-pub-XXXXXXXX/XXXXXXXX
 ```
+
+`EXPO_PUBLIC_ADS_ENABLED`는 **넣지 않는다.** 없으면 꺼진 것으로 보니, 켤 때가 오면 그때 넣는다.
 
 EAS 빌드 서버에도 같은 값이 필요하다:
 ```
@@ -91,7 +114,19 @@ AdMob SDK가 `com.google.android.gms.permission.AD_ID`를 매니페스트에 넣
 `app.config.ts`의 `blockedPermissions`에 이 권한을 **넣으면 안 된다**(현재 목록엔 없다 — 그대로 둘 것).
 출시 상세의 권한 수가 1개 늘어난다.
 
-### 4-4. 타겟 연령
+### 4-4. 배포 국가를 대한민국만으로 제한 — 동의창 대신 이걸 한다
+**국가 및 지역 → 대한민국만 선택.** 2026-10-03 결정.
+
+구글 광고 정책은 유럽·영국 유저에게 광고를 띄우기 전에 동의창(GDPR 동의 양식)을 보여주라고
+요구한다. 그 처리를 앱에 넣는 대신 **유럽 유저를 아예 안 받는 쪽을 골랐다** — 설정 한 번이면
+끝나고 코드가 0줄이다. 이 앱은 한국 로또 판매점을 보여주는 것이라 해외 유저에게 쓸모가 없다.
+
+그래서 `AdsConsent`·UMP 관련 코드는 **일부러 안 넣었다.** 나중에 해외 배포를 열기로 하면
+그때 동의창 코드가 필요해진다 — 열기 전에 먼저 넣을 것.
+
+잃는 것: 해외 교포·체류자가 **새로** 설치할 수 없다(이미 깐 사람은 그대로 쓴다).
+
+### 4-5. 타겟 연령
 13세 미만 타겟이면 광고 제약이 커진다. 이 앱은 성인 대상이므로 해당 없음을 확인만 할 것.
 
 ---
@@ -104,6 +139,7 @@ AdMob SDK가 `com.google.android.gms.permission.AD_ID`를 매니페스트에 넣
 - [ ] `ADMOB_ANDROID_APP_ID` / `EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID` 로컬·EAS 양쪽에 등록
 - [ ] `google-services.json` 루트에 존재 + `app.config.ts`에 경로 추가
 - [ ] `versionCode` 3으로 올림
+- [ ] Play Console 배포 국가를 **대한민국만**으로 제한 (4-4 참고, 동의창 대신)
 - [ ] `runtimeVersion` → `fingerprint`
 - [ ] `npm run typecheck` 통과
 - [ ] `npm run lint` 에러 0
