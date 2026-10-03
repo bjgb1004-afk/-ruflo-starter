@@ -17,8 +17,11 @@
   "true"일 때만 켜진다.** 없거나 오타면 꺼진 쪽으로 간다. 지금은 양쪽 환경 모두 안 넣었으니 꺼져 있다
 - `src/features/ads/AdBanner.tsx` — 꺼져 있으면 아무것도 안 그린다. 네이티브 모듈을 파일 상단에서
   import하지 않아 **SDK 없는 빌드(지금 폰의 개발빌드)에서도 안 죽는다**
-- 배너 자리: `app/replay.tsx`(놓친 당첨금), `app/(tabs)/more/generator.tsx`(천재들의 한수) 하단.
-  **지도에는 안 넣었다** — 앱의 핵심 화면이라
+- 배너 자리: **뽑기 버튼 아래 두 곳뿐.** 천재들의 한수 "한 번 더 뽑기" 아래,
+  번호대 분석 "다시 뽑기" 아래(둘 다 `app/(tabs)/more/generator.tsx`). 사람이 반복해서
+  누르는 자리라 흐름을 끊지 않고 눈에 들어온다.
+  **지도와 놓친 당첨금 화면에는 없다** — 지도는 앱의 핵심 화면이고, 놓친 당첨금에 있던
+  배너는 2026-10-03에 뺐다(커밋 `9a6ee7b`)
 
 **광고를 켜는 건 빌드가 아니라 OTA다.** 코드는 손대지 않는다 — EAS 환경변수만 바꾸고
 `eas update` 하면 그날 켜진다:
@@ -78,7 +81,7 @@ npx eas env:set --name EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID --value "..."   --visibi
 |---|---|---|
 | `ADMOB_ANDROID_APP_ID` | `ca-app-pub-4850161179932319~9276130840` | 같음 |
 | `EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID` | `ca-app-pub-4850161179932319/5088281854` (진짜) | `ca-app-pub-3940256099942544/6300978111` (구글 시험용) |
-| `EXPO_PUBLIC_ADS_ENABLED` | 없음 = 꺼짐 | 없음 = 꺼짐 |
+| `EXPO_PUBLIC_ADS_ENABLED` | `true` (2026-10-03 켬) | `true` |
 
 **내 폰(preview)에는 일부러 시험용 ID를 넣었다.** 진짜 ID로 내 폰에 광고를 띄우면 내가 내 광고를
 보고 누르는 셈이 되어 AdMob이 부정 트래픽으로 계정에 경고를 준다. 시험용 ID는 항상 광고가 채워지고
