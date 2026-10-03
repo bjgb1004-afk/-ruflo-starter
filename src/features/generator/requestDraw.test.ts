@@ -29,7 +29,7 @@ it("회차가 바뀌면 공짜가 되살아난다", async () => {
   expect(useDrawCredits.getState().usedFree).toEqual(["gauss"]);
 });
 
-it("광고를 끝까지 보면 1시간 동안 버튼 여섯 개가 전부 무제한이다", async () => {
+it("광고를 끝까지 보면 5분 동안 버튼 여섯 개가 전부 무제한이다", async () => {
   await requestDraw("gauss", DRAW); // 공짜 소진
   mockShow.mockResolvedValue("earned");
 
@@ -42,7 +42,7 @@ it("광고를 끝까지 보면 1시간 동안 버튼 여섯 개가 전부 무제
   expect(mockShow).toHaveBeenCalledTimes(1);
 });
 
-it("광고를 못 띄우면 그냥 주되 1시간은 열어주지 않는다", async () => {
+it("광고를 못 띄우면 그냥 주되 5분은 열어주지 않는다", async () => {
   await requestDraw("band", DRAW); // 공짜 소진
   mockShow.mockResolvedValue("unavailable");
 

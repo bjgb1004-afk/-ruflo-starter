@@ -34,7 +34,7 @@ function drawButtonLabel(base: string, needsAd: boolean): string {
 
 // 뽑은 뒤에 한 번만 알려줄 말. 공짜로 뽑은 경우엔 아무 말도 안 한다.
 function drawNotice(permission: DrawPermission): string | null {
-  if (permission === "rewarded") return "고마워요! 앞으로 1시간은 광고 없이 마음껏 뽑을 수 있어요.";
+  if (permission === "rewarded") return "고마워요! 앞으로 5분은 광고 없이 마음껏 뽑을 수 있어요.";
   if (permission === "ad-unavailable") return "지금은 보여드릴 광고가 없어서 한 번 그냥 드려요.";
   return null;
 }
