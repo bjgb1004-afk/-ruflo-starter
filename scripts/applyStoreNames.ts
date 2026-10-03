@@ -10,9 +10,8 @@
 //
 // 실행: npx tsx scripts/applyStoreNames.ts        (되돌릴 값을 파일로 먼저 남긴다)
 //       npx tsx scripts/applyStoreNames.ts --revert  (그 파일로 되돌린다)
-import dotenv from "dotenv";
-dotenv.config({ path: ".env" });
 import fs from "fs";
+// supabaseAdmin이 저장소 루트의 .env를 직접 읽는다 - 여기서 또 읽지 않는다.
 import { supabaseAdmin } from "./ingest/lib/supabaseAdmin";
 
 const BACKUP = "store-name-backup.json";
@@ -77,8 +76,14 @@ async function main() {
   const missing = ids.filter((id) => !found.has(id));
   if (missing.length) throw new Error(`DB에 없는 판매점 ${missing.length}곳: ${missing.join(", ")}`);
 
-  fs.writeFileSync(BACKUP, JSON.stringify(Object.fromEntries(found), null, 2), "utf8");
-  console.log(`되돌릴 값 ${found.size}곳을 ${BACKUP}에 저장했습니다.`);
+  // 이미 있으면 절대 덮어쓰지 않는다. 두 번째 실행 때 덮어쓰면 "바꾼 뒤의 이름"이
+  // 되돌릴 값으로 저장돼 --revert가 아무것도 안 되돌리는 꼴이 된다.
+  if (fs.existsSync(BACKUP)) {
+    console.log(`${BACKUP}가 이미 있어 그대로 둡니다 (처음 실행 때의 이름이 들어있습니다).`);
+  } else {
+    fs.writeFileSync(BACKUP, JSON.stringify(Object.fromEntries(found), null, 2), "utf8");
+    console.log(`되돌릴 값 ${found.size}곳을 ${BACKUP}에 저장했습니다.`);
+  }
 
   let changed = 0;
   for (const [id, name] of Object.entries(PICKS)) {
