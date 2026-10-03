@@ -20,7 +20,19 @@ export function AdBanner() {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const mod = require("react-native-google-mobile-ads");
-      setAd({ BannerAd: mod.BannerAd, size: mod.BannerAdSize.ANCHORED_ADAPTIVE_BANNER });
+      // require가 통했다고 광고를 그려선 안 된다. SDK가 빌드에 없으면 여기서 막히고,
+      // 있어도 초기화에 실패하면(앱 ID 누락 등) 배너를 그리는 순간 앱이 통째로 죽는다.
+      // 초기화가 끝난 뒤에만 그린다 - 실패하면 광고만 없는 멀쩡한 화면이 된다.
+      mod
+        .MobileAds()
+        .initialize()
+        .then(() => setAd({ BannerAd: mod.BannerAd, size: mod.BannerAdSize.ANCHORED_ADAPTIVE_BANNER }))
+        .catch((err: unknown) => {
+          if (!reportedMissing) {
+            reportedMissing = true;
+            reportError(err, "ads:init-failed");
+          }
+        });
     } catch (err) {
       // SDK가 없는 빌드다. 광고만 안 뜨고 화면은 그대로 돌아간다.
       if (!reportedMissing) {
