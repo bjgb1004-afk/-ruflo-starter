@@ -1,4 +1,5 @@
 import type { ExpoConfig } from "expo/config";
+import fs from "node:fs";
 
 const config: ExpoConfig = {
   name: "복권명당",
@@ -31,6 +32,12 @@ const config: ExpoConfig = {
   },
   android: {
     package: "com.gzc.lottomap",
+    // FCM(서버에서 보내는 알림의 배달부) 설정 파일. 비밀값이 아니라 설치 파일에 그대로 들어가는
+    // 프로젝트 식별 정보라서 저장소에 넣는다 - 깃에 없으면 EAS 빌드 서버가 못 본다(.env와 같은 이유).
+    //
+    // 파일이 없으면 이 줄을 아예 빼버린다. 없는 경로를 적어두면 빌드가 거기서 죽는데, 파일 없는
+    // 빌드는 "서버 알림만 없는 멀쩡한 앱"이면 된다(AdMob 플러그인과 같은 방식).
+    ...(fs.existsSync("./google-services.json") ? { googleServicesFile: "./google-services.json" } : {}),
     // version(1.0.0)은 그대로 둔다 - runtimeVersion 정책이 appVersion이라 버전을 올리면
     // 기존 1.0.0 사용자와 OTA 런타임이 갈라져서, JS 수정을 한 번의 eas update로 양쪽에
     // 보낼 수 없게 된다. 스토어 업로드에 필요한 것은 versionCode 증가뿐이다.
@@ -123,7 +130,6 @@ const config: ExpoConfig = {
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
-    posthogApiKey: process.env.EXPO_PUBLIC_POSTHOG_API_KEY,
     admobBannerUnitId: process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID,
     admobRewardedUnitId: process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID,
     // 광고를 띄울지. 문자열 "true"만 켜진 것으로 본다 - 환경변수가 없거나 오타면 꺼진 쪽으로.

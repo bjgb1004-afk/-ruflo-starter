@@ -16,7 +16,6 @@ import {
 } from "@expo-google-fonts/space-grotesk";
 import { initSentry } from "@/lib/sentry";
 import { reportError } from "@/lib/errorLog";
-import { initAnalytics } from "@/lib/analytics";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/features/auth/useAuth";
 import { useFavoritesCloudSync } from "@/features/favorites/useFavoritesCloudSync";
@@ -76,7 +75,6 @@ export default function RootLayout() {
 
   useEffect(() => {
     initSentry();
-    initAnalytics();
     initAuth();
     cleanupLegacyDrawReminders().catch((err) => reportError(err, "cleanup-legacy-reminders"));
   }, [initAuth]);
