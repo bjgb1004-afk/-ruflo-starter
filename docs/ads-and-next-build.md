@@ -71,8 +71,21 @@ npx eas env:set --name EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID --value "..."   --visibi
 비밀값이 아니라 설치 파일에 그대로 박히는 공개 ID이므로 `plaintext`로 둔다 - 가려두면 나중에
 뭐가 들어갔는지 확인할 수 없다.
 
-**앱 ID는 2026-10-03에 이미 넣었다**: `ADMOB_ANDROID_APP_ID=ca-app-pub-4850161179932319~9276130840`
-(production·preview 양쪽 확인함). 남은 건 위의 배너 광고 단위 ID 하나다.
+**2026-10-03에 EAS 등록을 끝냈다.** `eas config --profile <프로필>`로 빌드가 실제로 보게 될 값까지
+확인했다:
+
+| 변수 | production | preview |
+|---|---|---|
+| `ADMOB_ANDROID_APP_ID` | `ca-app-pub-4850161179932319~9276130840` | 같음 |
+| `EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID` | `ca-app-pub-4850161179932319/5088281854` (진짜) | `ca-app-pub-3940256099942544/6300978111` (구글 시험용) |
+| `EXPO_PUBLIC_ADS_ENABLED` | 없음 = 꺼짐 | 없음 = 꺼짐 |
+
+**내 폰(preview)에는 일부러 시험용 ID를 넣었다.** 진짜 ID로 내 폰에 광고를 띄우면 내가 내 광고를
+보고 누르는 셈이 되어 AdMob이 부정 트래픽으로 계정에 경고를 준다. 시험용 ID는 항상 광고가 채워지고
+수익에도 안 잡힌다.
+
+`.env`에 넣는 건 **로컬에서 직접 빌드할 때만** 필요하다. EAS 빌드는 위 EAS 환경에서 값을 가져간다
+(`.env`는 깃에 안 올라가므로 빌드 서버가 볼 수 없다 — 확인함).
 
 ### 2-3. Firebase / FCM (같은 빌드에 묶을 것)
 1. https://console.firebase.google.com 프로젝트 생성
