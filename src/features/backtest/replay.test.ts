@@ -108,11 +108,43 @@ describe("놓친 당첨금", () => {
     expect(r.totalPrize).toBe(FIXED_PRIZE[5] * 3);
   });
 
-  it("회차 금액이 없는 등수는 0으로 둔다 - 없는 돈을 지어내지 않는다", () => {
+  it("회차 금액이 없는 등수는 합계에 넣지 않고 '모른다'로 표시한다", () => {
     const r = replay(ticket, [draw(1, [1, 2, 3, 4, 5, 40], 41)]); // 3등인데 금액 없음
     expect(r.hits[0].rank).toBe(3);
+    expect(r.hits[0].prizeKnown).toBe(false);
     expect(r.hits[0].prize).toBe(0);
     expect(r.totalPrize).toBe(0);
+    expect(r.unknownByRank[3]).toBe(1);
+    expect(r.prizeUnknownCount).toBe(1);
+  });
+
+  // 실제 버그(2026-10-12): draw_history의 1등 금액이 1226회 이전 전부 비어 있어서, 과거 1등
+  // 번호를 넣으면 "1등 · 0원"이 떴다. 0원과 "금액 모름"이 구분되지 않은 것이 화면 쪽 원인이다.
+  it("1등을 맞혔는데 금액을 모르면 0원이 아니라 '모른다'로 나온다", () => {
+    const r = replay(ticket, [draw(1, [1, 2, 3, 4, 5, 6], 7)]); // 6개 일치 = 1등, 금액 없음
+    expect(r.hits[0].rank).toBe(1);
+    expect(r.hits[0].prizeKnown).toBe(false);
+    expect(r.unknownByRank[1]).toBe(1);
+    expect(r.prizeByRank[1]).toBe(0);
+  });
+
+  it("1등 금액이 있으면 그 금액으로 더한다", () => {
+    const r = replay(ticket, [draw(1, [1, 2, 3, 4, 5, 6], 7, { 1: 2_592_525_282 })]);
+    expect(r.hits[0].prizeKnown).toBe(true);
+    expect(r.hits[0].prize).toBe(2_592_525_282);
+    expect(r.totalPrize).toBe(2_592_525_282);
+    expect(r.prizeUnknownCount).toBe(0);
+  });
+
+  it("같은 등수에 금액을 아는 회차와 모르는 회차가 섞이면 아는 것만 더한다", () => {
+    const r = replay(ticket, [
+      draw(1, [1, 2, 3, 4, 5, 40], 41, { 3: 1_500_000 }), // 3등, 금액 있음
+      draw(2, [1, 2, 3, 4, 5, 44], 45), // 3등, 금액 없음
+    ]);
+    expect(r.rankCounts[3]).toBe(2);
+    expect(r.prizeByRank[3]).toBe(1_500_000);
+    expect(r.unknownByRank[3]).toBe(1);
+    expect(r.totalPrize).toBe(1_500_000);
   });
 
   it("당첨이 없으면 0원", () => {

@@ -1579,6 +1579,72 @@ export type Database = {
         }
         Relationships: []
       }
+      generated_tickets: {
+        Row: {
+          created_at: string
+          draw_no: number
+          id: string
+          numbers: number[]
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          draw_no: number
+          id?: string
+          numbers: number[]
+          source: string
+        }
+        Update: {
+          created_at?: string
+          draw_no?: number
+          id?: string
+          numbers?: number[]
+          source?: string
+        }
+        Relationships: []
+      }
+      generator_round_stats: {
+        Row: {
+          draw_no: number
+          games: number
+          prize_total: number
+          prize_unknown: number
+          rank1: number
+          rank2: number
+          rank3: number
+          rank4: number
+          rank5: number
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          draw_no: number
+          games?: number
+          prize_total?: number
+          prize_unknown?: number
+          rank1?: number
+          rank2?: number
+          rank3?: number
+          rank4?: number
+          rank5?: number
+          source: string
+          updated_at?: string
+        }
+        Update: {
+          draw_no?: number
+          games?: number
+          prize_total?: number
+          prize_unknown?: number
+          rank1?: number
+          rank2?: number
+          rank3?: number
+          rank4?: number
+          rank5?: number
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mylotto_push_subscriptions: {
         Row: {
           created_at: string
@@ -1614,6 +1680,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generator_stats: {
+        Args: { p_draw_no?: number }
+        Returns: Json
+      }
       admin_disputed_transfers: {
         Args: never
         Returns: {

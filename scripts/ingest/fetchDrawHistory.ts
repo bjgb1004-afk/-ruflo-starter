@@ -170,6 +170,144 @@ async function backfillPrizeStoreIds(index: StoreGridIndex): Promise<void> {
   }
 }
 
+// 메인 루프는 lastStoredDrawNo+1부터만 돌기 때문에, 금액이 비어 있는 상태로 한 번 저장된
+// 회차는 영구히 비어 있었다. 실측(2026-10-12): 262~1245회 중 1등 1인당첨금이 채워진 회차는
+// 1226~1244의 19건뿐이고, 1245회는 1~3등이 전부 비어 있었다. 그래서 "놓친 당첨금" 화면에
+// 과거 1등 번호를 넣으면 1등이 0원으로 나왔다.
+//
+// 2·3등은 일회성 스크립트(scripts/backfillSecondPrizeAmount.ts / ThirdPrize)로 한 번
+// 메웠지만, 그 방식은 다음에 또 빈 회차가 생기면 사람이 기억해서 다시 돌려야 한다. 그래서
+// 보정을 수집 배치 안으로 넣는다 - 매일 돌면서 빈 회차를 스스로 메운다.
+//
+// 미러에 요청을 몰아넣지 않도록 한 번 실행에 PRIZE_BACKFILL_LIMIT회차까지만 처리한다
+// (기본 300 = 약 40초). 과거치가 많이 남았으면 다음 실행에서 이어 받는다.
+const PRIZE_BACKFILL_LIMIT = Number(process.env.PRIZE_BACKFILL_LIMIT ?? 300);
+const PRIZE_BACKFILL_DELAY_MS = 120;
+
+async function backfillPrizeAmounts(): Promise<void> {
+  if (PRIZE_BACKFILL_LIMIT <= 0) return;
+
+  // 1등 금액이 비어 있는 회차를 최신부터 메운다 - 사람들이 먼저 보는 쪽이 최근 회차다.
+  const { data, error } = await supabaseAdmin
+    .from("draw_history")
+    .select("draw_no")
+    .is("first_prize_amount_per_win", null)
+    .order("draw_no", { ascending: false })
+    .limit(PRIZE_BACKFILL_LIMIT);
+  if (error) throw error;
+
+  const targets = data ?? [];
+  if (targets.length === 0) return;
+
+  console.log("");
+  console.log(`💰 1인 당첨금이 빈 회차 보정: ${targets.length}건 (최신부터)`);
+
+  let filled = 0;
+  let missing = 0;
+
+  for (const { draw_no } of targets) {
+    const draw = await fetchDrawFromMirror(draw_no);
+    if (!draw) {
+      // 미러에도 아직 배당이 없는 회차(추첨 직후). 다음 실행에서 다시 본다.
+      missing += 1;
+      continue;
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from("draw_history")
+      .update({
+        first_prize_amount_per_win: draw.firstPrizeAmountPerWin,
+        first_prize_winner_count: draw.firstPrizeWinnerCount,
+        first_prize_total_amount: draw.firstPrizeTotalAmount,
+        second_prize_amount_per_win: draw.secondPrizeAmountPerWin,
+        second_prize_winner_count: draw.secondPrizeWinnerCount,
+        third_prize_amount_per_win: draw.thirdPrizeAmountPerWin,
+        third_prize_winner_count: draw.thirdPrizeWinnerCount,
+        fourth_prize_winner_count: draw.fourthPrizeWinnerCount,
+        fifth_prize_winner_count: draw.fifthPrizeWinnerCount,
+        total_sales_amount: draw.totalSalesAmount,
+      })
+      .eq("draw_no", draw_no);
+    if (updateError) {
+      console.error(`  ❌ 회차 ${draw_no} 금액 보정 실패: ${updateError.message}`);
+      continue;
+    }
+    filled += 1;
+    await new Promise((resolve) => setTimeout(resolve, PRIZE_BACKFILL_DELAY_MS));
+  }
+
+  console.log(`   ✅ ${filled}건 보정${missing > 0 ? ` / 미러에 아직 배당 없음 ${missing}건` : ""}`);
+}
+
+// 메인 루프가 "마지막 저장 회차 다음"만 보므로 앞쪽 공백도 영구히 비어 있었다. 실측
+// (2026-10-12): draw_history는 262회부터 시작하고 1~261회(2002~2007년)가 아예 없었다.
+// 그래서 "놓친 당첨금"의 전체 구간이 실제로는 262회부터였고, 수학 분석의 후보도 미러 전체를
+// 쓰는 스레드 자동화와 갈렸다.
+//
+// 뒤로도 메운다. 배출점(first/second_prize_store_ids)은 그 시절 소스가 없어 빈 배열로 둔다 -
+// 당첨번호·배당은 미러에 다 있다.
+const EARLY_BACKFILL_LIMIT = Number(process.env.EARLY_BACKFILL_LIMIT ?? 0);
+
+async function backfillEarlyDraws(): Promise<void> {
+  if (EARLY_BACKFILL_LIMIT <= 0) return;
+
+  const { data, error } = await supabaseAdmin
+    .from("draw_history")
+    .select("draw_no")
+    .order("draw_no", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+
+  const firstStored = data?.draw_no ?? 0;
+  if (firstStored <= 1) return;
+
+  console.log("");
+  console.log(`⏪ 앞쪽 공백 보정: ${firstStored - 1}회 이하 (최대 ${EARLY_BACKFILL_LIMIT}건)`);
+
+  let filled = 0;
+  let missing = 0;
+
+  for (let drwNo = firstStored - 1; drwNo >= 1 && filled + missing < EARLY_BACKFILL_LIMIT; drwNo--) {
+    const draw = await fetchDrawFromMirror(drwNo);
+    if (!draw) {
+      // 미러에 그 회차 파일이 없거나 배당이 비어 있다 - 건너뛰고 계속 내려간다.
+      missing += 1;
+      continue;
+    }
+
+    const { error: insertError } = await supabaseAdmin.from("draw_history").upsert(
+      {
+        draw_no: draw.drwNo,
+        draw_date: draw.drwNoDate,
+        winning_numbers: draw.numbers,
+        bonus_number: draw.bnusNo,
+        first_prize_total_amount: draw.firstPrizeTotalAmount,
+        first_prize_winner_count: draw.firstPrizeWinnerCount,
+        first_prize_amount_per_win: draw.firstPrizeAmountPerWin,
+        second_prize_amount_per_win: draw.secondPrizeAmountPerWin,
+        second_prize_winner_count: draw.secondPrizeWinnerCount,
+        third_prize_amount_per_win: draw.thirdPrizeAmountPerWin,
+        third_prize_winner_count: draw.thirdPrizeWinnerCount,
+        fourth_prize_winner_count: draw.fourthPrizeWinnerCount,
+        fifth_prize_winner_count: draw.fifthPrizeWinnerCount,
+        total_sales_amount: draw.totalSalesAmount,
+        first_prize_store_ids: [],
+        second_prize_store_ids: [],
+      },
+      { onConflict: "draw_no" },
+    );
+    if (insertError) {
+      console.error(`  ❌ 회차 ${drwNo} 저장 실패: ${insertError.message}`);
+      continue;
+    }
+    filled += 1;
+    await new Promise((resolve) => setTimeout(resolve, PRIZE_BACKFILL_DELAY_MS));
+  }
+
+  console.log(`   ✅ ${filled}건 추가${missing > 0 ? ` / 미러에 없음 ${missing}건` : ""}`);
+}
+
 async function getLastStoredDrawNo(): Promise<number> {
   const { data, error } = await supabaseAdmin
     .from("draw_history")
@@ -275,6 +413,10 @@ async function main() {
     }
 
     await backfillPrizeStoreIds(storeIndex);
+    await backfillPrizeAmounts();
+    // 기본값 0이라 매일 돌는 배치에서는 아무 일도 하지 않는다. 공백을 메울 때만
+    // EARLY_BACKFILL_LIMIT를 줘서 수동으로 돌린다 - 2002년까지 내려가는 건 한 번만 하면 된다.
+    await backfillEarlyDraws();
 
     console.log("");
     console.log("✅ 완료!");

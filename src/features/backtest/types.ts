@@ -65,6 +65,11 @@ export interface FilterConfig {
   maxSameEndingDigit?: number;
   /** 직전 회차 당첨번호와 겹치는 개수의 허용 범위 [최소, 최대]. */
   previousDrawOverlap?: [number, number];
+  /**
+   * 정렬한 번호의 인접 간격 5개 중 피보나치 수(1,2,3,5,8,13,21,34)여야 하는 최소 개수.
+   * 조합의 모양을 고르는 조건이며, 간격이 수열을 따라도 당첨 확률은 달라지지 않는다.
+   */
+  minFibonacciGaps?: number;
 }
 
 // ---------- 레시피 ----------
@@ -80,6 +85,32 @@ export interface RecipeWeights {
   recentFrequency: number;
   /** 오래 안 나왔을수록 높은 점수. */
   gap: number;
+  /**
+   * 번호를 6구간으로 나눴을 때, 최근 구간에서 기대보다 덜 나온 구간일수록 높은 점수.
+   * 같은 구간의 번호는 모두 같은 점수를 받는다 - 번호가 아니라 구간을 고르는 요소다.
+   */
+  sectorBalance: number;
+  /**
+   * 피보나치 수(1,2,3,5,8,13,21,34)에 가까울수록 높은 점수. 과거 회차와 무관하게
+   * 번호 자체로 정해지는 값이다 - 추첨 결과가 수열을 따른다는 근거는 없다.
+   */
+  fibonacciAffinity: number;
+  /**
+   * 나머지 그룹(n mod 5)이 최근에 기대보다 덜 나왔을수록 높은 점수.
+   * sectorBalance와 셈은 같고 묶는 기준만 구간 대신 나머지다.
+   */
+  modBalance: number;
+  /**
+   * 오일러 파이 함수 비율 φ(n)/n이 높을수록(= 서로소를 많이 가진 수일수록) 높은 점수.
+   * 번호 자체로 정해지는 값이며, 서로소인 번호가 더 잘 나온다는 근거는 없다.
+   */
+  totient: number;
+  /**
+   * 출현 횟수가 이론 기대치에 가까울수록(표준점수 |z|가 0에 가까울수록) 높은 점수.
+   * 많이 나온 번호도 덜 나온 번호도 아닌 "표본 변동 범위 안의 번호"를 고르는 것이며,
+   * 그런 번호가 다음에 나올 확률이 높다는 뜻은 아니다.
+   */
+  frequencyTypicality: number;
   /** 같은 그룹이었던 과거 회차에서의 출현 횟수. grouping이 있어야 의미가 있다. */
   groupFrequency: number;
   /** 같은 그룹 안에서 오래 안 나왔을수록 높은 점수. */
@@ -90,6 +121,11 @@ export const ZERO_WEIGHTS: RecipeWeights = {
   totalFrequency: 0,
   recentFrequency: 0,
   gap: 0,
+  sectorBalance: 0,
+  fibonacciAffinity: 0,
+  modBalance: 0,
+  totient: 0,
+  frequencyTypicality: 0,
   groupFrequency: 0,
   groupGap: 0,
 };
@@ -122,6 +158,16 @@ export interface Recipe {
   recentWindow: number;
   /** 점수 상위 몇 개를 후보로 남길지. rule.maxNumber와 같으면 압축하지 않는 것이다. */
   candidateCount: number;
+  /**
+   * 한 구간(6등분)에서 후보로 뽑을 수 있는 최대 개수. 주지 않으면 제한 없음.
+   * 점수 상위만 자르면 후보가 한쪽 구간에 몰릴 수 있어, 구간을 고르게 쓰고 싶을 때 쓴다.
+   */
+  sectorCap?: number;
+  /**
+   * 한 나머지 그룹(n mod 5)에서 후보로 뽑을 수 있는 최대 개수. sectorCap과 같은 구실을 하며,
+   * 묶는 기준만 다르다. 둘을 같이 주면 sectorCap을 쓴다.
+   */
+  modGroupCap?: number;
   grouping?: GroupingConfig;
   filters: FilterConfig;
   selection: CombinationSelection;

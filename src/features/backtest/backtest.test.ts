@@ -1,5 +1,8 @@
 import { countMatches, rankOf, runBacktest, runRecipes, seededRng, splitByRatio, validateDraws } from "./engine";
 import {
+  ARCHIMEDES_RECIPE,
+  EULER_RECIPE,
+  FIBONACCI_RECIPE,
   FREQUENCY_RECIPE,
   HOT_COLD_RECIPE,
   ROUND_GROUP_RECIPE,
@@ -9,10 +12,18 @@ import {
   analyzeWithRecipe,
   computeNumberStats,
   emptyRecipe,
+  eulerTotient,
+  modGroupOf,
+  totientRatio,
+  fibonacciAffinity,
+  fibonacciGapCount,
+  fibonacciNumbers,
   groupOf,
   passesFilters,
   recipeStrategy,
   scoreNumbers,
+  sectorIndexOf,
+  sectorRanges,
   topCandidates,
 } from "./recipes";
 import {
@@ -231,6 +242,206 @@ describe("오우치식 그룹", () => {
       301,
     ).candidates.map((c) => c.number);
     expect(withGroup).not.toEqual(withoutGroup);
+  });
+});
+
+describe("구간 균형 / 아르키메데스", () => {
+  it("45개를 1-7 / 8-15 / 16-22 / 23-30 / 31-37 / 38-45로 나눈다", () => {
+    expect(sectorRanges(45)).toEqual([
+      [1, 7],
+      [8, 15],
+      [16, 22],
+      [23, 30],
+      [31, 37],
+      [38, 45],
+    ]);
+    expect(sectorIndexOf(1, 45)).toBe(0);
+    expect(sectorIndexOf(22, 45)).toBe(2);
+    expect(sectorIndexOf(45, 45)).toBe(5);
+    expect(sectorIndexOf(46, 45)).toBe(-1);
+  });
+
+  it("최근 구간에서 많이 나온 구간은 음수, 안 나온 구간은 양수 결손이 된다", () => {
+    // 10회 내내 1구간(1-7)에서만 나온 역사. 1구간은 기대보다 많이, 나머지는 전부 적게 나왔다.
+    const history: LottoDraw[] = Array.from({ length: 10 }, (_, i) => ({
+      round: i + 1,
+      numbers: [1, 2, 3, 4, 5, 6],
+      bonus: 7,
+    }));
+    const stats = computeNumberStats(history, RULE, 10);
+    expect(stats[0].sectorDeficit).toBeLessThan(0); // 1번 -> 1구간
+    expect(stats[44].sectorDeficit).toBeGreaterThan(0); // 45번 -> 6구간
+    // 같은 구간이면 번호가 달라도 값이 같다.
+    expect(stats[0].sectorDeficit).toBe(stats[6].sectorDeficit);
+  });
+
+  it("구간 상한을 걸면 후보가 한 구간에 몰리지 않는다", () => {
+    const history = makeDraws(300);
+    const countsPerSector = (recipe: Parameters<typeof analyzeWithRecipe>[0]) => {
+      const counts = new Array<number>(6).fill(0);
+      for (const c of analyzeWithRecipe(recipe, history, RULE, 301).candidates) {
+        counts[sectorIndexOf(c.number, RULE.maxNumber)] += 1;
+      }
+      return counts;
+    };
+
+    expect(Math.max(...countsPerSector(ARCHIMEDES_RECIPE))).toBeLessThanOrEqual(3);
+    // 상한이 1이면 구간 수보다 많은 후보를 요구해도 개수는 지킨다(상한을 넘겨서라도 채운다).
+    const capped = { ...ARCHIMEDES_RECIPE, sectorCap: 1 };
+    expect(analyzeWithRecipe(capped, history, RULE, 301).candidates).toHaveLength(15);
+  });
+
+  it("아르키메데스 레시피는 후보 15개로 필터를 지킨 조합을 낸다", () => {
+    const history = makeDraws(300);
+    const candidates = analyzeWithRecipe(ARCHIMEDES_RECIPE, history, RULE, 301).candidates.map((c) => c.number);
+    expect(candidates).toHaveLength(15);
+
+    const tickets = recipeStrategy(ARCHIMEDES_RECIPE).generate({
+      history,
+      rule: RULE,
+      rng: seededRng("archimedes"),
+      ticketCount: 5,
+      targetRound: 301,
+    });
+    expect(tickets).toHaveLength(5);
+    for (const t of tickets) {
+      expect(t.every((n) => candidates.includes(n))).toBe(true);
+      expect(passesFilters(t, RULE, ARCHIMEDES_RECIPE.filters)).toBe(true);
+    }
+  });
+
+  it("구간균형 가중치만 켜면 다른 요소만 켠 것과 후보가 달라진다", () => {
+    const history = makeDraws(300);
+    const pick = (weights: Parameters<typeof scoreNumbers>[1]) =>
+      analyzeWithRecipe({ ...emptyRecipe(), weights, candidateCount: 10, recentWindow: 50 }, history, RULE, 301)
+        .candidates.map((c) => c.number)
+        .join(",");
+    expect(pick({ ...ZERO_WEIGHTS, sectorBalance: 1 })).not.toEqual(pick({ ...ZERO_WEIGHTS, totalFrequency: 1 }));
+  });
+});
+
+describe("피보나치", () => {
+  it("45 안의 수열은 1,2,3,5,8,13,21,34다", () => {
+    expect(fibonacciNumbers(45)).toEqual([1, 2, 3, 5, 8, 13, 21, 34]);
+  });
+
+  it("수열 번호는 1점, 멀어질수록 낮아진다", () => {
+    expect(fibonacciAffinity(34, 45)).toBe(1);
+    expect(fibonacciAffinity(35, 45)).toBe(0.5);
+    // 45는 34에서 11칸 떨어져 있다(55는 범위 밖).
+    expect(fibonacciAffinity(45, 45)).toBeCloseTo(1 / 12);
+    expect(fibonacciAffinity(22, 45)).toBeGreaterThan(fibonacciAffinity(28, 45));
+  });
+
+  it("인접 간격 중 피보나치 수를 센다", () => {
+    // 간격 1,2,3,5,8 - 전부 수열
+    expect(fibonacciGapCount([1, 2, 4, 7, 12, 20], 45)).toBe(5);
+    // 간격 4,4,4,4,4 - 하나도 아니다
+    expect(fibonacciGapCount([1, 5, 9, 13, 17, 21], 45)).toBe(0);
+    expect(passesFilters([1, 5, 9, 13, 17, 21], RULE, { minFibonacciGaps: 1 })).toBe(false);
+    expect(passesFilters([1, 2, 4, 7, 12, 20], RULE, { minFibonacciGaps: 5 })).toBe(true);
+  });
+
+  it("피보나치 레시피는 수열 번호를 후보 앞쪽에 두고, 간격 조건을 지킨 조합을 낸다", () => {
+    const history = makeDraws(300);
+    const candidates = analyzeWithRecipe(FIBONACCI_RECIPE, history, RULE, 301).candidates.map((c) => c.number);
+    expect(candidates).toHaveLength(15);
+    // 수열 번호 8개 중 절반 이상은 후보에 들어와야 피보나치 분석이라 할 수 있다.
+    const fibsInside = fibonacciNumbers(RULE.maxNumber).filter((f) => candidates.includes(f));
+    expect(fibsInside.length).toBeGreaterThanOrEqual(4);
+
+    const tickets = recipeStrategy(FIBONACCI_RECIPE).generate({
+      history,
+      rule: RULE,
+      rng: seededRng("fib"),
+      ticketCount: 5,
+      targetRound: 301,
+    });
+    expect(tickets).toHaveLength(5);
+    for (const t of tickets) {
+      expect(t.every((n) => candidates.includes(n))).toBe(true);
+      expect(fibonacciGapCount(t, RULE.maxNumber)).toBeGreaterThanOrEqual(3);
+      expect(passesFilters(t, RULE, FIBONACCI_RECIPE.filters)).toBe(true);
+    }
+  });
+
+  it("피보나치 가중치는 과거 데이터가 아니라 번호 자체로 정해진다", () => {
+    const a = computeNumberStats(makeDraws(100, "a"), RULE, 20);
+    const b = computeNumberStats(makeDraws(100, "b"), RULE, 20);
+    expect(a.map((s) => s.fibonacciAffinity)).toEqual(b.map((s) => s.fibonacciAffinity));
+  });
+});
+
+describe("오일러", () => {
+  it("파이 함수 φ(n)를 정확히 계산한다", () => {
+    expect([1, 2, 3, 4, 5, 6, 9, 10, 12, 30, 45].map(eulerTotient)).toEqual([1, 1, 2, 2, 4, 2, 6, 4, 4, 8, 24]);
+    // 소수 p는 φ(p) = p-1
+    expect(eulerTotient(43)).toBe(42);
+  });
+
+  it("φ(n)/n은 소수에서 높고 2·3·5로 잘 나뉘는 수에서 낮다", () => {
+    expect(totientRatio(43)).toBeGreaterThan(totientRatio(30));
+    expect(totientRatio(30)).toBeCloseTo(8 / 30);
+  });
+
+  it("번호를 나머지 다섯 그룹으로 가른다", () => {
+    expect([5, 10, 45].map(modGroupOf)).toEqual([0, 0, 0]);
+    expect([1, 6, 41].map(modGroupOf)).toEqual([1, 1, 1]);
+    expect(modGroupOf(44)).toBe(4);
+  });
+
+  it("최근에 한 나머지 그룹만 나오면 그 그룹의 결손이 음수가 된다", () => {
+    // 10회 내내 나머지 0 그룹(5,10,15,20,25,30)만 나온 역사.
+    const history: LottoDraw[] = Array.from({ length: 10 }, (_, i) => ({
+      round: i + 1,
+      numbers: [5, 10, 15, 20, 25, 30],
+      bonus: 35,
+    }));
+    const stats = computeNumberStats(history, RULE, 10);
+    expect(stats[4].modGroupDeficit).toBeLessThan(0); // 5번 -> 나머지 0
+    expect(stats[0].modGroupDeficit).toBeGreaterThan(0); // 1번 -> 나머지 1
+    // 같은 나머지 그룹이면 값이 같다.
+    expect(stats[4].modGroupDeficit).toBe(stats[9].modGroupDeficit);
+  });
+
+  it("정수론 점수는 과거 데이터가 아니라 번호 자체로 정해진다", () => {
+    const a = computeNumberStats(makeDraws(100, "a"), RULE, 20);
+    const b = computeNumberStats(makeDraws(100, "b"), RULE, 20);
+    expect(a.map((s) => s.totientRatio)).toEqual(b.map((s) => s.totientRatio));
+  });
+
+  it("오일러 레시피는 후보 15개를 나머지 그룹에 흩어 놓는다", () => {
+    const history = makeDraws(300);
+    const candidates = analyzeWithRecipe(EULER_RECIPE, history, RULE, 301).candidates.map((c) => c.number);
+    expect(candidates).toHaveLength(15);
+
+    const perGroup = new Array<number>(5).fill(0);
+    for (const n of candidates) perGroup[modGroupOf(n)] += 1;
+    expect(Math.max(...perGroup)).toBeLessThanOrEqual(4);
+    expect(perGroup.filter((c) => c > 0).length).toBeGreaterThanOrEqual(4);
+
+    const tickets = recipeStrategy(EULER_RECIPE).generate({
+      history,
+      rule: RULE,
+      rng: seededRng("euler"),
+      ticketCount: 5,
+      targetRound: 301,
+    });
+    expect(tickets).toHaveLength(5);
+    for (const t of tickets) {
+      expect(t.every((n) => candidates.includes(n))).toBe(true);
+      expect(passesFilters(t, RULE, EULER_RECIPE.filters)).toBe(true);
+    }
+  });
+
+  it("모듈러·정수론 가중치만 켜면 빈도만 켠 것과 후보가 달라진다", () => {
+    const history = makeDraws(300);
+    const pick = (weights: Parameters<typeof scoreNumbers>[1]) =>
+      analyzeWithRecipe({ ...emptyRecipe(), weights, candidateCount: 10, recentWindow: 50 }, history, RULE, 301)
+        .candidates.map((c) => c.number)
+        .join(",");
+    expect(pick({ ...ZERO_WEIGHTS, modBalance: 1 })).not.toEqual(pick({ ...ZERO_WEIGHTS, totalFrequency: 1 }));
+    expect(pick({ ...ZERO_WEIGHTS, totient: 1 })).not.toEqual(pick({ ...ZERO_WEIGHTS, totalFrequency: 1 }));
   });
 });
 

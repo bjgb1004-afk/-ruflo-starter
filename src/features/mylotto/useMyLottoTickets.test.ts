@@ -1,24 +1,25 @@
 import { useMyLottoTickets, isPurchased, type MyLottoTicket } from "./useMyLottoTickets";
 
-// addTickets가 돌려주는 숫자가 화면 문구("N게임 넣었어요")에 그대로 쓰인다. 건너뛴 걸
-// 세어버리면 아무것도 저장되지 않은 사람에게 "저장했어요"라고 말하게 된다.
-describe("addTickets가 실제로 넣은 개수", () => {
+// addTickets가 돌려주는 목록의 길이가 화면 문구("N게임 넣었어요")에 그대로 쓰인다. 건너뛴 걸
+// 세어버리면 아무것도 저장되지 않은 사람에게 "저장했어요"라고 말하게 된다. 번호까지 돌려주는
+// 이유는 생성 번호 집계가 "이번에 새로 들어간 것"만 서버에 올려야 하기 때문이다.
+describe("addTickets가 실제로 넣은 게임", () => {
   beforeEach(() => {
     useMyLottoTickets.setState({ tickets: {} });
   });
 
   const game = (numbers: number[]) => ({ drawNo: 1244, numbers, purchaseType: null, purchased: false });
 
-  it("처음 저장하면 넣은 개수를 돌려준다", () => {
+  it("처음 저장하면 넣은 번호를 돌려준다", () => {
     const added = useMyLottoTickets.getState().addTickets([game([1, 2, 3, 4, 5, 6])]);
-    expect(added).toBe(1);
+    expect(added).toEqual([[1, 2, 3, 4, 5, 6]]);
   });
 
-  it("같은 회차에 같은 번호를 다시 저장하면 0을 돌려주고 보관함도 늘지 않는다", () => {
+  it("같은 회차에 같은 번호를 다시 저장하면 빈 목록을 돌려주고 보관함도 늘지 않는다", () => {
     const { addTickets } = useMyLottoTickets.getState();
     addTickets([game([1, 2, 3, 4, 5, 6])]);
     const again = addTickets([game([1, 2, 3, 4, 5, 6])]);
-    expect(again).toBe(0);
+    expect(again).toEqual([]);
     expect(Object.keys(useMyLottoTickets.getState().tickets)).toHaveLength(1);
   });
 
@@ -26,7 +27,7 @@ describe("addTickets가 실제로 넣은 개수", () => {
     const { addTickets } = useMyLottoTickets.getState();
     addTickets([game([1, 2, 3, 4, 5, 6])]);
     const added = addTickets([game([1, 2, 3, 4, 5, 6]), game([7, 8, 9, 10, 11, 12])]);
-    expect(added).toBe(1);
+    expect(added).toEqual([[7, 8, 9, 10, 11, 12]]);
     expect(Object.keys(useMyLottoTickets.getState().tickets)).toHaveLength(2);
   });
 
@@ -36,7 +37,7 @@ describe("addTickets가 실제로 넣은 개수", () => {
     const added = addTickets([
       { drawNo: 1245, numbers: [1, 2, 3, 4, 5, 6], purchaseType: null, purchased: false },
     ]);
-    expect(added).toBe(1);
+    expect(added).toEqual([[1, 2, 3, 4, 5, 6]]);
   });
 });
 

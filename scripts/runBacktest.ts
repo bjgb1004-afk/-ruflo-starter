@@ -6,6 +6,7 @@ import fs from "fs";
 import { supabaseAdmin } from "./ingest/lib/supabaseAdmin";
 import { runRecipes, splitByRatio } from "../src/features/backtest/engine";
 import { PRESET_RECIPES } from "../src/features/backtest/recipes";
+import { measureCandidateHits } from "../src/features/backtest/pascal";
 import { judgeResults, theoreticalMeanMatches, verdictLabel } from "../src/features/backtest/significance";
 import { KOREA_LOTTO_6_45, type LottoDraw } from "../src/features/backtest/types";
 
@@ -136,6 +137,29 @@ async function main() {
     );
   }
 
+  // 후보 압축 자체의 성적. 조합을 몇 개 뽑았는지와 무관하게 "당첨번호가 후보 안에 들어왔는가"만
+  // 본다. 무작위로 같은 개수를 남겨도 들어오는 기대값이 있으므로(45에서 15개면 2.00개) 그 값과
+  // 나란히 찍는다 - 2.0을 성과로 착각하지 않게.
+  console.log("\n" + "=".repeat(78));
+  console.log("후보 압축 성적 (파스칼: 초기하분포 기준선과 비교)");
+  console.log("=".repeat(78));
+  console.log(
+    "전략".padEnd(20) + "후보".padStart(6) + "평균 포함".padStart(11) + "무작위 기대".padStart(13) +
+      "3개 이상".padStart(10) + "무작위 3개 이상".padStart(16),
+  );
+  for (const recipe of PRESET_RECIPES) {
+    const hits = measureCandidateHits(recipe, draws, rule, { rounds: 300, minimumHistory: options.minimumHistory });
+    if (!hits) continue;
+    console.log(
+      recipe.name.padEnd(20) +
+        String(hits.candidateCount).padStart(6) +
+        hits.meanHits.toFixed(3).padStart(11) +
+        hits.expectedHits.toFixed(3).padStart(13) +
+        `${(hits.atLeast3Ratio * 100).toFixed(1)}%`.padStart(10) +
+        `${(hits.expectedAtLeast3Ratio * 100).toFixed(1)}%`.padStart(16),
+    );
+  }
+
   console.log("\n" + "=".repeat(78));
   console.log("짝지은 순열검정 (내부용 - 화면에는 p값을 띄우지 않는다)");
   console.log("=".repeat(78));
@@ -156,13 +180,20 @@ async function main() {
   console.log(`  validation  ${split.validation.from}~${split.validation.to}회 (설정을 고칠 때 보는 구간)`);
   console.log(`  test        ${split.test.from}~${split.test.to}회 (마지막에 한 번만, 설정 고친 뒤 재확인 금지)`);
 
+  // 구간별 판정을 모아 둔다 - 아래 결과 파일에도 그대로 들어간다(루프 안에서만 쓰면
+  // 저장 단계에서 정의되지 않은 변수를 참조해 스크립트가 마지막에 죽는다).
+  const oosVerdicts: Record<"validation" | "test", ReturnType<typeof judgeResults>> = {
+    validation: [],
+    test: [],
+  };
+
   for (const phase of ["validation", "test"] as const) {
     const range = split[phase];
     const oos = runRecipes(draws, PRESET_RECIPES, { ...options, fromRound: range.from, toRound: range.to });
-    const oosVerdicts = judgeResults(oos.results, rule);
+    oosVerdicts[phase] = judgeResults(oos.results, rule);
     console.log(`\n[${phase}] ${range.from}~${range.to}회 (${oos.results[0].drawsTested}회차, ${oos.results[0].totalTickets.toLocaleString()}게임)`);
     console.log("전략".padEnd(20) + "평균적중".padStart(9) + "기준선 대비".padStart(12) + "  95% 신뢰구간".padEnd(22) + "판정");
-    for (const v of oosVerdicts) {
+    for (const v of oosVerdicts[phase]) {
       console.log(
         v.strategyName.padEnd(20) +
           v.observedMean.toFixed(4).padStart(9) +

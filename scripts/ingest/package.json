@@ -10,6 +10,7 @@
     "ingest:draws": "tsx fetchDrawHistory.ts",
     "ingest:refresh-rankings": "tsx refreshRankingStats.ts",
     "ingest:notify": "tsx sendMylottoNotifications.ts",
+    "ingest:aggregate-generated": "tsx aggregateGeneratedTickets.ts",
     "ingest:rebuild-winstores": "tsx rebuildWinStoresFromOfficial.ts"
   },
   "dependencies": {

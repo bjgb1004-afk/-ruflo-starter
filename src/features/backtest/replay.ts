@@ -25,8 +25,13 @@ export interface ReplayHit {
   drawDate?: string;
   matchCount: number;
   rank: HitRank;
-  /** 그 회차에 이 번호로 받았을 1인 당첨금(원). 회차 금액이 없으면 0. */
+  /** 그 회차에 이 번호로 받았을 1인 당첨금(원). 금액을 모르는 회차는 0. */
   prize: number;
+  /**
+   * 그 회차의 그 등수 금액을 알고 있는지. false면 prize는 0이지만 "0원을 받았다"가 아니라
+   * "얼마인지 모른다"는 뜻이다 - 둘을 섞으면 1등이 0원으로 표시된다(실제 버그였다).
+   */
+  prizeKnown: boolean;
   /** 그 회차 당첨번호. 내 번호 중 어느 게 맞았는지 화면에서 표시하는 데 쓴다. */
   winningNumbers: number[];
   bonus?: number;
@@ -41,18 +46,28 @@ export interface ReplayResult {
   /** 등수에 든 회차만. 최근 회차가 앞. */
   hits: ReplayHit[];
   rankCounts: Record<HitRank, number>;
-  /** 등수별 당첨금 합계(원). */
+  /** 등수별 당첨금 합계(원). 금액을 모르는 회차는 더하지 않는다. */
   prizeByRank: Record<HitRank, number>;
-  /** 전체 당첨금 합계(원). */
+  /** 등수별로 "금액을 몰라서 합계에 못 넣은" 회차 수. 화면이 0원과 구분해 적는 데 쓴다. */
+  unknownByRank: Record<HitRank, number>;
+  /** 금액을 몰라서 합계에서 빠진 회차 수(전 등수 합). */
+  prizeUnknownCount: number;
+  /** 전체 당첨금 합계(원). 금액을 아는 회차만 더한 값이다. */
   totalPrize: number;
   /** 등수에 한 번도 못 들면 null. */
   best: ReplayHit | null;
 }
 
-/** 그 회차에 그 등수로 받았을 1인 당첨금. 모르면 0 - 없는 돈을 지어내지 않는다. */
-export function prizeOf(rank: HitRank, draw: LottoDraw): number {
+/**
+ * 그 회차에 그 등수로 받았을 1인 당첨금. 회차 데이터에 금액이 없으면 null이다.
+ *
+ * null과 0을 구분하는 것이 중요하다. 1~3등 금액은 회차마다 다르고 DB에 비어 있을 수 있는데
+ * (추첨 직후 배당 발표 전, 과거 회차 백필 누락), 이것을 0으로 돌려주면 1등을 맞힌 회차가
+ * 화면에 "0원"으로 나온다. 없는 돈을 지어내지도, 있는 돈을 0원이라고 말하지도 않는다.
+ */
+export function prizeOf(rank: HitRank, draw: LottoDraw): number | null {
   if (rank === 4 || rank === 5) return FIXED_PRIZE[rank];
-  return draw.prizePerWin?.[rank] ?? 0;
+  return draw.prizePerWin?.[rank] ?? null;
 }
 
 /**
@@ -70,6 +85,7 @@ export function replay(
   const hits: ReplayHit[] = [];
   const rankCounts: Record<HitRank, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   const prizeByRank: Record<HitRank, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  const unknownByRank: Record<HitRank, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   let from = Number.POSITIVE_INFINITY;
   let to = Number.NEGATIVE_INFINITY;
 
@@ -84,13 +100,15 @@ export function replay(
 
     const prize = prizeOf(rank, draw);
     rankCounts[rank] += 1;
-    prizeByRank[rank] += prize;
+    if (prize === null) unknownByRank[rank] += 1;
+    else prizeByRank[rank] += prize;
     hits.push({
       round: draw.round,
       drawDate: draw.drawDate,
       matchCount,
       rank,
-      prize,
+      prize: prize ?? 0,
+      prizeKnown: prize !== null,
       winningNumbers: draw.numbers,
       bonus: draw.bonus,
       // 5개를 맞춘 회차에서만 보너스가 등수를 가른다. 3·4개 맞은 회차에 보너스가
@@ -117,6 +135,8 @@ export function replay(
     hits,
     rankCounts,
     prizeByRank,
+    unknownByRank,
+    prizeUnknownCount: Object.values(unknownByRank).reduce((sum, count) => sum + count, 0),
     totalPrize: Object.values(prizeByRank).reduce((sum, won) => sum + won, 0),
     best,
   };

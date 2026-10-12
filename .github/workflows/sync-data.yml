@@ -110,7 +110,7 @@ jobs:
           VWORLD_API_KEY: ${{ secrets.VWORLD_API_KEY }}
         run: |
           cd ${{ env.WORKING_DIR }}
-          echo "📍 Step 2/3: 당첨 회차 및 배출점 수집..."
+          echo "📍 Step 2/5: 당첨 회차 및 배출점 수집..."
           npm run ingest:draws
           echo "✅ Step 2 완료"
 
@@ -120,7 +120,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           cd ${{ env.WORKING_DIR }}
-          echo "📍 Step 3/4: 랭킹 재계산..."
+          echo "📍 Step 3/5: 랭킹 재계산..."
           npm run ingest:refresh-rankings
           echo "✅ Step 3 완료"
 
@@ -130,9 +130,19 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           cd ${{ env.WORKING_DIR }}
-          echo "📍 Step 4/4: 당첨 알림 발송..."
+          echo "📍 Step 4/5: 당첨 알림 발송..."
           npm run ingest:notify
           echo "✅ Step 4 완료"
+
+      - name: 📊 생성 번호 성적 집계
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          cd ${{ env.WORKING_DIR }}
+          echo "📍 Step 5/5: 생성 번호 성적 집계..."
+          npm run ingest:aggregate-generated
+          echo "✅ Step 5 완료"
 
       - name: ✅ 성공
         if: success()
@@ -142,6 +152,7 @@ jobs:
           echo "  ✓ 판매점 수집"
           echo "  ✓ 당첨 회차/배출점 수집"
           echo "  ✓ 명당 랭킹 재계산"
+          echo "  ✓ 생성 번호 성적 집계"
 
       - name: ❌ 실패 알림
         if: failure()

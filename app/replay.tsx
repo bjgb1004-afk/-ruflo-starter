@@ -67,8 +67,8 @@ export default function ReplayScreen() {
   const save = useCallback(() => {
     const added = addTickets([{ drawNo, numbers: selected, purchaseType: null, purchased: false }]);
     Alert.alert(
-      added > 0 ? "보관함에 저장했어요" : "이미 보관함에 있어요",
-      added > 0
+      added.length > 0 ? "보관함에 저장했어요" : "이미 보관함에 있어요",
+      added.length > 0
         ? `${drawNo}회로 넣었어요. 추첨 후 자동으로 확인해 드려요.`
         : `${drawNo}회에 같은 번호가 이미 저장돼 있어요.`,
     );
@@ -210,7 +210,8 @@ export default function ReplayScreen() {
 }
 
 function Results({ result, ticket }: { result: ReplayResult; ticket: readonly number[] }) {
-  const { best, hits, rankCounts, prizeByRank, totalPrize, roundsPlayed, from, to } = result;
+  const { best, hits, rankCounts, prizeByRank, unknownByRank, prizeUnknownCount, totalPrize, roundsPlayed, from, to } =
+    result;
   const total = hits.length;
 
   const ranks = useMemo(
@@ -227,7 +228,7 @@ function Results({ result, ticket }: { result: ReplayResult; ticket: readonly nu
             <View style={styles.bestRow}>
               <Text style={styles.bestRank}>{RANK_LABEL[best.rank]}</Text>
               <Text style={styles.bestDetail}>
-                {best.prize > 0 ? won(best.prize) : hitDescription(best)}
+                {best.prizeKnown ? won(best.prize) : "금액 미확인"}
               </Text>
             </View>
             <Text style={styles.note}>
@@ -257,9 +258,22 @@ function Results({ result, ticket }: { result: ReplayResult; ticket: readonly nu
             <Text style={styles.rowLabel}>
               {RANK_LABEL[r]} · {rankCounts[r].toLocaleString()}번
             </Text>
-            <Text style={styles.rowValue}>{won(prizeByRank[r])}</Text>
+            <Text style={styles.rowValue}>
+              {/* 금액을 모르는 회차를 0원으로 보여주면 1등을 맞혔는데 0원이 된다. */}
+              {unknownByRank[r] === rankCounts[r]
+                ? "금액 미확인"
+                : unknownByRank[r] > 0
+                  ? `${won(prizeByRank[r])} + ${unknownByRank[r]}회 미확인`
+                  : won(prizeByRank[r])}
+            </Text>
           </View>
         ))}
+        {prizeUnknownCount > 0 && (
+          <Text style={styles.note}>
+            이 중 {prizeUnknownCount}회차는 1~3등 1인 당첨금이 공개되지 않아 합계에서 빠졌어요(추첨 직후이거나 공개
+            데이터가 없는 회차예요). 0원을 받았다는 뜻이 아니에요.
+          </Text>
+        )}
         {total === 0 && <Text style={styles.muted}>당첨된 회차가 없었어요.</Text>}
       </View>
 
@@ -273,7 +287,7 @@ function Results({ result, ticket }: { result: ReplayResult; ticket: readonly nu
                   {hit.round}회 {hit.drawDate ? `· ${hit.drawDate}` : ""}
                 </Text>
                 <Text style={styles.rowValue}>
-                  {RANK_LABEL[hit.rank]} · {hit.prize > 0 ? won(hit.prize) : hitDescription(hit)}
+                  {RANK_LABEL[hit.rank]} · {hit.prizeKnown ? won(hit.prize) : "금액 미확인"}
                 </Text>
               </View>
               <HitBalls hit={hit} ticket={ticket} />

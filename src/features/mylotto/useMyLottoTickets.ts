@@ -48,8 +48,12 @@ export function isPurchased(ticket: MyLottoTicket): boolean {
 
 interface MyLottoState {
   tickets: Record<string, MyLottoTicket>;
-  /** 실제로 넣은 게임 수를 돌려준다. 같은 회차·같은 번호는 건너뛰므로 inputs 길이와 다를 수 있다. */
-  addTickets: (inputs: NewTicketInput[]) => number;
+  /**
+   * 실제로 넣은 게임의 번호들을 돌려준다. 같은 회차·같은 번호는 건너뛰므로 inputs보다 짧을 수 있다.
+   * 개수가 아니라 번호를 돌려주는 이유: 화면 문구에는 길이만 쓰지만, 생성 번호 집계
+   * (recordGeneratedTickets)는 "이번에 새로 들어간 것"만 서버에 올려야 중복 집계를 피한다.
+   */
+  addTickets: (inputs: NewTicketInput[]) => number[][];
   markChecked: (id: string, rank: WinRank, prizeAmount: number) => void;
   removeTicket: (id: string) => void;
   clearAll: () => void;
@@ -73,7 +77,7 @@ export const useMyLottoTickets = create<MyLottoState>()(
         // 보관함 통계(총 구매액)가 부풀려지고, 추첨 후 같은 결과로 알림도 두 번 온다.
         const existingKeys = new Set(Object.values(next).map((t) => `${t.drawNo}:${t.numbers.join(",")}`));
         // 건너뛴 건 화면에서 알아야 한다. 안 그러면 두 번 누른 사람에게 "저장했어요"라고 거짓말한다.
-        let added = 0;
+        const added: number[][] = [];
         for (const input of inputs) {
           const key = `${input.drawNo}:${input.numbers.join(",")}`;
           if (existingKeys.has(key)) {
@@ -99,7 +103,7 @@ export const useMyLottoTickets = create<MyLottoState>()(
             rank: input.rank ?? null,
             prizeAmount: input.prizeAmount ?? 0,
           };
-          added += 1;
+          added.push(input.numbers);
         }
         set({ tickets: next });
         return added;
