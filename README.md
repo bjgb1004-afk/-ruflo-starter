@@ -13,7 +13,7 @@
 | 상태 관리 | TanStack Query (서버 캐싱) + Zustand (클라이언트 전역 상태) | 지역 필터, 검색 반경 등 |
 | 위치/GPS | expo-location | 주변 판매점 검색 |
 | 데이터 배치 | GitHub Actions (cron, 매일 1회) | 동행복권 API + 공공데이터포털 자동 수집, 주소 정규화/매칭/랭킹 재계산 파이프라인 |
-| 모니터링/분석 | Sentry (에러 추적) + PostHog (사용자 통계) | 각 무료 티어 사용, DSN/키 미설정 시 자동 비활성화 |
+| 모니터링/분석 | Sentry (에러 추적) + Firebase Analytics (사용자 통계) | Sentry는 DSN 미설정 시 자동 비활성화. Analytics는 FCM과 같은 `google-services.json`을 쓰고 노출/이벤트 수 제한 없이 무료 |
 | 보안/도메인 | Cloudflare | 도메인 DNS 및 기본 WAF/DDoS 방어 (인프라 레벨 설정, 앱 저장소에는 별도 코드 없음) |
 
 ## 데이터 수집 및 식별 알고리즘
@@ -72,7 +72,7 @@ recommend_score(조회 시점 계산) = store_score - 현재 거리(km) * 15
 ```
 .
 ├── app/                            # Expo Router (파일 기반 라우팅)
-│   ├── _layout.tsx                 # 루트 레이아웃 (QueryClientProvider, Sentry/PostHog 초기화)
+│   ├── _layout.tsx                 # 루트 레이아웃 (QueryClientProvider, Sentry 초기화, 화면 조회 기록)
 │   ├── (tabs)/
 │   │   ├── _layout.tsx             # 하단 탭 (지도 / 명당 랭킹 / 지역 통계)
 │   │   ├── index.tsx               # 지도 홈 (GPS 기반 주변 판매점, 스마트 추천 정렬)
@@ -83,7 +83,7 @@ recommend_score(조회 시점 계산) = store_score - 현재 거리(km) * 15
 │   ├── lib/
 │   │   ├── supabase.ts             # Supabase 클라이언트 (anon key, 클라이언트 전용)
 │   │   ├── sentry.ts               # Sentry 초기화
-│   │   └── analytics.ts            # PostHog 초기화 및 이벤트 트래킹
+│   │   └── analytics.ts            # Firebase Analytics (앱 열림·화면 조회 기록)
 │   ├── types/database.types.ts     # DB 스키마와 매핑되는 TS 타입
 │   ├── constants/config.ts         # 지도 클라이언트 ID, 기본 좌표/반경 등 상수
 │   ├── store/useAppStore.ts        # Zustand 전역 상태 (선택 지역, 검색 반경)
@@ -166,7 +166,7 @@ npm run ingest:refresh-rankings  # 3. store_ranking_stats 재계산 (순위/stor
 ## 운영/보안
 
 - **Cloudflare**: 서비스 도메인의 DNS 및 기본 WAF/DDoS 방어에 사용 (Cloudflare 대시보드에서 설정하는 인프라 레벨 구성이며 앱 저장소 내 별도 코드는 없음)
-- **Sentry / PostHog**: 각 무료 티어 한도 내에서 에러 추적 및 사용자 통계 수집
+- **Sentry / Firebase Analytics**: 에러 추적 및 사용자 통계 수집 (Sentry는 무료 티어 한도 내, Analytics는 이벤트 수 제한 없음)
 
 ## 제약사항
 

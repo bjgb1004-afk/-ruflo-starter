@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { View } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { SystemBars } from "react-native-edge-to-edge";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryCache, MutationCache } from "@tanstack/react-query";
@@ -15,6 +15,7 @@ import {
   SpaceGrotesk_700Bold,
 } from "@expo-google-fonts/space-grotesk";
 import { initSentry } from "@/lib/sentry";
+import { logAppOpen, logScreenView } from "@/lib/analytics";
 import { reportError } from "@/lib/errorLog";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/features/auth/useAuth";
@@ -76,8 +77,15 @@ export default function RootLayout() {
   useEffect(() => {
     initSentry();
     initAuth();
+    logAppOpen();
     cleanupLegacyDrawReminders().catch((err) => reportError(err, "cleanup-legacy-reminders"));
   }, [initAuth]);
+
+  // 화면 전환마다 몇명이 어디를 보는지 재려고 경로가 바뀔 때마다 한 번씩 기록한다.
+  const pathname = usePathname();
+  useEffect(() => {
+    logScreenView(pathname);
+  }, [pathname]);
 
   // 기본 동작(체크 후 백그라운드 다운로드만 해두고 "다음번" 재실행에서야 적용)은 사용자가
   // 두 번 완전 재시작해야 최신 코드를 보는 상황을 만든다 - 받자마자 그 자리에서 한 번 더
