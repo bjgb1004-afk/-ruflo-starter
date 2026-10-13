@@ -5,14 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { LottoBall } from "@/components/LottoBall";
 import { colors, spacing, radius, cardShadow } from "@/constants/theme";
 import { useResponsive, getResponsiveFontSize } from "@/utils/responsive";
-import {
-  GENIUSES,
-  generateExtraGames,
-  generateGeniusGames,
-  geniusOfToday,
-  upcomingDrawNo,
-  type GeniusId,
-} from "@/features/generator/geniusGenerator";
+import { GENIUSES, upcomingDrawNo } from "@/features/generator/geniusGenerator";
 import {
   formatThreadPost,
   generateBandGames,
@@ -24,12 +17,7 @@ import { useMyLottoTickets } from "@/features/mylotto/useMyLottoTickets";
 import { AdBanner } from "@/features/ads/AdBanner";
 import { needsAdForDraw, requestDraw, type DrawPermission } from "@/features/generator/requestDraw";
 import { useDrawCredits } from "@/features/generator/useDrawCredits";
-import {
-  BAND_SOURCE,
-  geniusSource,
-  mathSource,
-  recordGeneratedTickets,
-} from "@/features/generator/recordGeneratedTickets";
+import { BAND_SOURCE, mathSource, recordGeneratedTickets } from "@/features/generator/recordGeneratedTickets";
 import {
   getGeneratorStats,
   totalHits,
@@ -75,14 +63,13 @@ function drawNotice(permission: DrawPermission): string | null {
   return null;
 }
 
-type Mode = "genius" | "band" | "analysis";
+type Mode = "band" | "analysis";
 
-// 탭 3개가 한 줄에 들어가야 한다. 분석법 이름(아르키메데스·피보나치)은 탭이 아니라 탭 안의
+// 탭이 한 줄에 들어가야 한다. 분석법 이름(아르키메데스·피보나치)은 탭이 아니라 탭 안의
 // 칩으로 고른다 - 분석법이 늘어도 탭 줄이 밀리지 않는다.
 const MODES: readonly { id: Mode; label: string }[] = [
-  { id: "genius", label: "천재들의 한수" },
+  { id: "analysis", label: "천재들의 한수" },
   { id: "band", label: "번호대 분석" },
-  { id: "analysis", label: "수학 분석" },
 ];
 
 export default function GeneratorScreen() {
@@ -90,7 +77,7 @@ export default function GeneratorScreen() {
   // 제스처바가 있는 기기에서는 마지막 줄이 그 뒤로 들어가 안 읽힌다.
   const insets = useSafeAreaInsets();
   const drawNo = useMemo(() => upcomingDrawNo(), []);
-  const [mode, setMode] = useState<Mode>("genius");
+  const [mode, setMode] = useState<Mode>("analysis");
 
   return (
     <ScrollView
@@ -116,7 +103,6 @@ export default function GeneratorScreen() {
         })}
       </View>
 
-      {mode === "genius" && <GeniusSection drawNo={drawNo} breakpoint={breakpoint} />}
       {mode === "band" && <BandSection drawNo={drawNo} breakpoint={breakpoint} />}
       {mode === "analysis" && <AnalysisSection drawNo={drawNo} breakpoint={breakpoint} />}
     </ScrollView>
@@ -217,159 +203,6 @@ function Scoreboard() {
         확률은 어떤 조합이든 같아요.
       </Text>
     </View>
-  );
-}
-
-// ---------- 천재들의 한수 (기존) ----------
-
-// 한 명이 회차마다 A~E 5게임을 낸다. 같은 회차에는 누가 봐도 같은 번호다.
-// 확률을 높인다는 표현은 쓰지 않는다.
-function GeniusSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "small" | "medium" | "large" }) {
-  const [selected, setSelected] = useState<GeniusId>(() => (geniusOfToday() ?? GENIUSES[0]).id);
-  // 추가로 뽑은 횟수. 천재를 바꾸면 처음부터 다시 센다.
-  const [extraRounds, setExtraRounds] = useState(0);
-  const genius = GENIUSES.find((g) => g.id === selected) ?? GENIUSES[0];
-  const addTickets = useMyLottoTickets((s) => s.addTickets);
-  // 광고를 봐야 하는 차례인지 보려면 저장된 값 전체가 필요하다(공짜 사용 목록 + 무제한 시간).
-  const credits = useDrawCredits();
-  // 광고를 불러오는 동안 또 눌러 두 편이 겹치는 걸 막는다.
-  const [drawing, setDrawing] = useState(false);
-  const games = useMemo(() => generateGeniusGames(genius.id, drawNo), [genius.id, drawNo]);
-  const extras = useMemo(
-    () => Array.from({ length: extraRounds }, (_, i) => generateExtraGames(genius.id, drawNo, i + 1)),
-    [genius.id, drawNo, extraRounds],
-  );
-
-  const pickGenius = (id: GeniusId) => {
-    setSelected(id);
-    setExtraRounds(0);
-  };
-
-  const drawMore = useCallback(async () => {
-    if (drawing) return;
-    setDrawing(true);
-    try {
-      const permission = await requestDraw(geniusSource(genius.id), drawNo);
-      setExtraRounds((n) => n + 1);
-      const notice = drawNotice(permission);
-      if (notice) Alert.alert("5게임 더 뽑았어요", notice);
-    } finally {
-      setDrawing(false);
-    }
-  }, [drawing, genius.id, drawNo]);
-
-  // 화면에 떠 있는 것 전부 - 기본 5게임에 '한 번 더 뽑기'로 추가된 세트까지.
-  const allGames = useMemo(() => [...games, ...extras.flat()], [games, extras]);
-
-  const share = useCallback(async () => {
-    const lines = allGames.map((game, i) => `${LETTERS[i % LETTERS.length]} ${game.join(", ")}`);
-    await Share.share({
-      message: [
-        `${drawNo}회 천재들의 한수 - ${genius.name}`,
-        "",
-        ...lines,
-        "",
-        "당첨 확률은 어떤 조합이든 같아요.",
-      ].join("\n"),
-    });
-  }, [allGames, drawNo, genius.name]);
-
-  const save = useCallback(() => {
-    // 같은 회차에 이미 있는 번호는 건너뛴다. 화면에 뜬 개수가 아니라 실제로 넣은 개수를 말한다.
-    const added = addTickets(allGames.map((numbers) => ({ drawNo, numbers, purchaseType: null, purchased: false })));
-    recordGeneratedTickets(geniusSource(genius.id), drawNo, added);
-    Alert.alert(
-      added.length > 0 ? "보관함에 저장했어요" : "이미 보관함에 있어요",
-      added.length > 0
-        ? `${drawNo}회 ${added.length}게임을 보관함에 넣었어요. 추첨 후 자동으로 확인해 드려요.`
-        : `${drawNo}회에 같은 번호가 이미 저장돼 있어요.`,
-    );
-  }, [addTickets, allGames, drawNo, genius.id]);
-
-  return (
-    <>
-      <View style={styles.header}>
-        <Text style={[styles.title, { fontSize: getResponsiveFontSize(20, breakpoint) }]}>
-          {drawNo}회 천재들의 한수
-        </Text>
-        <Text style={styles.subtitle}>한 명당 5게임씩, 이번 회차 내내 같은 번호예요.</Text>
-      </View>
-
-      <View style={styles.chips}>
-        {GENIUSES.map((g) => {
-          const active = g.id === selected;
-          return (
-            <Pressable
-              key={g.id}
-              onPress={() => pickGenius(g.id)}
-              style={[styles.chip, active && styles.chipActive]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-            >
-              <Text style={[styles.chipName, active && styles.chipTextActive]}>{g.name}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <View style={styles.card}>
-        <Text style={[styles.name, { fontSize: getResponsiveFontSize(17, breakpoint) }]}>{genius.name}</Text>
-        <Text style={styles.achievement}>{genius.achievement}</Text>
-        <Text style={styles.method}>{genius.method}</Text>
-        {games.map((game, i) => (
-          <View key={game.join(",")} style={styles.gameRow}>
-            <Text style={styles.letter}>{LETTERS[i]}</Text>
-            <View style={styles.balls}>
-              {game.map((n) => (
-                <LottoBall key={n} number={n} size="small" />
-              ))}
-            </View>
-          </View>
-        ))}
-      </View>
-
-      {extras.map((set, round) => (
-        <View key={`extra-${round}`} style={styles.card}>
-          <Text style={styles.extraLabel}>더 뽑기 {round + 1}회</Text>
-          {set.map((game, i) => (
-            <View key={game.join(",")} style={styles.gameRow}>
-              <Text style={styles.letter}>{LETTERS[i]}</Text>
-              <View style={styles.balls}>
-                {game.map((n) => (
-                  <LottoBall key={n} number={n} size="small" />
-                ))}
-              </View>
-            </View>
-          ))}
-        </View>
-      ))}
-
-      <Pressable
-        style={[styles.primaryButton, drawing && styles.primaryButtonBusy]}
-        onPress={drawMore}
-        disabled={drawing}
-        accessibilityRole="button"
-      >
-        <Text style={styles.primaryButtonText}>
-          {drawing ? "잠시만요…" : drawButtonLabel("한 번 더 뽑기", needsAdForDraw(credits, geniusSource(genius.id), drawNo))}
-        </Text>
-      </Pressable>
-      <AdBanner />
-
-      <View style={styles.buttonRow}>
-        <Pressable style={styles.secondaryButton} onPress={save} accessibilityRole="button">
-          <Text style={styles.secondaryButtonText}>보관함에 저장</Text>
-        </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={share} accessibilityRole="button">
-          <Text style={styles.secondaryButtonText}>번호 보내기</Text>
-        </Pressable>
-      </View>
-
-      <Text style={styles.disclaimer}>
-        천재들의 수학 방식으로 만든 번호이며, 당첨 확률을 높이거나 당첨을 보장하지 않아요. 모든 번호 조합의 당첨
-        확률은 같아요.
-      </Text>
-    </>
   );
 }
 
@@ -477,7 +310,7 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
   );
 }
 
-// ---------- 수학 분석 (아르키메데스 / 피보나치) ----------
+// ---------- 천재들의 한수 (아르키메데스 / 피보나치) ----------
 
 // 지난 회차 전체를 넣고 번호마다 점수를 매겨 45개에서 15개로 좁힌 뒤, 그 안에서 5게임을 만든다.
 // 점수·후보·조합 모두 백테스트 엔진의 레시피를 그대로 쓴다 - 화면에 보이는 분석법과
@@ -867,7 +700,7 @@ function RecipeAnalysis({
         accessibilityRole="button"
       >
         <Text style={styles.primaryButtonText}>
-          {drawing ? "잠시만요…" : drawButtonLabel("한 번 더 뽑기", needsAdForDraw(credits, mathSource(recipe.id), drawNo))}
+          {drawing ? "잠시만요…" : drawButtonLabel("다시 뽑기", needsAdForDraw(credits, mathSource(recipe.id), drawNo))}
         </Text>
       </Pressable>
       <AdBanner />
