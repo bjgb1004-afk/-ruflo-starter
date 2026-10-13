@@ -13,7 +13,15 @@ const config: ExpoConfig = {
   newArchEnabled: true,
   jsEngine: "hermes",
   icon: "./assets/images/icon.png",
-  runtimeVersion: { policy: "appVersion" },
+  // 내용물(JS)과 껍데기(네이티브)의 짝을 맞추는 표식. 2026-10-13에 appVersion → fingerprint로
+  // 바꿨다. appVersion일 때는 표식이 손으로 적는 "1.0.0"이라, 껍데기에 광고 SDK가 없는데도
+  // 광고 코드가 든 JS가 같은 표식을 달고 내려가 앱이 즉시 죽었다(2026-10-03 실제 사고).
+  // fingerprint는 껍데기 내용을 자동 요약한 지문이라 껍데기가 바뀌면 표식도 저절로 바뀌어,
+  // 안 맞는 짝에는 애초에 업데이트가 가지 않는다. version(1.0.0)도 이제 자유롭게 올릴 수 있다.
+  //
+  // ⚠️ 이 전환을 담은 빌드가 유저 폰에 깔리기 전에는 `eas update`를 쏘지 말 것 - 기존
+  // 1.0.0 표식 앱은 지문 표식 업데이트를 자기 것으로 못 봐서 조용히 아무것도 못 받는다.
+  runtimeVersion: { policy: "fingerprint" },
   updates: {
     url: "https://u.expo.dev/9eeff5c8-c217-4e45-9426-c0569f8c500e",
   },
@@ -38,10 +46,9 @@ const config: ExpoConfig = {
     // 파일이 없으면 이 줄을 아예 빼버린다. 없는 경로를 적어두면 빌드가 거기서 죽는데, 파일 없는
     // 빌드는 "서버 알림만 없는 멀쩡한 앱"이면 된다(AdMob 플러그인과 같은 방식).
     ...(fs.existsSync("./google-services.json") ? { googleServicesFile: "./google-services.json" } : {}),
-    // version(1.0.0)은 그대로 둔다 - runtimeVersion 정책이 appVersion이라 버전을 올리면
-    // 기존 1.0.0 사용자와 OTA 런타임이 갈라져서, JS 수정을 한 번의 eas update로 양쪽에
-    // 보낼 수 없게 된다. 스토어 업로드에 필요한 것은 versionCode 증가뿐이다.
-    versionCode: 2,
+    // Play는 전보다 큰 순번만 받아준다 - 같은 번호를 다시 올리면 거절한다.
+    // 2(2026-09-18 출시) → 3. 이 빌드에 Analytics·광고 SDK·FCM·fingerprint 전환이 함께 들어간다.
+    versionCode: 3,
     jsEngine: "hermes",
     adaptiveIcon: {
       foregroundImage: "./assets/images/adaptive-icon.png",
@@ -70,6 +77,8 @@ const config: ExpoConfig = {
   },
   plugins: [
     "expo-router",
+    "@react-native-firebase/app",
+    "@react-native-firebase/analytics",
     [
       "expo-location",
       {

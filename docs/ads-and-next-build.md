@@ -6,6 +6,16 @@
 빌드 때만 바꿀 수 있으니 **셋을 한 빌드에 묶는다.** EAS 무료 플랜은 Android 빌드 월 15회라
 따로 하면 3회를 쓴다.
 
+**2026-10-13에 Firebase Analytics(하루 몇명이 들어와 어느 화면을 보는지)를 넷째로 묶었다.**
+`@react-native-firebase/app` + `/analytics`를 깔고 app.config.ts에 플러그인을 넣었다. FCM과 같은
+`google-services.json`을 쓰므로 새 설정값은 없다. 로컬 `expo prebuild` + gradle 의존성 해석까지
+돌려 충돌 없음을 확인했다(EAS 쿼터 안 씀). **이것도 네이티브라 OTA로는 안 가고, 아래 빌드에
+같이 실려야 데이터가 쌓이기 시작한다.**
+
+Analytics를 켠 것이 광고 판단에 중요한 이유: 아래 6절의 "유저 100명" 기준선을 지금까지는
+**셀 방법이 없었다.** 이 빌드가 유저 폰에 깔리면 Firebase 콘솔에서 DAU를 보고 광고를 켤
+시점을 숫자로 판단할 수 있다.
+
 ---
 
 ## 1. 지금까지 된 것 (코드)
@@ -139,22 +149,29 @@ SDK가 아예 없었다**(SDK는 10/2에 package.json에 들어갔다). 광고 �
 
 ---
 
-## 3. 빌드 직전에 바꿀 것 (지금 바꾸면 안 됨)
+## 3. 빌드 직전에 바꿀 것 — **2026-10-13에 둘 다 했다**
 
-### 3-1. `versionCode: 2` → `3`
-Play Console 업로드에 필요하다. 지금 올려도 해는 없지만 빌드와 함께 올린다.
+### 3-1. `versionCode: 2` → `3` ✅ 했음
+Play는 전보다 큰 순번만 받는다. 같은 번호는 거절당한다.
 
-### 3-2. `runtimeVersion` 정책 전환 — ⚠️ 순서 주의
+### 3-2. `runtimeVersion` 정책 전환 ✅ 했음 — ⚠️ 아직 `eas update` 금지
 ```ts
-runtimeVersion: { policy: "appVersion" }   // 지금
-runtimeVersion: { policy: "fingerprint" }  // 바꿀 것
+runtimeVersion: { policy: "appVersion" }   // 2026-10-13 이전
+runtimeVersion: { policy: "fingerprint" }  // 지금
 ```
 
-**지금 바꾸면 안 된다.** 폰에 깔린 앱의 runtimeVersion은 `1.0.0`이다. 정책을 바꾸는 순간
-`eas update`가 지문 기반 런타임으로 올라가서 **기존 유저가 업데이트를 못 받는다.**
+**지금부터 이 빌드가 유저 폰에 깔리기 전까지는 `eas update`를 쏘지 말 것.** 폰에 깔린 앱의
+표식은 `1.0.0`이고, 지금 올리는 업데이트는 지문 표식으로 나간다. 표식이 안 맞으면 기존 앱은
+업데이트를 **자기 것으로 못 보고 조용히 아무것도 받지 않는다**(에러도 안 난다 - 그래서 더 위험하다).
 
-반드시 **새 빌드를 Play에 올리고 유저가 그걸 설치한 뒤**에 의미가 생긴다. 전환하면 그 다음부터
-`version`을 1.1.0, 1.2.0으로 자유롭게 올려도 OTA가 계속 간다.
+순서는 이것뿐이다: **빌드 → Play 업로드 → 유저 설치 → 그 다음부터 OTA 재개.**
+
+급한 JS 수정이 생기면 OTA가 아니라 이 빌드를 먼저 끝내는 쪽이 빠르다. 전환 뒤에는
+`version`을 1.1.0, 1.2.0으로 자유롭게 올려도 OTA가 계속 간다(그게 전환한 이유다).
+
+빌드 서버가 실제로 보게 될 값까지 `eas config --profile production --platform android`로
+확인했다(2026-10-13): fingerprint, versionCode 3, google-services.json, Firebase app·analytics
+플러그인, 광고 SDK 플러그인, `adsEnabled: false`.
 
 ---
 
@@ -198,12 +215,16 @@ AdMob SDK가 `com.google.android.gms.permission.AD_ID`를 매니페스트에 넣
 - [ ] 모든 커밋 푸시됨
 - [ ] `ADMOB_ANDROID_APP_ID` / `EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID` 로컬·EAS 양쪽에 등록
 - [ ] `google-services.json` 루트에 존재 + `app.config.ts`에 경로 추가
-- [ ] `versionCode` 3으로 올림
+- [ ] Firebase 콘솔(gzc-lottomap)에서 **Google Analytics 연결 완료** — 안 하면 코드가 보내는
+      이벤트를 받을 곳이 없어 조용히 버려진다
+- [ ] 개인정보처리방침에 Firebase Analytics·AdMob·광고 ID 반영됨(2026-10-13에 함.
+      루트와 `docs/` 사본 양쪽 — Play에 걸린 주소는 `docs/`쪽 깃허브 페이지)
+- [x] `versionCode` 3으로 올림 (2026-10-13)
 - [ ] Play Console 배포 국가를 **대한민국만**으로 제한 (4-4 참고, 동의창 대신)
-- [ ] `runtimeVersion` → `fingerprint`
-- [ ] `npm run typecheck` 통과
-- [ ] `npm run lint` 에러 0
-- [ ] `npx jest` 통과
+- [x] `runtimeVersion` → `fingerprint` (2026-10-13)
+- [x] `npm run typecheck` 통과 (2026-10-13)
+- [x] `npm run lint` 에러 0 (경고 27개는 전부 기존 것)
+- [x] `npx jest` 통과 (190개 전부, 2026-10-13)
 - [ ] `npx eas build --help`로 플래그 확인 (기억으로 치지 말 것)
 - [ ] `npx eas account:usage bjgbs-team`로 잔여 쿼터 확인
 - [ ] 위 전부 ✅ 뒤에 `npx eas build --platform android` → production 선택
