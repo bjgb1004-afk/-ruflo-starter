@@ -73,8 +73,9 @@ Play Console 콘텐츠 등급 설문에서:
 | 데이터 유형 | 수집 여부 | 용도 | 공유 여부 |
 |---|---|---|---|
 | 위치(대략/정확) | 예 | 앱 기능(주변 판매점 검색, 명당 알림) | 공유 안 함 (Google Maps 렌더링에만 전달) |
-| 앱 활동(검색기록, 클릭) | 예 | 분석 | PostHog와 공유 |
-| 기기 ID | 예 | 분석/충돌 진단 | PostHog, Sentry와 공유 |
+| 앱 활동(검색기록, 화면 조회, 클릭) | 예 | 분석 | Google Firebase Analytics와 공유 |
+| 기기 ID | 예 | 분석/충돌 진단 | Google Firebase, Sentry와 공유 |
+| 기기 또는 기타 ID → 광고 ID(AAID) | 예 | 분석 / 광고 또는 마케팅 | Google Firebase Analytics·AdMob과 공유 |
 | 이메일 | 선택 (회원가입 시) | 계정 관리 | Supabase에만 저장, 외부 공유 안 함 |
 
 - "데이터가 암호화되어 전송됩니까?" → **예** (HTTPS)

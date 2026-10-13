@@ -76,7 +76,7 @@
         <h1>개인정보처리방침</h1>
         <div class="meta">
             <strong>복권명당 (로또 명당 추천 서비스)</strong><br>
-            최종 수정일: 2026년 8월 13일
+            최종 수정일: 2026년 10월 13일
         </div>
 
         <h2>1. 개요</h2>
@@ -87,7 +87,8 @@
         <ul>
             <li><strong>위치 정보</strong> - 사용자의 GPS 위치 (위도, 경도)</li>
             <li><strong>기기 정보</strong> - 기기 고유 식별자, OS 버전, 앱 버전</li>
-            <li><strong>사용 통계</strong> - 앱 사용 시간, 검색 기록, 클릭 데이터</li>
+            <li><strong>광고 식별자(AAID)</strong> - 앱 사용 통계 집계와 앱 내 광고 표시에 사용되는 안드로이드 광고 ID. 기기 설정에서 재설정하거나 맞춤 광고를 끌 수 있습니다.</li>
+            <li><strong>사용 통계</strong> - 앱 사용 시간, 화면 조회 기록, 클릭 데이터</li>
         </ul>
 
         <p><strong>선택 수집 정보:</strong></p>
@@ -104,8 +105,8 @@
         <h2>3. 정보 수집 방법</h2>
         <ul>
             <li><strong>능동적 수집:</strong> 사용자가 앱을 실행할 때 위치 권한 요청</li>
-            <li><strong>자동 수집:</strong> 지도 조회, 검색 기록, 앱 클릭 이벤트</li>
-            <li><strong>외부 파트너:</strong> Google Maps (위치 표시), Supabase (데이터 저장)</li>
+            <li><strong>자동 수집:</strong> 지도 조회, 검색 기록, 화면 조회, 앱 클릭 이벤트</li>
+            <li><strong>외부 파트너:</strong> Google Maps (위치 표시), Supabase (데이터 저장), Google Firebase (사용 통계·알림), Google AdMob (앱 내 광고)</li>
         </ul>
 
         <h2>4. 정보 사용 목적</h2>
@@ -121,7 +122,7 @@
         <ul>
             <li><strong>위치 정보:</strong> 실시간 처리만 하며, 서버에 저장하지 않습니다 (단, 알림 설정 시 필요한 좌표만 저장)</li>
             <li><strong>즐겨찾기:</strong> 사용자 단말기 로컬 저장소에서 저장</li>
-            <li><strong>사용 통계:</strong> PostHog 분석 플랫폼에 30일간 저장 후 삭제</li>
+            <li><strong>사용 통계:</strong> Google Firebase Analytics에 저장되며, 기본 보관 기간은 2개월입니다</li>
             <li><strong>오류 로그:</strong> Sentry 서비스에 저장, 최대 90일 보관</li>
             <li><strong>저장한 생성 번호(익명):</strong> 해당 회차 추첨 후 등수·당첨금을 집계한 뒤 번호 원본은 삭제합니다(회차마다 초기화). 이후에는 회차별 합계 수치만 남습니다.</li>
         </ul>
@@ -131,7 +132,8 @@
         <ul>
             <li><strong>Google Maps:</strong> 위치 표시 및 지도 렌더링</li>
             <li><strong>Supabase:</strong> 판매점 정보 및 알림 설정 저장</li>
-            <li><strong>PostHog:</strong> 앱 사용 분석 및 통계</li>
+            <li><strong>Google Firebase:</strong> 앱 사용 분석 및 통계(Analytics), 알림 전송(클라우드 메시징)</li>
+            <li><strong>Google AdMob:</strong> 앱 내 광고 표시 및 광고 성과 측정(광고 식별자 사용)</li>
             <li><strong>Sentry:</strong> 오류 모니터링 및 성능 추적</li>
         </ul>
 
