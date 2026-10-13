@@ -138,7 +138,11 @@ const config: ExpoConfig = {
   extra: {
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
-    sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+    // 값이 없으면 키 자체를 안 만든다 - 로컬 .env엔 빈 문자열로 선언돼 있고 EAS 환경엔
+    // 아예 없어서, process.env 그대로 넣으면 로컬/EAS가 계산하는 app config가 달라져
+    // runtimeVersion:fingerprint 지문이 두 환경에서 어긋났다(CONFIGURE_EXPO_UPDATES 빌드
+    // 실패 원인 중 하나). sentry.ts의 initSentry()는 이미 falsy를 무시한다.
+    ...(process.env.EXPO_PUBLIC_SENTRY_DSN ? { sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN } : {}),
     admobBannerUnitId: process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID,
     admobRewardedUnitId: process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID,
     // 광고를 띄울지. 문자열 "true"만 켜진 것으로 본다 - 환경변수가 없거나 오타면 꺼진 쪽으로.
