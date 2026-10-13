@@ -16,6 +16,7 @@ import {
 } from "@expo-google-fonts/space-grotesk";
 import { initSentry } from "@/lib/sentry";
 import { logAppOpen, logScreenView } from "@/lib/analytics";
+import { checkForNativeUpdate } from "@/lib/inAppUpdate";
 import { reportError } from "@/lib/errorLog";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/features/auth/useAuth";
@@ -103,6 +104,12 @@ export default function RootLayout() {
         reportError(err, "ota-update-check");
       }
     })();
+  }, []);
+
+  // JS만 바꾸는 OTA와 달리, 네이티브 부품(FCM, 광고 SDK 등)이 들어간 변경은 이 체크로
+  // 스토어 새 버전을 강제로 받게 한다 - 안 그러면 구버전 껍데기가 영원히 남아있게 된다.
+  useEffect(() => {
+    checkForNativeUpdate();
   }, []);
 
   // 로또 추첨은 매주 토요일 20시35분 KST - GitHub Actions의 schedule 트리거는 정시성이
