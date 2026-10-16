@@ -30,8 +30,6 @@ import { useSelectedStores } from "@/features/geofencing/useSelectedStores";
 import { useGeofencing } from "@/features/geofencing/useGeofencing";
 import { GEOFENCE_FREE_TIER_MAX } from "@/constants/config";
 import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
-import { getStoreOwnerProfile } from "@/features/storeOwner/api/storeOwnerApi";
-import { resolvePhone, resolveOwnerMessage } from "@/features/storeOwner/resolveDisplayInfo";
 import type { StoreWinningRow } from "@/types/database.types";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
@@ -127,13 +125,6 @@ export default function StoreDetailScreen() {
     enabled: !!id,
   });
 
-  const { data: ownerProfile } = useQuery({
-    queryKey: ["store", id, "owner-profile"],
-    queryFn: () => getStoreOwnerProfile(id!),
-    staleTime: 60 * 1000,
-    enabled: !!id,
-  });
-
   // 1등 당첨 회차 중 구매 방식(자동/수동/반자동)이 pyony.com에서 확인된 회차만 태그로 표시.
   const { data: purchaseMethods } = useQuery({
     queryKey: ["store", id, "purchase-methods"],
@@ -194,14 +185,11 @@ export default function StoreDetailScreen() {
     [stats],
   );
 
-  const formattedPhone = formatPhoneNumber(resolvePhone(ownerProfile?.phone, stats?.phone));
-  const ownerMessage = resolveOwnerMessage(ownerProfile?.owner_message);
-  const ownerBusinessHoursText = ownerProfile?.business_hours?.trim();
-  // 사장님이 입력한 값이 있으면 우선, 없으면(또는 아직 입력 안 해 null이면) 기존 stores 값으로 폴백.
-  const displayHasParking = ownerProfile?.has_parking ?? (stats as any)?.has_parking;
-  const displayHasRestroom = ownerProfile?.has_restroom ?? (stats as any)?.has_restroom;
-  const displayHasAtm = ownerProfile?.has_atm ?? (stats as any)?.has_atm;
-  const displayAmenities: string[] = ownerProfile?.amenities ?? (stats as any)?.amenities ?? [];
+  const formattedPhone = formatPhoneNumber(stats?.phone);
+  const displayHasParking = (stats as any)?.has_parking;
+  const displayHasRestroom = (stats as any)?.has_restroom;
+  const displayHasAtm = (stats as any)?.has_atm;
+  const displayAmenities: string[] = (stats as any)?.amenities ?? [];
 
   const handleShowScoreInfo = useCallback(() => {
     Alert.alert(
@@ -314,22 +302,14 @@ export default function StoreDetailScreen() {
         </View>
 
         {/* 영업시간 */}
-        {(ownerBusinessHoursText || (stats as any).business_hours) && (
+        {(stats as any).business_hours && (
           <View style={styles.headerBusinessHoursSection}>
             <Text style={styles.headerSectionLabel}>🕐 영업 시간</Text>
             <Text style={styles.headerBusinessHoursText}>
-              {ownerBusinessHoursText || summarizeBusinessHours((stats as any).business_hours as Record<string, string>)}
+              {summarizeBusinessHours((stats as any).business_hours as Record<string, string>)}
             </Text>
           </View>
         )}
-
-        {/* 사장님 한마디 */}
-        <View style={styles.headerOwnerMessageSection}>
-          <Text style={styles.headerOwnerMessageText}>
-            {ownerMessage ? `💬 ${ownerMessage}` : `💬 사장님 한마디   `}
-            {!ownerMessage && <Text style={{ fontWeight: 'normal' }}>아직 없음</Text>}
-          </Text>
-        </View>
       </View>
 
       {/* 평점 및 리뷰 */}
@@ -462,10 +442,8 @@ const styles = StyleSheet.create({
   },
   headerAmenitiesSection: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
   headerBusinessHoursSection: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
-  headerOwnerMessageSection: { gap: spacing.xs, marginBottom: spacing.sm },
   headerSectionLabel: { fontSize: 13, fontWeight: "600", color: colors.textSecondary, flexShrink: 0 },
   headerBusinessHoursText: { fontSize: 13, color: colors.textSecondary, flex: 1, lineHeight: 16 },
-  headerOwnerMessageText: { fontSize: 13, color: colors.textSecondary, lineHeight: 16, fontWeight: "600" },
   headerInfoEmpty: { fontSize: 13, color: colors.textMuted },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   name: { fontSize: 22, fontWeight: "800", color: colors.textPrimary },

@@ -1244,132 +1244,6 @@ export type Database = {
         }
         Relationships: []
       }
-      store_owner_profiles: {
-        Row: {
-          amenities: string[] | null
-          business_hours: string | null
-          has_atm: boolean | null
-          has_parking: boolean | null
-          has_restroom: boolean | null
-          owner_message: string | null
-          owner_user_id: string
-          phone: string | null
-          store_id: string
-          updated_at: string
-        }
-        Insert: {
-          amenities?: string[] | null
-          business_hours?: string | null
-          has_atm?: boolean | null
-          has_parking?: boolean | null
-          has_restroom?: boolean | null
-          owner_message?: string | null
-          owner_user_id: string
-          phone?: string | null
-          store_id: string
-          updated_at?: string
-        }
-        Update: {
-          amenities?: string[] | null
-          business_hours?: string | null
-          has_atm?: boolean | null
-          has_parking?: boolean | null
-          has_restroom?: boolean | null
-          owner_message?: string | null
-          owner_user_id?: string
-          phone?: string | null
-          store_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "store_owner_profiles_store_id_fkey"
-            columns: ["store_id"]
-            isOneToOne: true
-            referencedRelation: "stores"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      store_owner_verification_attempts: {
-        Row: {
-          business_reg_number: string
-          created_at: string
-          id: string
-          reject_reason: string | null
-          result: string
-          store_id: string
-          user_id: string
-        }
-        Insert: {
-          business_reg_number: string
-          created_at?: string
-          id?: string
-          reject_reason?: string | null
-          result: string
-          store_id: string
-          user_id: string
-        }
-        Update: {
-          business_reg_number?: string
-          created_at?: string
-          id?: string
-          reject_reason?: string | null
-          result?: string
-          store_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "store_owner_verification_attempts_store_id_fkey"
-            columns: ["store_id"]
-            isOneToOne: false
-            referencedRelation: "stores"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      store_ownership_transfer_requests: {
-        Row: {
-          expires_at: string
-          id: string
-          new_owner_user_id: string
-          previous_owner_user_id: string
-          requested_at: string
-          resolved_at: string | null
-          status: string
-          store_id: string
-        }
-        Insert: {
-          expires_at: string
-          id?: string
-          new_owner_user_id: string
-          previous_owner_user_id: string
-          requested_at?: string
-          resolved_at?: string | null
-          status?: string
-          store_id: string
-        }
-        Update: {
-          expires_at?: string
-          id?: string
-          new_owner_user_id?: string
-          previous_owner_user_id?: string
-          requested_at?: string
-          resolved_at?: string | null
-          status?: string
-          store_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "store_ownership_transfer_requests_store_id_fkey"
-            columns: ["store_id"]
-            isOneToOne: false
-            referencedRelation: "stores"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       store_ranking_stats: {
         Row: {
           address: string
@@ -1684,18 +1558,6 @@ export type Database = {
         Args: { p_draw_no?: number }
         Returns: Json
       }
-      admin_disputed_transfers: {
-        Args: never
-        Returns: {
-          expires_at: string
-          id: string
-          new_owner_email: string
-          previous_owner_email: string
-          requested_at: string
-          store_id: string
-          store_name: string
-        }[]
-      }
       consecutive_win_sigungu: {
         Args: { streak_weeks?: number }
         Returns: {
@@ -1704,13 +1566,8 @@ export type Database = {
           streak_weeks_out: number
         }[]
       }
-      dispute_ownership_transfer: {
-        Args: { p_request_id: string }
-        Returns: undefined
-      }
       get_user_count: { Args: never; Returns: number }
       is_admin: { Args: never; Returns: boolean }
-      name_similarity: { Args: { a: string; b: string }; Returns: number }
       nearby_stores: {
         Args: {
           in_lat: number
@@ -1734,7 +1591,6 @@ export type Database = {
           store_score: number
         }[]
       }
-      process_expired_ownership_transfers: { Args: never; Returns: undefined }
       refresh_store_ranking_stats: { Args: never; Returns: undefined }
       regional_trend: {
         Args: { weeks_back?: number }
@@ -1742,10 +1598,6 @@ export type Database = {
           first_prize_count: number
           sido: string
         }[]
-      }
-      resolve_disputed_transfer: {
-        Args: { p_approve: boolean; p_request_id: string }
-        Returns: undefined
       }
       sido_centroids: {
         Args: never

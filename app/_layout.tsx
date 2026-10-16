@@ -153,8 +153,6 @@ export default function RootLayout() {
           <Stack.Screen name="ticket-entry" options={{ title: "번호 직접 입력" }} />
           <Stack.Screen name="replay" options={{ title: "놓친 당첨금" }} />
           <Stack.Screen name="admin" options={{ title: "관리자" }} />
-          <Stack.Screen name="store-owner/signup" options={{ title: "사장님 인증" }} />
-          <Stack.Screen name="store-owner/manage" options={{ title: "매장 관리" }} />
         </Stack>
       </PersistQueryClientProvider>
     </SafeAreaProvider>

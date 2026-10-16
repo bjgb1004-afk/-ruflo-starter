@@ -23,8 +23,7 @@ Deno.serve(async (req) => {
   const userId = userData.user.id;
 
   try {
-    // 1) store_owner_profiles, favorites 등 정리
-    await admin.from("store_owner_profiles").delete().eq("owner_user_id", userId);
+    // 1) favorites 등 정리
     await admin.from("favorites").delete().eq("user_id", userId);
 
     // 2) Auth 사용자 삭제
