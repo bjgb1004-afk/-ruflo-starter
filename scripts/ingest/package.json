@@ -11,7 +11,9 @@
     "ingest:refresh-rankings": "tsx refreshRankingStats.ts",
     "ingest:notify": "tsx sendMylottoNotifications.ts",
     "ingest:aggregate-generated": "tsx aggregateGeneratedTickets.ts",
-    "ingest:rebuild-winstores": "tsx rebuildWinStoresFromOfficial.ts"
+    "ingest:rebuild-winstores": "tsx rebuildWinStoresFromOfficial.ts",
+    "ingest:winstore-master": "tsx syncWinStoreMaster.ts",
+    "ingest:heal-winstores": "tsx rebuildWinStoresFromOfficial.ts --source=lottorich"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

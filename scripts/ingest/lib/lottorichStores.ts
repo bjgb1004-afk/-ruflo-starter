@@ -17,6 +17,9 @@ interface LottorichRaw {
   sido: string;
   local_x: string; // 위도
   local_y: string; // 경도
+  // 그 회차에 이 가게가 배출한 장수. 한 가게가 같은 회차에 1등을 2장 배출하면 "2"로 온다
+  // (누적 조회 seq=0에서는 역대 누적 장수). 이걸 안 보면 복수 당첨이 1건으로 접힌다.
+  win_cnt?: string;
 }
 
 export interface LottorichRecord extends MatchCandidate {
@@ -41,15 +44,20 @@ async function fetchRank(drawNo: number, rank: 1 | 2): Promise<LottorichRaw[]> {
 export async function fetchLottorichDraw(drawNo: number): Promise<LottorichRecord[]> {
   const [first, second] = await Promise.all([fetchRank(drawNo, 1), fetchRank(drawNo, 2)]);
 
-  const toRecord = (raw: LottorichRaw, rank: 1 | 2): LottorichRecord | null => {
+  // 복수 당첨(win_cnt >= 2)은 장수만큼 레코드를 펼쳐서 돌려준다 - 공식 경로가 장당 1건을
+  // 주는 것과 같은 모양이 되어, 뒤의 집계(resolveWinStores)가 소스에 상관없이 장수를 센다.
+  const toRecords = (raw: LottorichRaw, rank: 1 | 2): LottorichRecord[] => {
     const latitude = parseFloat(raw.local_x);
     const longitude = parseFloat(raw.local_y);
-    if (!raw.name || Number.isNaN(latitude) || Number.isNaN(longitude)) return null;
-    return { storeName: raw.name, latitude, longitude, rank };
+    if (!raw.name || Number.isNaN(latitude) || Number.isNaN(longitude)) return [];
+    // 인터넷(동행복권 사이트) 구매분은 실제 판매점이 아닌데도 좌표가 동행복권 본사로 찍혀
+    // 같은 목록에 섞인다 - 그대로 두면 본사 근처 매장이 1등 배출점으로 잘못 기록된다.
+    // (공식 경로에서는 ltShpId로 걸러낸다 - dhlotteryWinStores.ts 참고.)
+    if (raw.name.includes("인터넷 복권판매사이트")) return [];
+    const parsed = Number(raw.win_cnt ?? 1);
+    const tickets = Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : 1;
+    return Array.from({ length: tickets }, () => ({ storeName: raw.name, latitude, longitude, rank }));
   };
 
-  return [
-    ...first.map((r) => toRecord(r, 1)),
-    ...second.map((r) => toRecord(r, 2)),
-  ].filter((r): r is LottorichRecord => r !== null);
+  return [...first.flatMap((r) => toRecords(r, 1)), ...second.flatMap((r) => toRecords(r, 2))];
 }

@@ -16,14 +16,22 @@
 // 죽었다(수십 분 뒤 복구). 그래서 기본 간격을 넉넉히 두고 회차당 재시도를 붙였다. 그래도
 // 연속 실패가 쌓이면 스로틀로 보고 즉시 중단한다 - 계속 때리면 차단이 길어진다.
 import { supabaseAdmin } from "./lib/supabaseAdmin";
-import { loadAllStores, buildGrid } from "./lib/storeMatcher";
-import { fetchDhlotteryWinStores } from "./lib/dhlotteryWinStores";
+import { buildGrid } from "./lib/storeMatcher";
+import { loadAllStores } from "./lib/loadStores";
+import { fetchDhlotteryWinStores, type WinStoreRecord } from "./lib/dhlotteryWinStores";
+import { fetchLottorichDraw } from "./lib/lottorichStores";
 import { resolveWinStores, syncFirstPrizeMethods } from "./lib/winStoreResolver";
 
 const DRY_RUN = process.env.DRY_RUN === "1";
+// --source=lottorich 면 lottorich.co.kr에서 받는다. 공식 경로는 회차 수가 정확한 대신 연속
+// 요청을 IP째 끊어서 1200회차를 한 번에 못 돈다(그래서 20회차씩 나눠 도는 워크플로가 있다).
+// lottorich는 그 제한이 없어 전체 과거를 한 번에 메울 수 있다. 다만 구매방식이 없고 좌표
+// 없는 레코드가 빠져 회차별 건수가 공식보다 적을 수 있으므로, --allow-shrink 없이 쓰면
+// "늘어날 때만 반영"이라 기존 공식 데이터를 깎지 않는다.
+const SOURCE = process.argv.includes("--source=lottorich") ? "lottorich" : "official";
 // 공식 서버에 회차당 1요청뿐이지만 1200회차를 연속으로 때리는 셈이라 간격을 둔다.
 // 120ms로는 스로틀에 걸렸다(위 주석) - 실측 기반으로 500ms를 기본값으로 둔다.
-const REQUEST_DELAY_MS = Number(process.env.REQUEST_DELAY_MS ?? 500);
+const REQUEST_DELAY_MS = Number(process.env.REQUEST_DELAY_MS ?? (SOURCE === "lottorich" ? 200 : 500));
 const FETCH_TRIES = 4;
 // 이만큼 연속으로 실패하면 회차 문제가 아니라 차단이다 - 더 때리지 않고 끝낸다.
 const ABORT_AFTER_CONSECUTIVE_FAILURES = 10;
@@ -37,10 +45,17 @@ const PROGRESS_ID = "win-stores";
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // 스로틀·일시적 네트워크 오류는 회차 단위로 재시도한다. 첫 시도 실패 후 1s, 3s, 7s.
+async function fetchRecords(drawNo: number): Promise<WinStoreRecord[]> {
+  if (SOURCE === "official") return fetchDhlotteryWinStores(drawNo);
+  // lottorich 경로엔 구매방식이 없다 - 추정하지 않고 null로 둔다(기존에 채워둔 과거
+  // draw_first_prize_methods는 firstMethods가 비면 건드리지 않으므로 지워지지 않는다).
+  return (await fetchLottorichDraw(drawNo)).map((r) => ({ ...r, purchaseType: null }));
+}
+
 async function fetchWithRetry(drawNo: number) {
   for (let attempt = 0; ; attempt++) {
     try {
-      return await fetchDhlotteryWinStores(drawNo);
+      return await fetchRecords(drawNo);
     } catch (error) {
       if (attempt >= FETCH_TRIES - 1) throw error;
       await sleep(1000 * (2 ** attempt + attempt));
@@ -115,11 +130,19 @@ async function maxDrawNo(): Promise<number> {
 }
 
 async function main() {
-  console.log(`🔁 배출점 공식 경로 재수집 ${DRY_RUN ? "(DRY RUN - 쓰기 없음)" : "(실제 반영)"}`);
+  const sourceLabel = SOURCE === "official" ? "동행복권 공식 경로" : "lottorich.co.kr";
+  console.log(`🔁 배출점 재수집 (소스: ${sourceLabel}) ${DRY_RUN ? "(DRY RUN - 쓰기 없음)" : "(실제 반영)"}`);
 
   const chunk = argValue("chunk");
   let from = argValue("from");
   let to = argValue("to");
+  // --recent=N: 최신 N회차만. 매주 도는 자동 치유(sync-data.yml)에서 쓴다 - 전체 1200여
+  // 회차를 매주 다시 긁을 이유는 없고, 배출점 목록이 늦게 채워지는 건 최근 회차 쪽이다.
+  const recent = argValue("recent");
+  if (recent !== null && from === null) {
+    const last = await maxDrawNo();
+    from = Math.max(1, last - recent + 1);
+  }
   if (chunk !== null) {
     const last = await maxDrawNo();
     from = await readProgress();

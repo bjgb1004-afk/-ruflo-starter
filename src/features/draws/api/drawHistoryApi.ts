@@ -105,6 +105,9 @@ export interface DrawWinnerStore {
   storeName: string;
   address: string | null;
   sido: string | null;
+  // 이 회차에 이 가게가 배출한 당첨자 수. 한 가게가 같은 회차에 2장을 배출하면 2다
+  // (draw_history의 배출점 배열에 같은 id가 장수만큼 들어 있다 - 그게 "1등 횟수"의 단위다).
+  winnerCount: number;
   // pyony.com에서 매칭된 경우만 값이 있고, 매칭 안 되면 null(추정하지 않음). 2등은 소스 자체가
   // 없어 항상 null.
   purchaseType: PurchaseType | null;
@@ -167,15 +170,22 @@ export async function getDrawWinnersDetail(drawNo: number): Promise<DrawWinnersD
 
   const byId = new Map((data ?? []).map((s) => [s.id, s]));
   const methodByStoreId = new Map((methods ?? []).map((m) => [m.store_id, m.purchase_type]));
-  const toWinnerStore = (id: string): DrawWinnerStore => {
-    const s = byId.get(id);
-    return {
-      storeId: id,
-      storeName: s?.name ?? "알 수 없음",
-      address: s?.address ?? null,
-      sido: s?.sido ?? null,
-      purchaseType: methodByStoreId.get(id) ?? null,
-    };
+  // 같은 가게가 2장을 배출하면 배열에 id가 두 번 있다. 목록은 "곳" 단위로 보여주는 화면이라
+  // 한 줄로 합치고, 몇 명인지는 winnerCount로 넘긴다.
+  const toWinnerStores = (ids: string[]): DrawWinnerStore[] => {
+    const counts = new Map<string, number>();
+    for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
+    return [...counts].map(([id, winnerCount]) => {
+      const s = byId.get(id);
+      return {
+        storeId: id,
+        storeName: s?.name ?? "알 수 없음",
+        address: s?.address ?? null,
+        sido: s?.sido ?? null,
+        winnerCount,
+        purchaseType: methodByStoreId.get(id) ?? null,
+      };
+    });
   };
 
   const purchaseTypeSummary: Record<PurchaseType, number> = { 자동: 0, 수동: 0, 반자동: 0 };
@@ -186,8 +196,8 @@ export async function getDrawWinnersDetail(drawNo: number): Promise<DrawWinnersD
   return {
     drawNo: draw.draw_no,
     drawDate: draw.draw_date,
-    firstPrizeStores: draw.first_prize_store_ids.map(toWinnerStore),
-    secondPrizeStores: draw.second_prize_store_ids.map(toWinnerStore),
+    firstPrizeStores: toWinnerStores(draw.first_prize_store_ids),
+    secondPrizeStores: toWinnerStores(draw.second_prize_store_ids),
     purchaseTypeSummary,
   };
 }

@@ -62,6 +62,13 @@ export default function DrawWinnersScreen() {
             <Text style={[styles.storeName, { fontSize: getResponsiveFontSize(15, breakpoint) }]}>
               {item.storeName}
             </Text>
+            {item.winnerCount > 1 && (
+              <View style={styles.methodTag}>
+                <Text style={[styles.methodTagText, { fontSize: getResponsiveFontSize(10, breakpoint) }]}>
+                  {item.winnerCount}명
+                </Text>
+              </View>
+            )}
             {item.purchaseType && (
               <View style={styles.methodTag}>
                 <Text style={[styles.methodTagText, { fontSize: getResponsiveFontSize(10, breakpoint) }]}>

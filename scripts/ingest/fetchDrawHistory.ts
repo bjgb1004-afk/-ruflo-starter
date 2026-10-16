@@ -9,7 +9,8 @@ import {
   syncFirstPrizeMethods,
   type ResolvedWinStores,
 } from "./lib/winStoreResolver";
-import { loadAllStores, buildGrid, type StoreGridIndex } from "./lib/storeMatcher";
+import { buildGrid, type StoreGridIndex } from "./lib/storeMatcher";
+import { loadAllStores } from "./lib/loadStores";
 
 // 당첨번호는 동행복권 구 경로(common.do?method=getLottoNumber)가 2026-09-26 재실측에서도
 // 302로 홈으로 튕겨(UA·Referer·세션쿠키를 다 붙여도 동일) 여전히 못 쓴다. 대신 매주 자동
@@ -122,8 +123,13 @@ async function syncFirstPrizeMethodsIfAvailable(
 // stores에 영원히 매칭되지 않는 매장이 있어 끝나지 않는다. 그래서 "발표 후 RECHECK_DAYS
 // 동안, 아직 당첨자 수보다 적으면 다시 조회"로 기간을 끊는다(안전망 cron이 매일 돌아 그
 // 사이에 며칠치 재시도 기회가 있다).
-const RECHECK_DAYS = 8;
-const RECENT_DRAWS_TO_RECHECK = 3;
+// 2026-10-16: 3회차/8일은 너무 좁았다. 배출점이 당첨자 수보다 적은 회차가 447건 쌓여
+// 있었고(1245회만 봐도 10명 중 8건), 8일이 지나면 그 회차는 영구히 그대로 굳는다. 재조회는
+// 회차당 요청 1건이고 "늘어날 때만 반영"이라 안전하므로 창을 넓힌다. 1등에 인터넷 구매분이
+// 섞인 회차는 배출점 수가 당첨자 수에 영원히 못 미치므로 이 창 안에서는 매번 다시 보지만,
+// 그래도 그게 "모자란 채로 굳는 것"보다 낫다.
+const RECHECK_DAYS = 60;
+const RECENT_DRAWS_TO_RECHECK = 10;
 
 async function backfillPrizeStoreIds(index: StoreGridIndex): Promise<void> {
   const { data, error } = await supabaseAdmin

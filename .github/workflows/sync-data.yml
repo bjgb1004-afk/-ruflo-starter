@@ -114,6 +114,29 @@ jobs:
           npm run ingest:draws
           echo "✅ Step 2 완료"
 
+      # 1등을 배출했는데 stores에 없는 가게를 등록한다. 판매점 마스터 수집(위의 비활성
+      # 단계)이 죽어 있는 동안 새로 생기거나 상호가 바뀐 가게의 1등이 조용히 사라지는 걸
+      # 막는 유일한 장치다 - 2026-10-16 실측으로 64곳(1등 126건)이 그렇게 빠져 있었다.
+      - name: 🏪 배출점 판매점 마스터 보강
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          cd ${{ env.WORKING_DIR }}
+          npm run ingest:winstore-master
+
+      # 배출점 목록은 추첨 직후 한 번에 다 올라오지 않아 첫 수집이 거의 항상 부분 수집이다.
+      # 공식 경로는 연속 요청을 IP째 끊어서 과거 회차를 한 번에 다시 볼 수 없으므로, 그 제한이
+      # 없는 lottorich로 최근 회차의 빈 자리를 매주 메운다. "늘어날 때만 반영"이라 이미 들어간
+      # 공식 데이터를 깎지 않는다.
+      - name: ♻️ 최근 회차 배출점 자동 보정
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          cd ${{ env.WORKING_DIR }}
+          npm run ingest:heal-winstores -- --recent=120
+
       - name: 🏆 명당 랭킹 재계산
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

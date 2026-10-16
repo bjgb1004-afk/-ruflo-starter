@@ -4,7 +4,7 @@
 import { supabaseAdmin } from "./supabaseAdmin";
 import { fetchDhlotteryWinStores, type PurchaseType, type WinStoreRecord } from "./dhlotteryWinStores";
 import { fetchLottorichDraw } from "./lottorichStores";
-import { findMatch, type StoreGridIndex } from "./storeMatcher";
+import { findCandidates, normalizeStoreName, type StoreGridIndex } from "./storeMatcher";
 
 export type { PurchaseType, WinStoreRecord };
 
@@ -38,34 +38,74 @@ export async function fetchWinStoreRecords(drawNo: number): Promise<WinStoreReco
   return (await fetchLottorichDraw(drawNo)).map((r) => ({ ...r, purchaseType: null }));
 }
 
+// 같은 가게가 한 회차에 1등을 두 장 이상 배출하면 소스도 그만큼 레코드를 준다(동행복권
+// 공식 응답은 장당 1건, lottorich는 win_cnt로). 예전 구현은 Set으로 모아 매장당 1건으로
+// 접었고, 그 결과 store_ranking_stats가 unnest + count(*)로 세는 "1등 횟수"가 장수가 아닌
+// "배출한 회차 수"가 됐다 - 2026-10-16 실측으로 1위 "스파"가 공식 52회인데 49로 나온
+// 원인이다. 그래서 중복을 그대로 남긴다: 배열에 같은 id가 2번 들어가면 횟수도 2가 된다.
+// (화면에서 "N곳"으로 쓰는 쪽은 drawHistoryApi에서 합쳐 보여준다.)
+function groupKey(record: WinStoreRecord): string {
+  return [
+    record.rank,
+    normalizeStoreName(record.storeName),
+    record.latitude.toFixed(5),
+    record.longitude.toFixed(5),
+  ].join("|");
+}
+
 export function resolveWinStores(records: WinStoreRecord[], index: StoreGridIndex): ResolvedWinStores {
-  const first = new Set<string>();
-  const second = new Set<string>();
+  // 이름·좌표가 같은 레코드는 같은 가게의 복수 당첨이다 - 한 묶음으로 묶어 한 번만 매칭하고
+  // 장수만큼 배열에 반복해 넣는다. 반대로 서로 다른 가게인데(묶음이 다른데) 반경 안의 같은
+  // 매장으로 몰리면 한쪽은 남의 실적을 가져가는 것이므로, 이미 배정된 매장은 건너뛰고 다음
+  // 후보로 넘긴다(후보가 없으면 미매칭으로 남겨 로그에 드러낸다).
+  const groups = new Map<string, WinStoreRecord[]>();
+  for (const record of records) {
+    const key = groupKey(record);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(record);
+  }
+
+  const first: string[] = [];
+  const second: string[] = [];
   const firstMethods = new Map<string, PurchaseType>();
   const conflictingStoreIds = new Set<string>();
+  const claimed = new Map<1 | 2, Set<string>>([
+    [1, new Set()],
+    [2, new Set()],
+  ]);
   let unmatched = 0;
 
-  for (const record of records) {
-    const store = findMatch(record, index);
-    if (!store) {
-      unmatched++;
-      continue;
-    }
-    if (record.rank === 2) {
-      second.add(store.id);
-      continue;
-    }
+  // 이름이 정확히 맞고 가까운 묶음이 먼저 매장을 집도록 정렬한다 - 애매한 묶음이 먼저
+  // 집어가서 확실한 묶음이 밀려나는 걸 막는다.
+  const ordered = [...groups.values()]
+    .map((group) => ({ group, candidates: findCandidates(group[0], index) }))
+    .sort((a, b) => (b.candidates[0]?.sim ?? 0) - (a.candidates[0]?.sim ?? 0));
 
-    first.add(store.id);
-    if (!record.purchaseType) continue;
-    const known = firstMethods.get(store.id);
-    if (known && known !== record.purchaseType) conflictingStoreIds.add(store.id);
-    else firstMethods.set(store.id, record.purchaseType);
+  for (const { group, candidates } of ordered) {
+    const rank = group[0].rank;
+    const taken = claimed.get(rank)!;
+    const picked = candidates.find((c) => !taken.has(c.store.id));
+    if (!picked) {
+      unmatched += group.length;
+      continue;
+    }
+    taken.add(picked.store.id);
+
+    const target = rank === 1 ? first : second;
+    for (let i = 0; i < group.length; i++) target.push(picked.store.id);
+    if (rank === 2) continue;
+
+    for (const record of group) {
+      if (!record.purchaseType) continue;
+      const known = firstMethods.get(picked.store.id);
+      if (known && known !== record.purchaseType) conflictingStoreIds.add(picked.store.id);
+      else firstMethods.set(picked.store.id, record.purchaseType);
+    }
   }
 
   for (const storeId of conflictingStoreIds) firstMethods.delete(storeId);
 
-  return { first: [...first], second: [...second], firstMethods, unmatched };
+  return { first, second, firstMethods, unmatched };
 }
 
 // 이 회차의 1등 구매방식을 새로 받은 값으로 맞춘다. 더 이상 1등 배출점이 아닌 매장의

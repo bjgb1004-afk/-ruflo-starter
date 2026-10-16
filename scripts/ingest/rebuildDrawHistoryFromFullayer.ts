@@ -13,7 +13,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { supabaseAdmin } from "./lib/supabaseAdmin";
-import { loadAllStores, buildGrid, findMatch } from "./lib/storeMatcher";
+import { buildGrid, findMatch } from "./lib/storeMatcher";
+import { loadAllStores } from "./lib/loadStores";
 import type { FullayerWinRecord } from "./fetchFullayerWinStores";
 
 const __filename = fileURLToPath(import.meta.url);
