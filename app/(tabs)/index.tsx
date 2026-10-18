@@ -194,6 +194,7 @@ export default function MapScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
+        <Text style={styles.loadingText}>내 위치를 확인하는 중이에요</Text>
       </View>
     );
   }
@@ -213,6 +214,9 @@ export default function MapScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
+        <Text style={styles.loadingText}>
+          {!location ? "내 위치를 확인하는 중이에요" : "주변 판매점을 찾는 중이에요"}
+        </Text>
       </View>
     );
   }
@@ -330,6 +334,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   mapWrap: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  loadingText: { marginTop: spacing.sm, color: colors.textMuted, fontSize: 13 },
   emptyText: { color: colors.textMuted, fontSize: 14 },
   locationErrorText: { paddingHorizontal: spacing.lg, textAlign: "center", color: colors.textMuted },
   locationErrorButton: {
