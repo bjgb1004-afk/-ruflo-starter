@@ -4,11 +4,9 @@
 
 ## Project Context
 
-This is a freshly-initialized **ruflo / claude-flow v3** scaffold (`npx ruflo@latest` was used to set it up). At present the repository contains **no application source code, no `package.json`, no README, and no git history** (`git log` is empty) — only the `.claude/` agent/skill/command configuration, claude-flow v3 runtime state, and MCP wiring described below.
+This repo holds **복권명당** (`com.gzc.lottomap`), a shipped Expo/React Native Android app on the Play Store — a lotto store map, number generator, and winnings tracker backed by Supabase. Source lives in `app/` (expo-router screens) and `src/features/*`; the backend is `supabase/migrations/` plus `scripts/ingest/*`.
 
-Do not assume there is a buildable/testable app here. There are currently no build, lint, or test commands to run because no source project has been created yet. If the user asks you to run tests/build/lint, check first whether they've since added a project (look for `package.json`, `pyproject.toml`, etc. at the root) — do not invent commands.
-
-When starting real project work in this repo, the first real code added will define its own tooling; update this file at that point with real build/lint/test commands and architecture notes.
+Typecheck with `npx tsc --noEmit -p .`. The `.claude/`, `.claude-flow/`, `.swarm/` and `ruvector.db` entries described below are leftover scaffolding from `npx ruflo@latest`, not part of the app.
 
 ### Directory Layout
 
@@ -35,6 +33,37 @@ When starting real project work in this repo, the first real code added will def
 - Because there's no app code yet, most useful actions are through the claude-flow tooling itself: the `Skill` tool (v3-*, agentdb-*, sparc-methodology, swarm-orchestration, etc.), the `Agent` tool with the specialized `subagent_type`s under `.claude/agents/`, and the `claude-flow` MCP server once started.
 - `.claude/helpers/v3.sh` is the master CLI for V3 progress tracking (`v3.sh status`, `v3.sh update domain N`, `v3.sh validate`, `v3.sh full-status`) — useful only once actual V3 domain/DDD work begins in this repo.
 - If asked to add a real project (app, library, service), scaffold it normally for the requested stack; there is no existing convention to conform to yet.
+
+## OTA 배포 (매번 이 순서 그대로)
+
+**채널과 브랜치는 이름이 다르다.** `production` 채널이 보는 브랜치는 **`main`**이다.
+`--branch production`으로 올리면 아무 기기에도 안 간다(2026-09-03/09-23/10-13/10-18, 네 번 반복한 실수).
+
+```bash
+npx eas update --branch main    --platform android --environment production --message "..."
+npx eas update --branch preview --platform android --environment preview    --message "..."
+```
+
+- `--environment`를 빼면 Supabase 접속값이 매니페스트에서 빠져 앱이 시작하자마자 죽는다(과거 2회 발생).
+- 배포 후 **반드시** `npx eas channel:view production`으로 그 업데이트가 실제로 채널에 걸렸는지 확인한다.
+  브랜치에 올라간 것만으로는 유저에게 안 간다.
+- 로컬 번들링이 메모리 부족으로 죽으면: `eas env:exec <env> "npx expo export --platform android --max-workers 1 --output-dir dist --clear"` →
+  번들 안 환경변수 확인 → `eas update --skip-bundler --input-dir dist`.
+
+## 네이티브 부품을 바꾸는 빌드 전에 (OTA 고립 방지)
+
+`runtimeVersion`은 `fingerprint` 정책이라, **네이티브 의존성이 바뀌면 런타임 지문이 갈라지고
+구버전 기기는 그 이후 어떤 OTA도 못 받는다.** 이건 안전장치지 버그가 아니다(없는 네이티브
+부품을 부르는 JS가 내려가면 앱이 즉사한다). 다만 고립된 유저를 빼낼 사다리를 미리 놔야 한다:
+
+1. **부품을 바꾸기 전에**, 순수 JS 안내 배너("스토어에서 업데이트 해주세요")를 **현재 런타임에**
+   OTA로 먼저 배포한다. JS만이라 구버전도 받는다.
+2. 그 다음 네이티브 변경 빌드를 올린다.
+3. 그 빌드에 한해 `src/lib/inAppUpdate.ts`의 `IAUUpdateKind.FLEXIBLE` → `IMMEDIATE`로 바꾼다.
+   FLEXIBLE은 유저가 무시할 수 있어, 정말 고립되는 전환에선 빠져나오지 못한다.
+
+(2026-10-13 vc2→vc3 전환 때 1·3번을 안 해서 구버전 유저에게 탈출 경로가 없었다.
+실제 피해자는 0명이었음 — `eas update:insights <groupId>`로 확인 가능.)
 
 ## EAS Build Quota Management (Critical)
 
