@@ -45,6 +45,43 @@ interface NormalizedDraw {
   totalSalesAmount: number;
 }
 
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+// 추첨(토 20:35)~미러 갱신(실측 20:49경) 사이의 "발표 직후" 창. 이 창 밖(평소 안전망
+// 3시 cron 등)에서는 신규 회차가 있을 수 없으니 기다릴 이유가 없다.
+function isDrawAnnouncementWindow(): boolean {
+  const kst = new Date(Date.now() + KST_OFFSET_MS);
+  const day = kst.getUTCDay(); // 6 = 토요일
+  const hour = kst.getUTCHours();
+  const minute = kst.getUTCMinutes();
+  return day === 6 && ((hour === 20 && minute >= 30) || (hour === 21 && minute <= 30));
+}
+
+const MIRROR_POLL_INTERVAL_MS = 20_000;
+const MIRROR_POLL_MAX_ATTEMPTS = 30; // 20초 * 30회 = 최대 10분 대기
+
+// GitHub Actions의 schedule cron은 정시 실행을 보장하지 않는다(공식 문서에 명시된 best-effort
+// 동작, 20:50 단발 실행이 통째로 스킵된 적도 실측으로 확인됨). 그래서 "여러 시각에 나눠
+// 재시도"만으로는 특정 실행이 운 좋게 미러 갱신 시점(20:49경)과 겹치길 바라는 구조가 되어
+// 9시를 넘기는 경우가 있었다. 발표 직후 창 안에서는 실행이 뜬 그 자리에서 미러가 올라올
+// 때까지 최대 10분 기다리게 해, 어느 cron이 걸리든 그 실행 하나로 끝낼 수 있게 한다.
+async function fetchDrawWaitingForAnnouncement(drwNo: number): Promise<NormalizedDraw | null> {
+  const draw = await fetchDrawFromMirror(drwNo);
+  if (draw || !isDrawAnnouncementWindow()) return draw;
+
+  console.log(`⏳ 회차 ${drwNo} 발표 대기 중(발표 직후 창) - 최대 10분 재시도...`);
+  for (let attempt = 1; attempt <= MIRROR_POLL_MAX_ATTEMPTS; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, MIRROR_POLL_INTERVAL_MS));
+    const retried = await fetchDrawFromMirror(drwNo);
+    if (retried) {
+      console.log(`  ✅ ${(attempt * MIRROR_POLL_INTERVAL_MS) / 1000}초 대기 후 발표 확인`);
+      return retried;
+    }
+  }
+  console.log(`  ⏹️ 10분 대기 후에도 미발표 - 다음 실행에서 재시도`);
+  return null;
+}
+
 // 아직 발표되지 않은 회차는 404 - null 반환으로 "여기까지가 최신"임을 알린다.
 async function fetchDrawFromMirror(drwNo: number): Promise<NormalizedDraw | null> {
   const res = await fetch(`${MIRROR_ENDPOINT}${drwNo}.json`);
@@ -347,7 +384,10 @@ async function main() {
     // 최대 10회차까지만 처리해(정상적으론 매주 1개) 자동화가 오래 멈춰 있었던
     // 경우에도 무한정 돌지 않게 한다.
     for (let drwNo = lastDrawNo + 1; drwNo <= lastDrawNo + 10; drwNo++) {
-      const draw = await fetchDrawFromMirror(drwNo);
+      // 발표 대기(최대 10분)는 바로 다음 회차에만 의미가 있다 - 그 다음 회차는 같은 밤에
+      // 나올 리 없으니 기다리면 그냥 시간 낭비다.
+      const draw =
+        drwNo === lastDrawNo + 1 ? await fetchDrawWaitingForAnnouncement(drwNo) : await fetchDrawFromMirror(drwNo);
       if (!draw) {
         console.log(`⏹️  회차 ${drwNo}: 아직 발표되지 않음 - 수집 종료`);
         break;
