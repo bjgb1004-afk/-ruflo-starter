@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, View, Text, Pressable, StyleSheet, Share, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
@@ -131,7 +131,7 @@ function rankCountOf(t: GeneratorTotals, rank: (typeof RANKS)[number]): number {
   return rank === 1 ? t.rank1 : rank === 2 ? t.rank2 : rank === 3 ? t.rank3 : rank === 4 ? t.rank4 : t.rank5;
 }
 
-// 보관함에 저장된 번호가 실제로 몇 등을 했는지. 추첨 후 배치가 집계한 값만 읽는다.
+// 앱에서 나간 번호가 실제로 몇 등을 했는지. 추첨 후 배치가 집계한 값만 읽는다.
 // 집계된 회차가 하나도 없으면(첫 추첨 전) 카드를 아예 띄우지 않는다 - 0으로 가득한 표는
 // 고장처럼 보인다.
 const SOURCE_ROW_LIMIT = 5;
@@ -199,7 +199,7 @@ function Scoreboard() {
         </Text>
       )}
       <Text style={styles.disclaimer}>
-        보관함에 저장된 번호만 세요. 실제로 샀는지는 앱이 알 수 없어서, 사지 않았다면 받을 수 없는 금액이에요. 당첨
+        앱에서 나온 번호를 전부 세요. 실제로 샀는지는 앱이 알 수 없어서, 사지 않았다면 받을 수 없는 금액이에요. 당첨
         확률은 어떤 조합이든 같아요.
       </Text>
     </View>
@@ -217,6 +217,12 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
   const addTickets = useMyLottoTickets((s) => s.addTickets);
   const credits = useDrawCredits();
   const [drawing, setDrawing] = useState(false);
+
+  // 화면에 뜨는 모든 게임을 성적표 집계로 보낸다(오늘의 추천이든 다시 뽑기든) - 보관함에
+  // 저장하는 사람만 세면 표본이 너무 적어진다.
+  useEffect(() => {
+    recordGeneratedTickets(BAND_SOURCE, drawNo, games.map((g) => g.numbers));
+  }, [games, drawNo]);
 
   const reroll = useCallback(async () => {
     if (drawing) return;
@@ -238,7 +244,6 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
 
   const save = useCallback(() => {
     const added = addTickets(games.map((g) => ({ drawNo, numbers: g.numbers, purchaseType: null, purchased: false })));
-    recordGeneratedTickets(BAND_SOURCE, drawNo, added);
     Alert.alert(
       added.length > 0 ? "보관함에 저장했어요" : "이미 보관함에 있어요",
       added.length > 0
@@ -489,6 +494,17 @@ function RecipeAnalysis({
     });
   }, [recipe, draws, drawNo, extraRounds]);
 
+  // games는 "더 뽑기"를 눌러도 앞서 받은 게임을 그대로 포함한 전체 목록이다(같은 시드로
+  // 이어 뽑으니 앞부분이 그대로 유지된다). 그래서 매번 통째로 보내면 같은 게임을 두 번
+  // 세게 된다 - 지금까지 보낸 개수를 기억해 두고 새로 늘어난 뒤쪽만 보낸다.
+  const recordedCountRef = useRef(0);
+  useEffect(() => {
+    if (games.length <= recordedCountRef.current) return;
+    const freshGames = games.slice(recordedCountRef.current);
+    recordedCountRef.current = games.length;
+    recordGeneratedTickets(mathSource(recipe.id), drawNo, freshGames);
+  }, [games, drawNo, recipe.id]);
+
   // 파스칼의 계산 - 번호를 고르는 것과 상관없이 "그 조건을 만족하는 조합이 몇 개인가"다.
   const compressed = recipe.candidateCount < RULE.maxNumber;
   const shapeCount = useMemo(() => countCombinationsByShape(RULE, recipe.filters), [recipe]);
@@ -539,7 +555,6 @@ function RecipeAnalysis({
 
   const save = useCallback(() => {
     const added = addTickets(games.map((numbers) => ({ drawNo, numbers, purchaseType: null, purchased: false })));
-    recordGeneratedTickets(mathSource(recipe.id), drawNo, added);
     Alert.alert(
       added.length > 0 ? "보관함에 저장했어요" : "이미 보관함에 있어요",
       added.length > 0
