@@ -105,6 +105,24 @@ export default function AdminScreen() {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{data.liveGenerated.drawNo}회 생성 번호 현황 (집계 전)</Text>
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>전체</Text>
+          <Text style={styles.rowValue}>{data.liveGenerated.total.toLocaleString()}게임</Text>
+        </View>
+        {data.liveGenerated.bySource.length === 0 ? (
+          <Text style={styles.emptyText}>아직 생성된 번호가 없습니다.</Text>
+        ) : (
+          data.liveGenerated.bySource.map((item) => (
+            <View key={item.source} style={styles.row}>
+              <Text style={styles.rowLabel}>{item.source}</Text>
+              <Text style={styles.rowValue}>{item.games.toLocaleString()}게임</Text>
+            </View>
+          ))
+        )}
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>최근 7일 오류 (기능별)</Text>
         {data.errorsByFeature.length === 0 ? (
           <Text style={styles.emptyText}>최근 7일간 기록된 오류가 없습니다.</Text>
