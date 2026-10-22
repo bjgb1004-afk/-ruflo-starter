@@ -21,7 +21,31 @@ const config: ExpoConfig = {
   //
   // ⚠️ 이 전환을 담은 빌드가 유저 폰에 깔리기 전에는 `eas update`를 쏘지 말 것 - 기존
   // 1.0.0 표식 앱은 지문 표식 업데이트를 자기 것으로 못 봐서 조용히 아무것도 못 받는다.
-  runtimeVersion: { policy: "fingerprint" },
+  //
+  // 2026-10-22: policy:"fingerprint" 를 버리고, 지금 유저 폰에 깔린 껍데기의 지문을 그대로
+  // 적어 못박았다. 자동계산이 **껍데기가 안 바뀌었는데도 저절로 달라졌기** 때문이다:
+  //   10/18 배포 지문 ba19255c -> 받은 사람 28명 (eas update:insights 로 확인)
+  //   10/21 배포 지문 60c84c62 -> 받은 사람  0명  ← 조용히 아무에게도 안 갔다
+  // 그 사이 지문 재료(package.json/package-lock/android/assets/app.config/eas.json/patches)는
+  // git 상에서 단 한 줄도 안 바뀌었다. 즉 실제 차이가 아니라 계산이 흔들린 것이다.
+  //
+  // 왜 흔들리나(확인된 것): ① 빌드 지문은 EAS 서버가 계산하고 업데이트 지문은 내 컴퓨터가
+  // 계산한다 ② 지문 재료에 node_modules 안 파일이 들어가고, 10/14에 들어온 patch-package
+  // (postinstall)가 그 안을 고친다 -> 설치 상태가 조금만 달라도 지문이 갈라진다.
+  // 같은 코드로 1분 차이로 빌드한 preview(7225e6e4)와 production(ba19255c)이 다른 것도
+  // 같은 이유다(환경변수가 아래 extra 로 들어가 지문 재료가 된다).
+  //
+  // 손으로 적는 방식의 위험(2026-10-03 사고)은 "껍데기를 바꿨는데 표식을 안 올려서 없는
+  // 부품을 부르는 JS가 내려가 앱이 즉사"하는 것이다. 그래서 **네이티브 부품을 바꾸는 빌드를
+  // 할 때는 이 값을 반드시 같이 바꿔야 한다.** 그때는 읽기 쉬운 값("4" 같은 것)으로 바꿔도
+  // 된다 - 새 빌드부터는 어차피 새 표식이기 때문이다. CLAUDE.md의 네이티브 변경 체크리스트에
+  // 이 항목이 들어 있다.
+  //
+  // 지금 이 값으로 바꿔도 앱이 안 죽는 근거: 스토어 빌드(10/14 02:04) 이후 네이티브 관련
+  // 변경이 0건이다(patches/ package-lock android/ app.config.ts assets/ google-services.json
+  // eas.json 전부). AdMob 네이티브 패치는 10/14 01:13 커밋이라 그 빌드에 들어가 있다.
+  // 그 이후 바뀐 건 화면 코드(JS)·문서·배치 스크립트뿐이고, JS는 지문 재료가 아니다.
+  runtimeVersion: "ba19255c8691a039326d48adafb9e3f46e6de005",
   updates: {
     url: "https://u.expo.dev/9eeff5c8-c217-4e45-9426-c0569f8c500e",
   },
@@ -143,8 +167,16 @@ const config: ExpoConfig = {
     // runtimeVersion:fingerprint 지문이 두 환경에서 어긋났다(CONFIGURE_EXPO_UPDATES 빌드
     // 실패 원인 중 하나). sentry.ts의 initSentry()는 이미 falsy를 무시한다.
     ...(process.env.EXPO_PUBLIC_SENTRY_DSN ? { sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN } : {}),
-    admobBannerUnitId: process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID,
-    admobRewardedUnitId: process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID,
+    // 위 sentryDsn과 같은 이유로 값이 없으면 키 자체를 안 만든다. 2026-10-22에 확인해보니
+    // EAS production 환경엔 ..._REWARDED_UNIT_ID만 있고 ..._BANNER_UNIT_ID는 없어서, 이 두
+    // 줄이 환경마다 다른 app config를 만들고 있었다(= 지문이 갈라지는 재료). 광고 코드는
+    // 이미 값이 없으면 광고를 안 띄우게 되어 있다.
+    ...(process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID
+      ? { admobBannerUnitId: process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID }
+      : {}),
+    ...(process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID
+      ? { admobRewardedUnitId: process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID }
+      : {}),
     // 광고를 띄울지. 문자열 "true"만 켜진 것으로 본다 - 환경변수가 없거나 오타면 꺼진 쪽으로.
     adsEnabled: process.env.EXPO_PUBLIC_ADS_ENABLED === "true",
     eas: {
