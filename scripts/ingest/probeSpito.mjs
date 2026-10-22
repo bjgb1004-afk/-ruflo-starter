@@ -1,40 +1,42 @@
-// 스피또 발행내역 API — 입고율 분포 확인용 일회성 스크립트. 요청 1건.
+// 발행내역 페이지의 표 열 제목을 확인하는 일회성 스크립트. 요청 1건.
 //
-// 확정된 호출 방법:
-//   GET /st/selectPblcnDsctn.do?gdsType=&gdsPrice=&gdsStatus=&pageNum=1&recordCountPerPage=N
-//   (빈 필터 3개를 "빈 값"으로 꼭 보내야 한다. 빼면 fail.common.msg)
-//   로그인·쿠키 불필요. 응답 { resultCode, resultMessage, data:{ total, list, stRnkDate } }
+// 왜 필요한가: API가 1등 수량을 "8매/8매" 처럼 한 문자열로 준다. 앞 숫자가 "남은 매수"인지
+// "팔린 매수"인지 확정해야 한다. 거꾸로 읽으면 화면에 "1등 8매 남음"을 "8매 다 나감"으로
+// 정반대로 쓰게 된다 - 이 기능에서 가장 비싼 실수다.
 //
-// 확인할 것: 입고율(stSpmtRt)이 회차마다 어느 정도인가. 이 숫자가 "판매점에 있나?"를
-// 공식 데이터만으로 답할 수 있는지(=제보 기능이 필요한지)를 가른다.
-const url =
-  "https://www.dhlottery.co.kr/st/selectPblcnDsctn.do" +
-  "?gdsType=&gdsPrice=&gdsStatus=&pageNum=1&recordCountPerPage=50";
+// 정황 추론으로는 "앞=잔여"다(신상 70회가 입고율 20%인데 "8매/8매"라서, 앞을 판매분으로
+// 보면 20%만 풀린 회차에서 1등이 전부 팔린 셈이 되어 모순). 그 추론을 사람이 보는 페이지의
+// 열 제목으로 확정한다.
+const html = await (
+  await fetch("https://www.dhlottery.co.kr/st/pblcnDsctn?stGmTypeCd=st1000", {
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; LottoMapEnrichBot/1.0; +personal-project)" },
+    signal: AbortSignal.timeout(20000),
+  })
+).text();
 
-const res = await fetch(url, {
-  headers: {
-    "User-Agent": "Mozilla/5.0 (compatible; LottoMapEnrichBot/1.0; +personal-project)",
-    Referer: "https://www.dhlottery.co.kr/st/pblcnDsctn?stGmTypeCd=st1000",
-    Accept: "application/json, text/javascript, */*; q=0.01",
-    "X-Requested-With": "XMLHttpRequest",
-  },
-  signal: AbortSignal.timeout(20000),
-});
-const { resultCode, data } = JSON.parse(await res.text());
-console.log(`${res.status} / ${resultCode} / total=${data?.total}, list=${data?.list?.length}건\n`);
+const strip = (s) => s.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
 
-const pad = (v, n) => String(v ?? "").padEnd(n);
-console.log(`${pad("상태", 8)}${pad("상품", 12)}${pad("회차", 6)}${pad("입고율", 8)}${pad("1등잔여", 12)}${pad("2등잔여", 12)}판매기한`);
-for (const r of data.list) {
-  console.log(
-    pad(r.ntslStatus, 8) + pad(r.stGmTypeNm, 12) + pad(r.stEpsd, 6) +
-      pad(`${r.stSpmtRt}%`, 8) + pad(r.stRnk1Rt, 12) + pad(r.stRnk2Rt, 12) + (r.stNtslEndDt ?? ""),
-  );
+console.log("=== 표 열 제목(th) ===");
+const ths = [...html.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)].map((m) => strip(m[1])).filter(Boolean);
+console.log(ths.length ? ths.join("\n") : "(th 없음 - 표를 자바스크립트로 그리는 듯)");
+
+// 표를 스크립트로 그리는 경우 열 제목이 문자열 리터럴로 박혀 있다. 핵심 낱말 주변을 뜬다.
+console.log("\n=== '잔여/소진/입고/공급/발행/당첨매수'가 나오는 자리 ===");
+const seen = new Set();
+for (const m of html.matchAll(/[^<>{}]{0,80}(잔여|소진|입고|공급|발행\s*매수|당첨\s*매수)[^<>{}]{0,80}/g)) {
+  const s = strip(m[0]);
+  if (s && !seen.has(s)) {
+    seen.add(s);
+    console.log(" - " + s);
+  }
 }
 
-const selling = data.list.filter((r) => r.ntslStatus === "판매중");
-const rates = selling.map((r) => Number(r.stSpmtRt)).filter(Number.isFinite).sort((a, b) => a - b);
-console.log(`\n판매중 ${selling.length}건의 입고율: ${rates.join(", ")}`);
-if (rates.length) {
-  console.log(`최저 ${rates[0]}% / 중간 ${rates[Math.floor(rates.length / 2)]}% / 최고 ${rates[rates.length - 1]}%`);
+// 등수 수량을 화면에 찍는 코드 조각도 같이 본다(stRnk1Rt 를 어떤 제목 아래 넣는지).
+console.log("\n=== stRnk1Rt / stSpmtRt 를 쓰는 자리 ===");
+for (const key of ["stRnk1Rt", "stRnk2Rt", "stSpmtRt", "stIvtRnk1Qty"]) {
+  let idx = html.indexOf(key);
+  while (idx >= 0) {
+    console.log(`\n[${key}]\n...${strip(html.slice(Math.max(0, idx - 400), idx + 200))}...`);
+    idx = html.indexOf(key, idx + 1);
+  }
 }
