@@ -1,12 +1,15 @@
-// 발행내역 페이지의 표 열 제목을 확인하는 일회성 스크립트. 요청 1건.
+// 발행내역 페이지에서 "어떤 경우에 입고율·1등 잔여를 일부러 안 보여주는가"를 확인하는
+// 일회성 스크립트. 요청 1건.
 //
-// 왜 필요한가: API가 1등 수량을 "8매/8매" 처럼 한 문자열로 준다. 앞 숫자가 "남은 매수"인지
-// "팔린 매수"인지 확정해야 한다. 거꾸로 읽으면 화면에 "1등 8매 남음"을 "8매 다 나감"으로
-// 정반대로 쓰게 된다 - 이 기능에서 가장 비싼 실수다.
+// 확정된 것(이 페이지 자체 주석에서 확인):
+//   stSpmtRt  = 판매점 입고율 (%)
+//   stRnk1Rt  = "1등 잔여/전체"  → 앞이 잔여
+//   stRnk2Rt  = "2등 잔여/전체"
+//   입고율은 금요일 기준 주 1회 갱신이고, 화면에 "(YY-MM-DD 기준)"을 같이 붙여 보여준다.
 //
-// 정황 추론으로는 "앞=잔여"다(신상 70회가 입고율 20%인데 "8매/8매"라서, 앞을 판매분으로
-// 보면 20%만 풀린 회차에서 1등이 전부 팔린 셈이 되어 모순). 그 추론을 사람이 보는 페이지의
-// 열 제목으로 확정한다.
+// 남은 문제: 페이지에 `<!-- 20251229 - 판매점입고율, 1등 잔여 미노출 처리 -->` 라는 주석이
+// 있다. 동행복권이 어떤 조건에서 이 숫자를 감추는지 모른 채 우리가 전부 보여주면, 저쪽이
+// 일부러 가린 값을 노출하게 된다. 그 조건을 찾는다.
 const html = await (
   await fetch("https://www.dhlottery.co.kr/st/pblcnDsctn?stGmTypeCd=st1000", {
     headers: { "User-Agent": "Mozilla/5.0 (compatible; LottoMapEnrichBot/1.0; +personal-project)" },
@@ -14,29 +17,27 @@ const html = await (
   })
 ).text();
 
-const strip = (s) => s.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+const strip = (s) => s.replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
 
-console.log("=== 표 열 제목(th) ===");
-const ths = [...html.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)].map((m) => strip(m[1])).filter(Boolean);
-console.log(ths.length ? ths.join("\n") : "(th 없음 - 표를 자바스크립트로 그리는 듯)");
-
-// 표를 스크립트로 그리는 경우 열 제목이 문자열 리터럴로 박혀 있다. 핵심 낱말 주변을 뜬다.
-console.log("\n=== '잔여/소진/입고/공급/발행/당첨매수'가 나오는 자리 ===");
-const seen = new Set();
-for (const m of html.matchAll(/[^<>{}]{0,80}(잔여|소진|입고|공급|발행\s*매수|당첨\s*매수)[^<>{}]{0,80}/g)) {
-  const s = strip(m[0]);
-  if (s && !seen.has(s)) {
-    seen.add(s);
-    console.log(" - " + s);
-  }
+// 1) 미노출 주석 주변을 넓게 뜬다 - 앞뒤에 조건문이 있을 것이다.
+for (const m of html.matchAll(/미노출/g)) {
+  console.log("\n===== '미노출' 주변 (앞 1200 / 뒤 2500) =====");
+  console.log(strip(html.slice(Math.max(0, m.index - 1200), m.index + 2500)));
 }
 
-// 등수 수량을 화면에 찍는 코드 조각도 같이 본다(stRnk1Rt 를 어떤 제목 아래 넣는지).
-console.log("\n=== stRnk1Rt / stSpmtRt 를 쓰는 자리 ===");
-for (const key of ["stRnk1Rt", "stRnk2Rt", "stSpmtRt", "stIvtRnk1Qty"]) {
+// 2) 입고율 기준일자 계산 로직 전체.
+const base = html.indexOf("입고율 기준일자");
+if (base >= 0) {
+  console.log("\n===== 입고율 기준일자 계산 =====");
+  console.log(strip(html.slice(base - 200, base + 1800)));
+}
+
+// 3) 목록을 그리는 함수에서 조건 분기를 전부 본다(stExpsrYn, ntslStatus 등으로 가릴 가능성).
+for (const key of ["stExpsrYn", "ntslStatus =="]) {
   let idx = html.indexOf(key);
   while (idx >= 0) {
-    console.log(`\n[${key}]\n...${strip(html.slice(Math.max(0, idx - 400), idx + 200))}...`);
+    console.log(`\n===== [${key}] =====`);
+    console.log(strip(html.slice(Math.max(0, idx - 500), idx + 700)));
     idx = html.indexOf(key, idx + 1);
   }
 }
