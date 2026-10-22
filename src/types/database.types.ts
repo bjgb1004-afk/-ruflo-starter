@@ -1549,6 +1549,63 @@ export type Database = {
         }
         Relationships: []
       }
+      spitto_rounds: {
+        Row: {
+          claim_end_date: string | null
+          figures_as_of: string | null
+          game_name: string
+          game_type: string
+          image_path: string | null
+          price: number | null
+          rank1_prize: string | null
+          rank1_remaining: number | null
+          rank1_total: number | null
+          rank2_remaining: number | null
+          rank2_total: number | null
+          round_no: number
+          sale_end_date: string | null
+          status: string
+          stock_rate: number | null
+          synced_at: string
+        }
+        Insert: {
+          claim_end_date?: string | null
+          figures_as_of?: string | null
+          game_name: string
+          game_type: string
+          image_path?: string | null
+          price?: number | null
+          rank1_prize?: string | null
+          rank1_remaining?: number | null
+          rank1_total?: number | null
+          rank2_remaining?: number | null
+          rank2_total?: number | null
+          round_no: number
+          sale_end_date?: string | null
+          status: string
+          stock_rate?: number | null
+          synced_at?: string
+        }
+        Update: {
+          claim_end_date?: string | null
+          figures_as_of?: string | null
+          game_name?: string
+          game_type?: string
+          image_path?: string | null
+          price?: number | null
+          rank1_prize?: string | null
+          rank1_remaining?: number | null
+          rank1_total?: number | null
+          rank2_remaining?: number | null
+          rank2_total?: number | null
+          round_no?: number
+          sale_end_date?: string | null
+          status?: string
+          stock_rate?: number | null
+          synced_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

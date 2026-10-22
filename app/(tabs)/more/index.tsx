@@ -20,6 +20,7 @@ interface MoreMenuItem {
 const MENU_ITEMS: MoreMenuItem[] = [
   { key: "generator", emoji: "🎲", label: "천재들의 한수", href: "/more/generator" },
   { key: "replay", emoji: "💸", label: "놓친 당첨금", href: "/replay" },
+  { key: "spitto", emoji: "🎟️", label: "스피또 현황", href: "/more/spitto" },
   { key: "favorites", emoji: "⭐", label: "즐겨찾기", href: "/more/favorites" },
   { key: "stats", emoji: "📊", label: "회차별 당첨현황", href: "/more/stats" },
   { key: "settings", emoji: "⚙️", label: "앱 설정", href: "/more/settings" },

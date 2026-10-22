@@ -11,6 +11,7 @@
     "ingest:refresh-rankings": "tsx refreshRankingStats.ts",
     "ingest:notify": "tsx sendMylottoNotifications.ts",
     "ingest:aggregate-generated": "tsx aggregateGeneratedTickets.ts",
+    "ingest:spitto": "tsx fetchSpittoRounds.ts",
     "ingest:rebuild-winstores": "tsx rebuildWinStoresFromOfficial.ts",
     "ingest:winstore-master": "tsx syncWinStoreMaster.ts",
     "ingest:heal-winstores": "tsx rebuildWinStoresFromOfficial.ts --source=lottorich"
