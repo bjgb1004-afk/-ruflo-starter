@@ -3,22 +3,13 @@ import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getSellingSpittoRounds, type SpittoRound } from "@/features/spitto/api/spittoApi";
+import { describeStock, shouldSuggestCall } from "@/features/spitto/describeStock";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
-
-// 이 선 아래면 "아직 가게에 덜 깔렸다"고 보고 전화 확인 안내를 띄운다. 실측 분포가
-// 20·55·57·98·100%라서 "거의 다 깔린 회차(98·100)"와 "반도 안 깔린 회차(20·55·57)"가
-// 이 자리에서 갈린다.
-const LOW_STOCK_RATE = 60;
 
 function formatDate(iso: string | null): string | null {
   if (!iso) return null;
   const [, month, day] = iso.split("-");
   return month && day ? `${Number(month)}월 ${Number(day)}일` : null;
-}
-
-/** 입고율 20%면 "5곳 중 1곳". 회차마다 계산한다 - 문구를 박아두면 거짓말이 된다. */
-function storesPerOne(stockRate: number): number {
-  return Math.max(2, Math.round(100 / stockRate));
 }
 
 function RoundCard({ round }: { round: SpittoRound }) {
@@ -64,12 +55,8 @@ function RoundCard({ round }: { round: SpittoRound }) {
 
       {stock !== null && (
         <View style={styles.stockBox}>
-          <Text style={styles.stockText}>
-            {stock >= LOW_STOCK_RATE
-              ? `거의 모든 복권가게에 있어요 (입고율 ${stock}%)`
-              : `복권가게 ${storesPerOne(stock)}곳 중 1곳에만 들어왔어요 (입고율 ${stock}%)`}
-          </Text>
-          {stock < LOW_STOCK_RATE && (
+          <Text style={styles.stockText}>{describeStock(stock)}</Text>
+          {shouldSuggestCall(stock) && (
             <Pressable style={styles.findButton} onPress={() => router.push("/")}>
               <Text style={styles.findButtonText}>
                 🔎 가게 찾아 전화로 물어보기
