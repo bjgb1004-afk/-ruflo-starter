@@ -40,21 +40,36 @@ Typecheck with `npx tsc --noEmit -p .`. The `.claude/`, `.claude-flow/`, `.swarm
 `--branch production`으로 올리면 아무 기기에도 안 간다(2026-09-03/09-23/10-13/10-18, 네 번 반복한 실수).
 
 ```bash
-npx eas update --branch main    --platform android --environment production --message "..."
-npx eas update --branch preview --platform android --environment preview    --message "..."
+npx eas update --branch main --platform android --environment production --message "..."
 ```
 
 - `--environment`를 빼면 Supabase 접속값이 매니페스트에서 빠져 앱이 시작하자마자 죽는다(과거 2회 발생).
 - 배포 후 **반드시** `npx eas channel:view production`으로 그 업데이트가 실제로 채널에 걸렸는지 확인한다.
-  브랜치에 올라간 것만으로는 유저에게 안 간다.
+  브랜치에 올라간 것만으로는 유저에게 안 간다. **채널에 찍힌 Runtime Version이 설치된 빌드의
+  것과 같은지도 같이 본다** — 다르면 올라가긴 했어도 아무 기기에도 안 간다.
+  빌드 쪽 값은 `npx eas build:list --platform android --limit 5`의 `Runtime Version`.
+- **preview 배포는 지금 의미가 없다(2026-10-22 이후).** `runtimeVersion`을 production 빌드의
+  지문(`ba19255c…`)으로 못박았는데 preview 빌드의 지문은 `7225e6e4…`로 달라서, preview에 쏘면
+  preview 앱이 자기 것으로 못 본다. 쏴도 아무에게도 안 가는 헛배포다. preview를 되살리려면
+  preview 빌드를 새로 만들고 그 지문을 확인해야 한다.
 - 로컬 번들링이 메모리 부족으로 죽으면: `eas env:exec <env> "npx expo export --platform android --max-workers 1 --output-dir dist --clear"` →
   번들 안 환경변수 확인 → `eas update --skip-bundler --input-dir dist`.
+- **번들링 중에는 앱 소스를 고치지 말 것.** Metro가 의존성 그래프를 만들며 파일을 읽는 중이라,
+  중간에 바뀐 파일이 섞이면 "모듈을 못 찾는" 번들이 올라가 앱이 즉사할 수 있다. 번들링이 느린
+  이유는 보통 메모리 부족이니, 급하면 위 `--max-workers 1` 경로로 다시 시작하는 게 낫다.
+  (번들링 중에 새 파일을 **추가**하는 것은 안전하다 — 아무도 import하지 않으므로 번들에 안 들어간다.)
 
 ## 네이티브 부품을 바꾸는 빌드 전에 (OTA 고립 방지)
 
-`runtimeVersion`은 `fingerprint` 정책이라, **네이티브 의존성이 바뀌면 런타임 지문이 갈라지고
-구버전 기기는 그 이후 어떤 OTA도 못 받는다.** 이건 안전장치지 버그가 아니다(없는 네이티브
-부품을 부르는 JS가 내려가면 앱이 즉사한다). 다만 고립된 유저를 빼낼 사다리를 미리 놔야 한다:
+**`runtimeVersion`은 2026-10-22부터 자동계산(`fingerprint`)이 아니라 손으로 적은 고정값이다**
+(`app.config.ts`, 현재 `ba19255c…` = versionCode 3 production 빌드의 지문). 자동계산이 껍데기가
+안 바뀌었는데도 저절로 달라져서 10/21 배포가 **0명**에게 갔기 때문이다(10/18은 28명).
+그래서 **네이티브 부품을 바꾸는 빌드를 할 때는 이 값을 반드시 같이 바꿔야 한다.** 안 바꾸면
+없는 네이티브 부품을 부르는 JS가 구버전 기기로 내려가 앱이 즉사한다(2026-10-03 사고).
+읽기 쉬운 값("4" 같은 것)으로 바꿔도 된다 — 새 빌드부터는 어차피 새 표식이기 때문이다.
+
+런타임 표식이 갈라지면 **구버전 기기는 그 이후 어떤 OTA도 못 받는다.** 이건 안전장치지
+버그가 아니다. 다만 고립된 유저를 빼낼 사다리를 미리 놔야 한다:
 
 1. **부품을 바꾸기 전에**, 순수 JS 안내 배너("스토어에서 업데이트 해주세요")를 **현재 런타임에**
    OTA로 먼저 배포한다. JS만이라 구버전도 받는다.
@@ -73,6 +88,10 @@ npx eas update --branch preview --platform android --environment preview    --me
 
 1. ✅ All commits pushed to GitHub (`git push` first)
 2. ✅ app.config.ts validated (name, version, versionCode, permissions, icons)
+2-1. ✅ **네이티브 부품(의존성·patches·android/·google-services.json)을 바꿨다면
+     `runtimeVersion`도 같이 올렸는지** — 위 "네이티브 부품을 바꾸는 빌드 전에" 참고.
+     안 올리면 구버전 기기가 받으면 안 되는 JS를 받아 즉사한다. 빌드 후에는
+     `eas build:list`의 `Runtime Version`이 적어둔 값과 같은지 확인한다.
 3. ✅ .env file has all required vars (SUPABASE_URL, SUPABASE_ANON_KEY, GOOGLE_MAPS_API_KEY_ANDROID)
 4. ✅ node_modules installed (870+ packages)
 5. ✅ TypeScript check passes (`npm run typecheck`)

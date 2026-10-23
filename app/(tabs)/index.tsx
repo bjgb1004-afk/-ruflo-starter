@@ -10,6 +10,7 @@ import { TopStoresCarousel } from "@/features/map/components/TopStoresCarousel";
 import { searchStores, type StoreSearchResult } from "@/features/stores/api/storesApi";
 import { NewWinnerBanner } from "@/features/draws/components/NewWinnerBanner";
 import { NoticeCard } from "@/features/notices/components/NoticeCard";
+import { SpittoRoundBanner } from "@/features/spitto/components/SpittoRoundBanner";
 import { getLatestFirstPrizeWinners } from "@/features/draws/api/drawHistoryApi";
 import { useFavorites } from "@/features/favorites/useFavorites";
 import { DEFAULT_SEARCH_RADIUS_M } from "@/constants/config";
@@ -253,6 +254,7 @@ export default function MapScreen() {
         <>
           <NoticeCard />
           <NewWinnerBanner />
+          <SpittoRoundBanner />
         </>
       )}
 
