@@ -27,9 +27,12 @@ const ENDPOINT = "https://www.dhlottery.co.kr/st/selectPblcnDsctn.do";
 const PAGE_URL = "https://www.dhlottery.co.kr/st/pblcnDsctn?stGmTypeCd=st1000";
 // 실측 34건. 늘어나도 한 번에 받도록 넉넉히 잡는다.
 const RECORD_COUNT = 200;
-// 실측 최악이 4연속 떨굼이라 그보다 넉넉히 둔다. 하루 1회 돌는 배치라 총 2분을 더 써도
-// 아깝지 않고, 호출 6건은 과거 차단을 부른 982건과 비교가 안 된다.
-const MAX_ATTEMPTS = 6;
+// 횟수 근거(2026-10-23 러너 실측): 한 실행에서 5연속 떨구고 6번째에 붙었다. 성공률을
+// 대략 1/6으로 보면 6회로는 성공 확률이 67%뿐이라 열 번에 세 번은 빈손이 된다. 12회면
+// 89%고, 한 시도가 (연결 제한 10초 + 대기 5초)라 최악에도 3분이다. 하루 1회 배치에
+// 3분은 아깝지 않고, 실패해도 다음날 또 돈다(원본은 주 1회 갱신이라 하루 놓쳐도 무해).
+// 15초에 1건이라 과거 차단을 부른 "982회 연속 조회"와는 성격이 다르다.
+const MAX_ATTEMPTS = 12;
 const RETRY_DELAY_MS = 5_000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
