@@ -11,15 +11,30 @@
 //
 // 요청은 하루 1건이다. 과거 IP 차단은 982회를 연속으로 때렸을 때 났고 임계치를 31 근처로
 // 봤으므로(project_dhlottery_rate_limit) 근처도 아니다.
+//
+// 재시도가 필수인 이유 (2026-10-23 실측):
+//   동행복권은 요청의 일부를 **조용히 떨군다**. 거부 응답을 주는 게 아니라 아무 대답이
+//   없어서 연결 단계에서 타임아웃이 난다(UND_ERR_CONNECT_TIMEOUT). 같은 러너·같은 IP·같은
+//   헤더로 한 실행 안에서 4연속 실패한 직후 5번째가 35건을 정상 수신했고, 그 몇 분 전
+//   curl은 1.8초에 HTTP 200을 받았다. 차단도 Node 문제도 아니라 저쪽의 간헐적 떨굼이다.
+//   과거 기록의 "982회 중 176건 타임아웃"도 같은 현상이다.
+//   재시도 없이 1회만 때리면 수집 성공이 운에 맡겨진다(10/23 자동실행이 그래서 빈손이었다).
 import { supabaseAdmin } from "./lib/supabaseAdmin";
 import { toSpittoRoundRow, type SpittoApiRow } from "./lib/parseSpittoRow";
+import { isDroppedRequest } from "./lib/isDroppedRequest";
 
 const ENDPOINT = "https://www.dhlottery.co.kr/st/selectPblcnDsctn.do";
 const PAGE_URL = "https://www.dhlottery.co.kr/st/pblcnDsctn?stGmTypeCd=st1000";
 // 실측 34건. 늘어나도 한 번에 받도록 넉넉히 잡는다.
 const RECORD_COUNT = 200;
+// 실측 최악이 4연속 떨굼이라 그보다 넉넉히 둔다. 하루 1회 돌는 배치라 총 2분을 더 써도
+// 아깝지 않고, 호출 6건은 과거 차단을 부른 982건과 비교가 안 된다.
+const MAX_ATTEMPTS = 6;
+const RETRY_DELAY_MS = 5_000;
 
-async function fetchRows(): Promise<SpittoApiRow[]> {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function fetchRowsOnce(): Promise<SpittoApiRow[]> {
   const qs = new URLSearchParams({
     gdsType: "",
     gdsPrice: "",
@@ -53,6 +68,26 @@ async function fetchRows(): Promise<SpittoApiRow[]> {
   }
   console.log(`📥 ${list.length}건 수신 (서버가 말한 전체: ${body.data?.total ?? "?"})`);
   return list;
+}
+
+async function fetchRows(): Promise<SpittoApiRow[]> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetchRowsOnce();
+    } catch (err) {
+      // 응답 형식이 바뀐 것(목록이 비었다/HTTP 4xx)은 다시 때려도 같은 답이 온다.
+      // 떨굼만 재시도한다 - 판단은 lib/isDroppedRequest.ts에 테스트와 함께 있다.
+      if (!isDroppedRequest(err) || attempt >= MAX_ATTEMPTS) throw err;
+
+      const cause = (err as { cause?: { code?: string } }).cause;
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `⚠️  ${attempt}/${MAX_ATTEMPTS}번째 시도 실패(${cause?.code ?? msg}) - ` +
+          `${RETRY_DELAY_MS / 1000}초 뒤 다시 시도한다. 동행복권이 간헐적으로 응답을 떨군다.`,
+      );
+      await sleep(RETRY_DELAY_MS);
+    }
+  }
 }
 
 async function main() {
