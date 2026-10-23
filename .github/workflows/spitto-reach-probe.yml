@@ -60,3 +60,15 @@ jobs:
             "https://www.dhlottery.co.kr/" \
             || echo "curl 종료코드: $?"
         continue-on-error: true
+
+      # curl이 되는데 스크립트가 실패하면 원인은 네트워크가 아니라 Node 쪽(fetch 기본
+      # 연결제한 10초, TLS 협상 등)이다. 같은 러너·같은 IP에서 돌려 그 둘을 가른다.
+      - name: 4) 실제 수집 스크립트 (Node fetch로도 되는지)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          cd scripts/ingest
+          npm ci --silent
+          npm run ingest:spitto
+        continue-on-error: true
