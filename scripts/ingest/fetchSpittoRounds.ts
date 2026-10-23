@@ -96,5 +96,10 @@ async function main() {
 
 main().catch((err) => {
   console.error("❌ 스피또 회차 현황 수집 실패:", err instanceof Error ? err.message : err);
+  // Node의 fetch는 연결 단계에서 실패하면 메시지가 "fetch failed" 한 줄뿐이고, 실제 원인
+  // (주소를 못 찾음 ENOTFOUND / 거부 ECONNREFUSED / 응답 없음 ETIMEDOUT / TLS 오류)은
+  // cause에만 들어 있다. 2026-10-23에 이것 때문에 차단인지 저쪽 장애인지 못 갈랐다.
+  const cause = err instanceof Error ? (err as { cause?: unknown }).cause : undefined;
+  if (cause) console.error("   원인:", cause);
   process.exit(1);
 });
