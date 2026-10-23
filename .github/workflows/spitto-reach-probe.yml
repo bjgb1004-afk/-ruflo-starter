@@ -73,7 +73,13 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'scripts/ingest/package.json'
 
-      - name: 4) 실제 수집 스크립트 (Node fetch로도 되는지)
+      # curl 200 / Node ConnectTimeout이 같은 IP에서 동시에 나왔다. 어느 층에서 갈리는지
+      # (주소 계열 선택인지, fetch 구현인지) 네 변형을 한 실행에서 비교한다.
+      - name: 4) Node 연결 방식별 비교
+        run: node scripts/ingest/_probeNodeReach.mjs
+        continue-on-error: true
+
+      - name: 5) 실제 수집 스크립트 (Node fetch로도 되는지)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
