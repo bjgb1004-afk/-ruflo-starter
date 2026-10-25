@@ -29,13 +29,15 @@ const json = (args) => {
 
 const BRANCH = "main"; // production 채널이 보는 브랜치. production이 아니다.
 
-function liveOnChannel() {
-  const chan = json(["channel:view", "production"]);
-  const branch = chan.currentPage.updateBranches.find((b) => b.name === BRANCH);
-  const group = branch?.updateGroups?.[0] ?? [];
-  const update = group.find((u) => u.platform === "android") ?? group[0];
-  if (!update) throw new Error(`${BRANCH} 브랜치에 업데이트가 없다`);
-  return update;
+// 한 브랜치는 런타임 표식이 다른 업데이트를 동시에 품을 수 있고, EAS는 기기마다
+// "그 기기의 표식에 맞는 가장 최신 것"을 내려준다. 그래서 "맨 위 업데이트가 내 표식인가"를
+// 물으면 안 된다 - 구버전 구조용으로 옛 표식에 한 번 쏘는 순간 멀쩡한 배포가 실패로 보인다
+// (2026-10-25에 실제로 그렇게 오보했다). 설치된 빌드의 표식에 맞는 최신 것을 찾아야 한다.
+function updatesOnBranch() {
+  const list = json(["update:list", "--branch", BRANCH, "--limit", "20"]);
+  const groups = list.currentPage ?? [];
+  if (groups.length === 0) throw new Error(`${BRANCH} 브랜치에 업데이트가 없다`);
+  return groups.filter((g) => String(g.platforms ?? "").includes("android"));
 }
 
 function installedBuild() {
@@ -73,23 +75,31 @@ if (message) {
   );
 }
 
-const live = liveOnChannel();
+const updates = updatesOnBranch();
 const build = installedBuild();
-const match = live.runtime.version === build.runtime;
+// 유저 폰에 실제로 내려가는 것: 설치된 빌드의 표식과 같은 표식의 최신 업데이트.
+const delivered = updates.find((u) => u.runtimeVersion === build.runtime);
 
 console.log("\n── 전달 검증 ──");
-console.log(`채널에 걸린 것 : ${live.message}`);
-console.log(`               ${live.runtime.version}  (${live.createdAt})`);
 console.log(`유저 폰의 앱   : versionCode ${build.versionCode}`);
 console.log(`               ${build.runtime}`);
 
-if (match) {
-  console.log("\n✅ 표식이 같다 — 이 업데이트는 유저에게 간다.");
-  console.log(`   실제 수신 인원은 하루쯤 뒤:  npx eas update:insights ${live.group}`);
+if (delivered) {
+  console.log(`그 폰에 갈 것  : ${delivered.message}`);
+  console.log("\n✅ 설치된 빌드의 표식에 맞는 업데이트가 올라가 있다 — 유저에게 간다.");
+  console.log(`   실제 수신 인원은 하루쯤 뒤:  npx eas update:insights ${delivered.group}`);
 } else {
-  console.error("\n❌ 표식이 다르다 — 이 업데이트는 아무에게도 안 간다.");
+  console.error("\n❌ 설치된 빌드의 표식에 맞는 업데이트가 없다 — 아무에게도 안 간다.");
   console.error("   app.config.ts의 runtimeVersion을 위 빌드 표식과 같게 맞추고 다시 쏴라.");
-  console.error("   (네이티브 부품을 바꿔서 일부러 다르게 둔 거라면, 구버전 유저의");
-  console.error("    탈출 경로를 먼저 확인할 것 — CLAUDE.md의 OTA 고립 방지 섹션.)");
   process.exit(1);
+}
+
+// 다른 표식에 올라간 것들도 같이 보여준다 - 구버전 구조 배포가 살아 있는지 확인용이고,
+// 실수로 엉뚱한 표식에 쏜 것도 여기서 눈에 걸린다.
+const others = [...new Set(updates.map((u) => u.runtimeVersion))].filter(
+  (rt) => rt !== build.runtime,
+);
+if (others.length > 0) {
+  console.log(`\n   이 브랜치의 다른 표식: ${others.join(", ")}`);
+  console.log("   (구버전 구조용이면 정상 - 그 표식의 기기만 받는다)");
 }
