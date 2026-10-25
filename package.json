@@ -13,7 +13,9 @@
     "test": "jest",
     "ingest:draws": "tsx scripts/ingest/fetchDrawHistory.ts",
     "ingest:stores": "tsx scripts/ingest/fetchStores.ts",
-    "ingest:refresh-rankings": "tsx scripts/ingest/refreshRankingStats.ts"
+    "ingest:refresh-rankings": "tsx scripts/ingest/refreshRankingStats.ts",
+    "ota": "node scripts/deployOta.mjs",
+    "ota:verify": "node scripts/deployOta.mjs --verify-only"
   },
   "dependencies": {
     "@expo-google-fonts/space-grotesk": "^0.4.1",

@@ -1151,6 +1151,27 @@ export type Database = {
         }
         Relationships: []
       }
+      app_update_gates: {
+        Row: {
+          created_at: string
+          message: string
+          runtime_version: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          message: string
+          runtime_version: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          message?: string
+          runtime_version?: string
+          title?: string
+        }
+        Relationships: []
+      }
       draw_first_prize_methods: {
         Row: {
           draw_no: number

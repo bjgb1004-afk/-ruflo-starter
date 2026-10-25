@@ -40,6 +40,15 @@ Typecheck with `npx tsc --noEmit -p .`. The `.claude/`, `.claude-flow/`, `.swarm
 `--branch production`으로 올리면 아무 기기에도 안 간다(2026-09-03/09-23/10-13/10-18, 네 번 반복한 실수).
 
 ```bash
+npm run ota -- "무엇을 바꿨는지"
+```
+
+이 명령이 위 플래그를 다 박아서 쏘고, **쏜 뒤 전달 검증까지 같이 한다**(채널에 찍힌 런타임
+표식 vs 설치된 빌드의 표식). 표식이 다르면 큰 소리로 실패한다 — 10/21·10/22에 아무에게도
+안 가는 배포를 3일 동안 몰랐던 게 이 확인을 사람 손에 맡겨뒀기 때문이다.
+지금 상태만 보려면 `npm run ota:verify`. 날것으로 쏠 일이 있으면:
+
+```bash
 npx eas update --branch main --platform android --environment production --message "..."
 ```
 
@@ -69,16 +78,37 @@ npx eas update --branch main --platform android --environment production --messa
 읽기 쉬운 값("4" 같은 것)으로 바꿔도 된다 — 새 빌드부터는 어차피 새 표식이기 때문이다.
 
 런타임 표식이 갈라지면 **구버전 기기는 그 이후 어떤 OTA도 못 받는다.** 이건 안전장치지
-버그가 아니다. 다만 고립된 유저를 빼낼 사다리를 미리 놔야 한다:
+버그가 아니다.
 
-1. **부품을 바꾸기 전에**, 순수 JS 안내 배너("스토어에서 업데이트 해주세요")를 **현재 런타임에**
-   OTA로 먼저 배포한다. JS만이라 구버전도 받는다.
-2. 그 다음 네이티브 변경 빌드를 올린다.
-3. 그 빌드에 한해 `src/lib/inAppUpdate.ts`의 `IAUUpdateKind.FLEXIBLE` → `IMMEDIATE`로 바꾼다.
-   FLEXIBLE은 유저가 무시할 수 있어, 정말 고립되는 전환에선 빠져나오지 못한다.
+### 고립 탈출은 서버 한 줄로 한다 (2026-10-25부터)
 
-(2026-10-13 vc2→vc3 전환 때 1·3번을 안 해서 구버전 유저에게 탈출 경로가 없었다.
-실제 피해자는 0명이었음 — `eas update:insights <groupId>`로 확인 가능.)
+`app_update_gates` 표에 **그 구버전의 런타임 표식**을 한 줄 넣으면, 그 표식을 가진 앱에만
+"스토어에서 업데이트" 전체화면이 뜬다. 앱은 열 때마다 어차피 Supabase에 접속하므로
+OTA를 못 받는 폰에서도 이 조회만은 도착한다 — 배포도, 빌드도 필요 없다.
+
+```sql
+insert into public.app_update_gates (runtime_version, title, message) values
+  ('1.0.0', '업데이트가 필요합니다', '새 기능을 쓰려면 스토어에서 최신 버전을 받아주세요.');
+```
+
+줄을 지우면 안내도 사라진다. **줄이 없으면 아무 일도 안 일어난다** — 새 빌드를 내고 이 줄을
+넣는 걸 잊어도 최악이 "안내가 안 뜬다"일 뿐이다(옛 방식처럼 멀쩡한 유저를 막는 사고가
+구조적으로 불가능하다). 구현은 `src/features/appUpdate/`.
+
+**이게 동작하려면 번들이 양쪽 껍데기에서 다 떠야 한다.** 그래서 네이티브 모듈은 최상위
+import가 아니라 호출 시점 `require`로 가져온다(`src/lib/inAppUpdate.ts`,
+`src/features/ads/*`). 새 네이티브 의존성을 쓸 때도 이 규칙을 지킬 것 — 최상위에서
+import하면 구버전 폰에서 번들 로드 자체가 실패해 앱이 즉사하고, 그러면 탈출 안내도 못 뜬다.
+
+### 그래서 네이티브 빌드 전 점검은 두 줄이면 끝난다
+
+1. 새 네이티브 의존성을 **최상위 import로 쓰지 않았는지** (위 규칙)
+2. 빌드 후, 구버전 표식을 `app_update_gates`에 넣기 (지금 유저가 쓰는 표식은
+   `npm run ota:verify` 출력의 "유저 폰의 앱" 줄)
+
+(2026-10-13 vc2→vc3 전환 때는 이 장치가 없어서 구버전 유저에게 탈출 경로가 아예 없었다.
+당시 탈출 안내를 **새 빌드에** 넣는 실수를 했다 — 안내가 필요한 쪽은 못 받는 쪽이다.
+약 10%가 그렇게 남았다. 경과는 `tasks/lessons.md` 참고.)
 
 ## EAS Build Quota Management (Critical)
 

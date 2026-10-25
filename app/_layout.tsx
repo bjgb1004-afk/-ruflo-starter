@@ -23,6 +23,7 @@ import { useAuth } from "@/features/auth/useAuth";
 import { useFavoritesCloudSync } from "@/features/favorites/useFavoritesCloudSync";
 import { cleanupLegacyDrawReminders } from "@/features/mylotto/drawReminders";
 import { scheduleSpittoWeeklyReminder } from "@/features/spitto/weeklyReminder";
+import { UpdateGate } from "@/features/appUpdate/components/UpdateGate";
 import { useAutoCheckTickets } from "@/features/mylotto/useAutoCheckTickets";
 import { colors } from "@/constants/theme";
 // 지오펜스 백그라운드 태스크는 앱 로드 시점에 반드시 최상위에서 등록되어야
@@ -158,6 +159,10 @@ export default function RootLayout() {
           <Stack.Screen name="replay" options={{ title: "놓친 당첨금" }} />
           <Stack.Screen name="admin" options={{ title: "관리자" }} />
         </Stack>
+        {/* 구버전 껍데기에 갇힌 앱에만 뜨는 "스토어에서 업데이트" 전체화면. 서버에
+            해당 런타임 표식이 등록돼 있을 때만 그려지고, 평소엔 null이다. Stack
+            뒤에 둬서 탭바·헤더까지 덮는다 - 뒤 화면을 만질 수 있으면 안내가 아니다. */}
+        <UpdateGate />
       </PersistQueryClientProvider>
     </SafeAreaProvider>
   );
