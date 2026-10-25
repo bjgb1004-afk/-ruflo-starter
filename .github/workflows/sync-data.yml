@@ -167,18 +167,9 @@ jobs:
           npm run ingest:aggregate-generated
           echo "✅ Step 5 완료"
 
-      # 스피또는 로또와 무관한 부가 기능이라, 실패해도 위 단계들의 성공을 깎지 않는다.
-      # 스크립트 안에서 에러를 삼키지 않고 여기서 continue-on-error로 둔 이유는, 실패가
-      # 실행 이력에 노란 표시로 남아 나중에 눈에 띄게 하기 위함이다.
-      - name: 🎟️ 스피또 회차 현황 수집
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          cd ${{ env.WORKING_DIR }}
-          echo "📍 스피또 회차 현황 수집..."
-          npm run ingest:spitto
+      # 스피또 수집은 2026-10-25에 sync-spitto.yml로 떼어냈다. 고액 당첨 당일 반영을
+      # 따라가려고 하루 3회로 늘려야 했는데, 이 워크플로를 3배로 돌리면 동행복권 호출과
+      # 랭킹 재계산·푸시 발송까지 3배가 된다. 이유는 그 파일 머리말에 적어뒀다.
 
       - name: ✅ 성공
         if: success()
@@ -189,7 +180,6 @@ jobs:
           echo "  ✓ 당첨 회차/배출점 수집"
           echo "  ✓ 명당 랭킹 재계산"
           echo "  ✓ 생성 번호 성적 집계"
-          echo "  ✓ 스피또 회차 현황 (실패해도 위 단계는 유효)"
 
       - name: ❌ 실패 알림
         if: failure()

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getSellingSpittoRounds, type SpittoRound } from "@/features/spitto/api/spittoApi";
 import { describeStock, shouldSuggestCall } from "@/features/spitto/describeStock";
+import { describeFiguresAsOf } from "@/features/spitto/describeAsOf";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 function formatDate(iso: string | null): string | null {
@@ -83,13 +84,14 @@ export default function SpittoScreen() {
   const { data: rounds, isLoading, error } = useQuery({
     queryKey: ["spitto", "selling"],
     queryFn: getSellingSpittoRounds,
-    // 입고율·잔여수량은 금요일 기준 주 1회 갱신이라 자주 다시 받아올 이유가 없다.
+    // 입고율·잔여수량은 금요일 기준 주 1회 갱신이라 자주 다시 받아올 이유가 없다
+    // (2026-10-25 실측: 동행복권 변경일 6개가 전부 금요일, 간격 7일).
     staleTime: 60 * 60 * 1000,
     gcTime: 2 * 60 * 60 * 1000,
   });
 
   // 입고율·잔여수량이 "언제 기준"인지. 숫자만 보여주면 실시간으로 오해한다.
-  const asOf = rounds?.find((r) => r.figures_as_of)?.figures_as_of ?? null;
+  const asOfNote = describeFiguresAsOf(rounds?.find((r) => r.figures_as_of)?.figures_as_of);
 
   if (isLoading) {
     return (
@@ -121,12 +123,7 @@ export default function SpittoScreen() {
         ))
       )}
 
-      {asOf && (
-        <Text style={styles.footnote}>
-          * 입고율과 잔여수량은 동행복권이 {formatDate(asOf)}에 발표한 값이에요. 매일 바뀌지
-          않고 주 1회 갱신됩니다.
-        </Text>
-      )}
+      {asOfNote && <Text style={styles.footnote}>{asOfNote}</Text>}
     </ScrollView>
   );
 }

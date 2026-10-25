@@ -1,0 +1,69 @@
+name: 스피또 회차 현황 수집
+
+# 왜 sync-data.yml에서 떼어냈나 (2026-10-25):
+#   원래 스피또는 sync-data.yml의 마지막 스텝이었다. 수집을 하루 3회로 늘리려면 그 워크플로의
+#   cron을 늘려야 하는데, 거기엔 당첨회차 수집·배출점 보강·명당 랭킹 재계산·보관함 당첨 푸시
+#   발송이 같이 들어 있다. 3배로 돌리면 동행복권을 3배로 때려 차단 위험이 올라가고
+#   (과거 982회 연속 조회로 IP 차단 경험), 랭킹 재계산과 푸시 발송까지 하루 3번 돈다.
+#   스피또는 로또 파이프라인과 데이터가 전혀 안 겹치므로 따로 도는 게 맞다.
+#
+# 왜 하루 3회인가:
+#   동행복권은 입고율·잔여수량을 매주 금요일 주 1회 갱신하지만(실측: dataChgDt 6개가 전부
+#   금요일, 간격 7일), **1억 원 이상 고액 당첨금이 실물 검수·실지급까지 끝나면 그 건만 당일
+#   추가 반영**한다고 안내한다. 스피또 1등은 전 종류가 1억을 넘으므로 사실상 모든 1등이
+#   이 예외에 해당한다 - 즉 주중에도 1등 잔여가 줄어든다.
+#   하루 1회(03:00)면 그 변동을 최대 24시간 늦게 받는데, 그동안 앱은 "1등 1매 남음"이라고
+#   거짓을 보여준다. 그걸 보고 사러 가는 게 이 화면이 막으려던 손해 그 자체다.
+#   8시간 간격 3회면 지연이 최대 8시간으로 줄고, 동행복권 호출은 하루 3건뿐이다
+#   (차단 임계치는 연속 31회 근처로 봤다 - 근처도 아니다).
+#
+# 비용: 저장소가 Public이라 Actions 무료 무제한. 실행당 1~3분, 하루 3회 = 월 270분이지만
+#       Public은 과금 대상이 아니다. Private으로 바꾸면 월 2,000분 중 13.5%를 먹는다.
+
+on:
+  schedule:
+    - cron: '0 18 * * *'  # 03:00 KST
+    - cron: '0 2 * * *'   # 11:00 KST
+    - cron: '0 10 * * *'  # 19:00 KST
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '24'
+  WORKING_DIR: 'scripts/ingest'
+
+# 같은 시각에 두 번 깨어나도 둘이 동시에 같은 행을 덮어쓰지 않게 한다.
+concurrency:
+  group: sync-spitto
+  cancel-in-progress: false
+
+jobs:
+  sync-spitto:
+    name: 스피또 회차 현황
+    runs-on: ubuntu-latest
+    # 동행복권이 요청을 조용히 떨궈서 재시도 12회(5초 간격)가 붙어 있다. 최악 3분이지만
+    # 넉넉히 둔다.
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 저장소 클론
+        uses: actions/checkout@v4
+
+      - name: 🔧 Node.js 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: '${{ env.WORKING_DIR }}/package.json'
+
+      - name: 📦 의존성 설치
+        run: |
+          cd ${{ env.WORKING_DIR }}
+          npm ci
+
+      - name: 🎟️ 스피또 회차 현황 수집
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          cd ${{ env.WORKING_DIR }}
+          npm run ingest:spitto
