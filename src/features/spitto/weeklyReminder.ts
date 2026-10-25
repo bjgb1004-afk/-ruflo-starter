@@ -1,6 +1,6 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
-import { getSellingSpittoRounds, remainingRatio } from "@/features/spitto/api/spittoApi";
+import { getSpittoRounds, sellingRounds, remainingRatio } from "@/features/spitto/api/spittoApi";
 import { nextFridayEvening } from "@/features/spitto/nextFridayEvening";
 
 // 스피또 1등 잔여가 갱신되면 주 1회 알려준다.
@@ -38,8 +38,7 @@ export async function scheduleSpittoWeeklyReminder(): Promise<void> {
   const { granted } = await Notifications.getPermissionsAsync();
   if (!granted) return;
 
-  const rounds = await getSellingSpittoRounds();
-  const top = rounds[0];
+  const top = sellingRounds(await getSpittoRounds())[0];
   // 수집 전이거나 1등 잔여를 모르는 회차만 있으면 알릴 내용이 없다. 예약하지 않는다.
   if (!top || remainingRatio(top) < 0) return;
 

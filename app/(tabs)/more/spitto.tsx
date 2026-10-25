@@ -2,15 +2,35 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getSellingSpittoRounds, type SpittoRound } from "@/features/spitto/api/spittoApi";
+import { getSpittoRounds, sellingRounds, type SpittoRound } from "@/features/spitto/api/spittoApi";
 import { describeStock, shouldSuggestCall } from "@/features/spitto/describeStock";
 import { describeFiguresAsOf } from "@/features/spitto/describeAsOf";
+import { findClaimDeadlineWarning } from "@/features/spitto/claimDeadline";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 function formatDate(iso: string | null): string | null {
   if (!iso) return null;
   const [, month, day] = iso.split("-");
   return month && day ? `${Number(month)}월 ${Number(day)}일` : null;
+}
+
+/**
+ * 지급 마감 경고. 가진 복권이 휴지가 되는 쪽이 "어느 회차를 살까"보다 급하므로 맨 위에 둔다.
+ *
+ * **어디로 가서 바꾸라고는 쓰지 않는다.** 스피또 당첨금은 금액에 따라 판매점이냐 은행이냐가
+ * 갈리는데 그 경계를 확인하지 못했다. 틀리게 안내하면 헛걸음을 만든다 - "가져가세요"까지만
+ * 쓰고 정확한 수령처는 확인한 뒤에 붙인다.
+ */
+function ClaimDeadlineCard({ warning }: { warning: NonNullable<ReturnType<typeof findClaimDeadlineWarning>> }) {
+  return (
+    <View style={[styles.card, styles.urgentCard]}>
+      <Text style={styles.urgentHead}>⏰ {warning.headline}</Text>
+      <Text style={styles.urgentDetail}>{warning.detail}</Text>
+      <Text style={styles.urgentHint}>
+        이 회차 복권이 서랍에 있으면 긁어보고 가져가세요. 이 날이 지나면 당첨돼도 바꿀 수 없어요.
+      </Text>
+    </View>
+  );
 }
 
 function RoundCard({ round }: { round: SpittoRound }) {
@@ -81,17 +101,21 @@ function RoundCard({ round }: { round: SpittoRound }) {
 
 export default function SpittoScreen() {
   const insets = useSafeAreaInsets();
-  const { data: rounds, isLoading, error } = useQuery({
-    queryKey: ["spitto", "selling"],
-    queryFn: getSellingSpittoRounds,
+  const { data: all, isLoading, error } = useQuery({
+    queryKey: ["spitto", "rounds"],
+    queryFn: getSpittoRounds,
     // 입고율·잔여수량은 금요일 기준 주 1회 갱신이라 자주 다시 받아올 이유가 없다
     // (2026-10-25 실측: 동행복권 변경일 6개가 전부 금요일, 간격 7일).
     staleTime: 60 * 60 * 1000,
     gcTime: 2 * 60 * 60 * 1000,
   });
 
+  const rounds = all ? sellingRounds(all) : undefined;
+  // 판매가 끝난 회차에서 나온다 - 판매중 회차의 지급 기한은 1년 뒤라 급할 일이 없다.
+  const expiring = all ? findClaimDeadlineWarning(all) : null;
+
   // 입고율·잔여수량이 "언제 기준"인지. 숫자만 보여주면 실시간으로 오해한다.
-  const asOfNote = describeFiguresAsOf(rounds?.find((r) => r.figures_as_of)?.figures_as_of);
+  const asOfNote = describeFiguresAsOf(all?.find((r) => r.figures_as_of)?.figures_as_of);
 
   if (isLoading) {
     return (
@@ -106,6 +130,8 @@ export default function SpittoScreen() {
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
     >
+      {expiring && <ClaimDeadlineCard warning={expiring} />}
+
       <Text style={styles.heading}>지금 살 수 있는 스피또</Text>
       <Text style={styles.subheading}>
         1등이 많이 남은 회차를 위에 보여드려요. 이미 1등이 다 나간 회차를 피할 수 있어요.
@@ -174,4 +200,8 @@ const styles = StyleSheet.create({
   footText: { fontSize: 12, color: colors.textMuted },
   emptyText: { fontSize: 13, color: colors.textMuted, textAlign: "center", lineHeight: 19 },
   footnote: { fontSize: 11, color: colors.textMuted, lineHeight: 16, marginTop: spacing.xs },
+  urgentCard: { borderWidth: 1, borderColor: colors.seal, backgroundColor: colors.sealLight },
+  urgentHead: { fontSize: 15, fontWeight: "800", color: colors.seal, lineHeight: 21 },
+  urgentDetail: { fontSize: 13, fontWeight: "700", color: colors.textPrimary, lineHeight: 19 },
+  urgentHint: { fontSize: 12, color: colors.textSecondary, lineHeight: 18 },
 });
