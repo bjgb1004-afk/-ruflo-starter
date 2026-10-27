@@ -7,7 +7,9 @@ import { colors, spacing, radius, cardShadow } from "@/constants/theme";
 import { useResponsive, getResponsiveFontSize } from "@/utils/responsive";
 import { GENIUSES, upcomingDrawNo } from "@/features/generator/geniusGenerator";
 import {
+  comboKey,
   formatThreadPost,
+  GAMES_PER_SET,
   generateBandGames,
   generateDailyBandGames,
   kstDateKey,
@@ -47,8 +49,6 @@ import {
 } from "@/features/backtest/pascal";
 import { seededRng } from "@/features/backtest/engine";
 import { KOREA_LOTTO_6_45 } from "@/features/backtest/types";
-
-const LETTERS = ["A", "B", "C", "D", "E"];
 
 // 광고를 봐야 하는 버튼인지에 따라 문구가 달라진다. 유저가 누르기 전에 알아야 한다 -
 // 누르고 나서 광고가 뜨면 속은 기분이 든다(AdMob 정책도 유저가 고르게 하라고 요구한다).
@@ -199,8 +199,7 @@ function Scoreboard() {
         </Text>
       )}
       <Text style={styles.disclaimer}>
-        앱에서 나온 번호를 전부 세요. 실제로 샀는지는 앱이 알 수 없어서, 사지 않았다면 받을 수 없는 금액이에요. 당첨
-        확률은 어떤 조합이든 같아요.
+        앱에서 나온 번호를 전부 세요. 실제로 샀는지는 앱이 알 수 없어서, 사지 않았다면 받을 수 없는 금액이에요.
       </Text>
     </View>
   );
@@ -219,9 +218,14 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
   const [drawing, setDrawing] = useState(false);
 
   // 화면에 뜨는 모든 게임을 성적표 집계로 보낸다(오늘의 추천이든 다시 뽑기든) - 보관함에
-  // 저장하는 사람만 세면 표본이 너무 적어진다.
+  // 저장하는 사람만 세면 표본이 너무 적어진다. games는 다시 뽑아도 기존 게임을 그대로 쌓아가므로
+  // 지금까지 보낸 개수를 기억해 두고 새로 늘어난 뒤쪽만 보낸다(안 그러면 이전 게임을 또 센다).
+  const recordedCountRef = useRef(0);
   useEffect(() => {
-    recordGeneratedTickets(BAND_SOURCE, drawNo, games.map((g) => g.numbers));
+    if (games.length <= recordedCountRef.current) return;
+    const freshGames = games.slice(recordedCountRef.current);
+    recordedCountRef.current = games.length;
+    recordGeneratedTickets(BAND_SOURCE, drawNo, freshGames.map((g) => g.numbers));
   }, [games, drawNo]);
 
   const reroll = useCallback(async () => {
@@ -229,10 +233,13 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
     setDrawing(true);
     try {
       const permission = await requestDraw(BAND_SOURCE, drawNo);
-      setGames(generateBandGames());
+      setGames((prev) => {
+        const exclude = new Set(prev.map((g) => comboKey(g.numbers)));
+        return [...prev, ...generateBandGames(Math.random, GAMES_PER_SET, exclude)];
+      });
       setIsToday(false);
       const notice = drawNotice(permission);
-      if (notice) Alert.alert("새로 뽑았어요", notice);
+      if (notice) Alert.alert("5게임 더 뽑았어요", notice);
     } finally {
       setDrawing(false);
     }
@@ -260,8 +267,8 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
         </Text>
         <Text style={styles.subtitle}>
           {isToday
-            ? `오늘(${dateKey})의 추천 5게임이에요. 다시 뽑으면 나만의 번호가 나와요.`
-            : "방금 새로 뽑은 5게임이에요."}
+            ? `오늘(${dateKey})의 추천 5게임이에요. 다시 뽑으면 5게임이 더 나와요.`
+            : `지금까지 뽑은 ${games.length}게임이에요.`}
         </Text>
       </View>
 
@@ -273,7 +280,7 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
         {games.map((game, i) => (
           <View key={game.numbers.join(",")} style={styles.bandGame}>
             <View style={styles.gameRow}>
-              <Text style={styles.letter}>{LETTERS[i]}</Text>
+              <Text style={styles.letter}>{i + 1}</Text>
               <View style={styles.balls}>
                 {game.numbers.map((n) => (
                   <LottoBall key={n} number={n} size="small" />
@@ -309,7 +316,7 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
       </View>
 
       <Text style={styles.disclaimer}>
-        통계 참고용이며 당첨 확률을 높여주지 않습니다. 모든 번호 조합의 당첨 확률은 같아요.
+        통계 참고용이며 당첨 확률을 높여주지 않습니다.
       </Text>
     </>
   );
@@ -547,8 +554,6 @@ function RecipeAnalysis({
           : "",
         "",
         ...lines,
-        "",
-        "당첨 확률은 어떤 조합이든 같아요.",
       ].join("\n"),
     });
   }, [games, drawNo, analysis, method.title, recipe.candidateCount, compressed]);
@@ -730,7 +735,7 @@ function RecipeAnalysis({
       </View>
 
       <Text style={styles.disclaimer}>
-        {method.note} 모든 번호 조합의 당첨 확률은 1/8,145,060으로 같아요.
+        {method.note}
       </Text>
     </>
   );

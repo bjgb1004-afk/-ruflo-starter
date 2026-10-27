@@ -111,7 +111,7 @@ export default function TicketEntryScreen() {
       </Pressable>
 
       <Text style={styles.disclaimer}>
-        직접 적어둔 번호도 추첨 후 자동으로 맞춰봐 드려요. 모든 번호 조합의 당첨 확률은 같아요.
+        직접 적어둔 번호도 추첨 후 자동으로 맞춰봐 드려요.
       </Text>
     </ScrollView>
   );

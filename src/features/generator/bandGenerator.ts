@@ -124,7 +124,7 @@ export function seededRng(seed: string): Rng {
 
 // ---------- 생성 ----------
 
-function comboKey(numbers: readonly number[]): string {
+export function comboKey(numbers: readonly number[]): string {
   return [...numbers].sort((a, b) => a - b).join(",");
 }
 
@@ -143,8 +143,12 @@ function drawSix(rng: Rng): number[] {
  * 시도 상한에 걸리면(사실상 불가능) 만든 만큼만 돌려주지 않고 던진다 - 5게임이 아닌 결과가
  * 조용히 화면에 나가는 것보다 드러내는 편이 낫다.
  */
-export function generateBandGames(rng: Rng = Math.random, count: number = GAMES_PER_SET): BandGame[] {
-  const used = new Set<string>();
+export function generateBandGames(
+  rng: Rng = Math.random,
+  count: number = GAMES_PER_SET,
+  exclude: ReadonlySet<string> = new Set(),
+): BandGame[] {
+  const used = new Set<string>(exclude);
   const games: BandGame[] = [];
 
   while (games.length < count) {
@@ -250,7 +254,7 @@ export function formatThreadPost(
   const title = drawNo ? `${drawNo}회 번호대 분석 5게임` : "오늘의 번호대 분석 5게임";
   const head = [dateKey ? `${title} (${dateKey})` : title, ""];
   const body = games.map((g, i) => `${LETTERS[i]} ${joinNumbers(g.numbers)} | ${g.bandPattern} | 저고 ${g.lowHighRatio}`);
-  const tail = ["", "구간 분포와 저고 비율을 맞춰 뽑은 번호예요. 당첨 확률은 어떤 조합이든 같아요.", "#로또 #번호생성 #번호대분석"];
+  const tail = ["", "구간 분포와 저고 비율을 맞춰 뽑은 번호예요.", "#로또 #번호생성 #번호대분석"];
   return fitToLimit(head, body, tail, THREAD_MAX_CHARS);
 }
 
