@@ -23,17 +23,10 @@ export function groupTicketsByDraw(tickets: MyLottoTicket[]): TicketGroup[] {
   return [...map.values()].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
 }
 
-// 게임 라벨(A,B,C...)은 실제 용지(한 번의 QR 스캔=groupId) 경계마다 A로 리셋돼야 한다.
-// 한 회차에 여러 장을 스캔했을 때 전체 게임을 이어서 A~J로 매기면 어느 용지가 몇 게임인지
-// 알 수 없다 - 5게임 고정으로 자르면 3게임만 산 용지가 섞였을 때 다시 어긋나므로, 실제
-// 스캔 단위인 groupId를 그대로 경계로 쓴다. groupId가 없는 구버전 티켓은 id로 대체해
-// 각자 단독 용지로 취급한다(useMyLottoTickets.ts의 groupId 주석 참고).
+// 원래는 실제 용지 경계(한 번의 QR 스캔=groupId)마다 A로 리셋해 인쇄된 A/B/C 게임 표기를
+// 그대로 보여줬다. 그런데 용지를 따로따로 저장(수동 입력, 낱장 스캔)하면 매번 groupId가
+// 새로 발급되어 A만 계속 반복되고, 번호를 여러 개 보관할수록 몇 번째 게임인지 전혀
+// 구분이 안 된다는 피드백을 받았다 - 저장한 순서대로 그냥 1, 2, 3...으로 센다.
 export function withGameLabel(tickets: MyLottoTicket[]): { ticket: MyLottoTicket; label: string }[] {
-  const counters = new Map<string, number>();
-  return tickets.map((t) => {
-    const key = t.groupId ?? t.id;
-    const idx = counters.get(key) ?? 0;
-    counters.set(key, idx + 1);
-    return { ticket: t, label: String.fromCharCode(65 + idx) };
-  });
+  return tickets.map((ticket, idx) => ({ ticket, label: String(idx + 1) }));
 }
