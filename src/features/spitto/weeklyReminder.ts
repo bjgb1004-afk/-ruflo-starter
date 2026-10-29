@@ -2,6 +2,7 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { getSpittoRounds, sellingRounds, remainingRatio } from "@/features/spitto/api/spittoApi";
 import { nextFridayEvening } from "@/features/spitto/nextFridayEvening";
+import { useNotificationSettings } from "@/features/notifications/useNotificationSettings";
 
 // 스피또 1등 잔여가 갱신되면 주 1회 알려준다.
 //
@@ -35,6 +36,8 @@ async function ensureChannel() {
  * 침입적이고, 거절당하면 정작 중요한 추첨 알림까지 같이 막힌다. 이미 허용한 사람에게만 간다.
  */
 export async function scheduleSpittoWeeklyReminder(): Promise<void> {
+  if (!useNotificationSettings.getState().spittoWeekly) return;
+
   const { granted } = await Notifications.getPermissionsAsync();
   if (!granted) return;
 
@@ -64,4 +67,9 @@ export async function scheduleSpittoWeeklyReminder(): Promise<void> {
       date: nextFridayEvening(new Date()),
     },
   });
+}
+
+/** 설정에서 이 알림을 끌 때 즉시 예약을 취소한다 - 끈 뒤에도 이미 잡힌 알림은 그대로 울린다. */
+export async function cancelSpittoWeeklyReminder(): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync(REMINDER_ID).catch(() => {});
 }

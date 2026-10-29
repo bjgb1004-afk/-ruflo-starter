@@ -23,6 +23,7 @@ import { useAuth } from "@/features/auth/useAuth";
 import { useFavoritesCloudSync } from "@/features/favorites/useFavoritesCloudSync";
 import { cleanupLegacyDrawReminders } from "@/features/mylotto/drawReminders";
 import { scheduleSpittoWeeklyReminder } from "@/features/spitto/weeklyReminder";
+import { scheduleRankingWeeklyReminder } from "@/features/stores/rankingWeeklyReminder";
 import { UpdateGate } from "@/features/appUpdate/components/UpdateGate";
 import { useAutoCheckTickets } from "@/features/mylotto/useAutoCheckTickets";
 import { colors } from "@/constants/theme";
@@ -85,6 +86,7 @@ export default function RootLayout() {
     // 다음 금요일 스피또 알림을 그때의 최신 숫자로 다시 예약한다. identifier가 고정이라
     // 여러 번 열어도 쌓이지 않는다. 알림 권한이 없으면 아무것도 안 하고 조용히 끝난다.
     scheduleSpittoWeeklyReminder().catch((err) => reportError(err, "spitto-weekly-reminder"));
+    scheduleRankingWeeklyReminder().catch((err) => reportError(err, "ranking-weekly-reminder"));
   }, [initAuth]);
 
   // 화면 전환마다 몇명이 어디를 보는지 재려고 경로가 바뀔 때마다 한 번씩 기록한다.

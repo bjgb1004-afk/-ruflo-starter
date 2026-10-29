@@ -19,6 +19,9 @@ import { useAuth } from "@/features/auth/useAuth";
 import { GeofenceToggle } from "@/features/geofencing/GeofenceToggle";
 import { GEOFENCE_DEBUG_LOG_KEY } from "@/features/geofencing/geofenceTask";
 import { useScanSettings } from "@/features/mylotto/useScanSettings";
+import { useNotificationSettings } from "@/features/notifications/useNotificationSettings";
+import { cancelSpittoWeeklyReminder } from "@/features/spitto/weeklyReminder";
+import { cancelRankingWeeklyReminder } from "@/features/stores/rankingWeeklyReminder";
 import { ADMIN_EMAILS, PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from "@/constants/config";
 import { colors } from "@/constants/theme";
 import { useResponsive, getResponsiveSpacing, getResponsiveFontSize } from "@/utils/responsive";
@@ -36,6 +39,26 @@ export default function SettingsScreen() {
   const signUp = useAuth((s) => s.signUp);
   const autoCapture = useScanSettings((s) => s.autoCapture);
   const setAutoCapture = useScanSettings((s) => s.setAutoCapture);
+  const spittoWeekly = useNotificationSettings((s) => s.spittoWeekly);
+  const setSpittoWeekly = useNotificationSettings((s) => s.setSpittoWeekly);
+  const rankingWeekly = useNotificationSettings((s) => s.rankingWeekly);
+  const setRankingWeekly = useNotificationSettings((s) => s.setRankingWeekly);
+
+  const handleToggleSpittoWeekly = useCallback(
+    (v: boolean) => {
+      setSpittoWeekly(v);
+      if (!v) cancelSpittoWeeklyReminder();
+    },
+    [setSpittoWeekly],
+  );
+
+  const handleToggleRankingWeekly = useCallback(
+    (v: boolean) => {
+      setRankingWeekly(v);
+      if (!v) cancelRankingWeeklyReminder();
+    },
+    [setRankingWeekly],
+  );
 
   // 카운트는 useState로 둬서 로직을 명시적으로 추적 가능하게 하고, 매 탭마다 setTimeout으로
   // 리셋 타이머를 다시 예약한다 - 2초 안에 다음 탭이 없으면 자동으로 0으로 되돌아간다.
@@ -159,6 +182,28 @@ export default function SettingsScreen() {
             {geofenceDebugLog}
           </Text>
         )}
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleTextGroup}>
+            <Text style={[styles.toggleTitle, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
+              스피또 주간 알림
+            </Text>
+            <Text style={[styles.toggleSubtitle, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
+              매주 금요일, 1등 잔여 현황을 알려드려요
+            </Text>
+          </View>
+          <Switch value={spittoWeekly} onValueChange={handleToggleSpittoWeekly} />
+        </View>
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleTextGroup}>
+            <Text style={[styles.toggleTitle, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
+              명당 랭킹 알림
+            </Text>
+            <Text style={[styles.toggleSubtitle, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
+              매주 일요일, 즐겨찾기한 매장의 순위를 알려드려요
+            </Text>
+          </View>
+          <Switch value={rankingWeekly} onValueChange={handleToggleRankingWeekly} />
+        </View>
       </View>
 
       {/* 스캔 설정 */}
@@ -287,6 +332,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     marginHorizontal: 16,
+    marginTop: 8,
     borderRadius: 10,
     gap: 12,
   },
