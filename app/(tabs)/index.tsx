@@ -8,12 +8,11 @@ import { useNearbyStores } from "@/features/map/hooks/useNearbyStores";
 import { StoreMapView } from "@/features/map/components/StoreMapView";
 import { TopStoresCarousel } from "@/features/map/components/TopStoresCarousel";
 import { searchStores, type StoreSearchResult } from "@/features/stores/api/storesApi";
-import { NewWinnerBanner } from "@/features/draws/components/NewWinnerBanner";
 import { NoticeCard } from "@/features/notices/components/NoticeCard";
-import { SpittoRoundBanner } from "@/features/spitto/components/SpittoRoundBanner";
+import { HomeBannerCarousel } from "@/features/map/components/HomeBannerCarousel";
 import { getLatestFirstPrizeWinners } from "@/features/draws/api/drawHistoryApi";
 import { useFavorites } from "@/features/favorites/useFavorites";
-import { DEFAULT_SEARCH_RADIUS_M } from "@/constants/config";
+import { DEFAULT_SEARCH_RADIUS_M, DEFAULT_MAP_CENTER } from "@/constants/config";
 import { colors, spacing, radius, cardShadow } from "@/constants/theme";
 import { useResponsive, getResponsiveSpacing, getResponsiveFontSize } from "@/utils/responsive";
 
@@ -58,8 +57,13 @@ export default function MapScreen() {
   useEffect(() => {
     if (location && !queryCenter) {
       setQueryCenter({ latitude: location.coords.latitude, longitude: location.coords.longitude });
+    } else if (locationError && !queryCenter) {
+      // 위치 권한을 거부해도 지도가 빈 화면("설정 가세요"만 뜨는 막다른 길)이 되지 않도록
+      // 서울시청 기준으로라도 지도와 주변 명당을 보여준다. 거부=앱이 쓸모없다는 인상을
+      // 주는 게 설치 직후 이탈(18%)의 유력한 원인이었다.
+      setQueryCenter(DEFAULT_MAP_CENTER);
     }
-  }, [location, queryCenter]);
+  }, [location, locationError, queryCenter]);
 
   // 핀치 줌이나 마커 탭 후 카메라가 미세하게 움직이는 것까지 매번 재조회하면, 마커 전체가
   // 다시 그려지면서 방금 연 말풍선이 닫히고 "화면이 리셋"되는 것처럼 보인다.
@@ -176,8 +180,8 @@ export default function MapScreen() {
 
   const center = useMemo(
     () => ({
-      latitude: location?.coords.latitude ?? 0,
-      longitude: location?.coords.longitude ?? 0,
+      latitude: location?.coords.latitude ?? DEFAULT_MAP_CENTER.latitude,
+      longitude: location?.coords.longitude ?? DEFAULT_MAP_CENTER.longitude,
     }),
     [location?.coords.latitude, location?.coords.longitude],
   );
@@ -200,18 +204,10 @@ export default function MapScreen() {
     );
   }
 
-  if (locationError) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.locationErrorText}>위치 권한이 필요합니다: {locationError}</Text>
-        <Pressable style={styles.locationErrorButton} onPress={() => Linking.openSettings()}>
-          <Text style={styles.locationErrorButtonText}>설정에서 권한 허용하기</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  if (!location || isLoading) {
+  // 위치 권한을 거부해도 더 기다리지 않는다 - location은 영원히 안 채워지므로, 여기서
+  // 막으면 "위치 권한이 필요합니다"만 보이는 막다른 화면이 된다. 서울시청 기준 queryCenter로
+  // 바로 내려가 지도와 주변 명당을 보여주고, 권한 안내는 화면 위 작은 배너로만 띄운다.
+  if ((!location && !locationError) || isLoading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
@@ -250,11 +246,18 @@ export default function MapScreen() {
         </View>
       </Modal>
       <View style={styles.container}>
+      {locationError && (
+        <Pressable style={styles.locationNotice} onPress={() => Linking.openSettings()}>
+          <Text style={styles.locationNoticeText}>
+            📍 지금은 서울시청 기준으로 보여드리고 있어요 · 설정에서 위치 권한을 허용하면 내 주변으로 바로 바뀌어요
+          </Text>
+        </Pressable>
+      )}
+
       {!isSearchMode && (
         <>
           <NoticeCard />
-          <NewWinnerBanner />
-          <SpittoRoundBanner />
+          <HomeBannerCarousel />
         </>
       )}
 
@@ -338,15 +341,15 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   loadingText: { marginTop: spacing.sm, color: colors.textMuted, fontSize: 13 },
   emptyText: { color: colors.textMuted, fontSize: 14 },
-  locationErrorText: { paddingHorizontal: spacing.lg, textAlign: "center", color: colors.textMuted },
-  locationErrorButton: {
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.lg,
+  locationNotice: {
+    backgroundColor: colors.primary,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.md,
-    backgroundColor: colors.primary,
   },
-  locationErrorButtonText: { color: "#fff", fontWeight: "700" },
+  locationNoticeText: { color: "#fff", fontSize: 12, fontWeight: "600" },
   modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.5)" },
   modalBackdropTouchable: { ...StyleSheet.absoluteFillObject },
   modalCard: {
