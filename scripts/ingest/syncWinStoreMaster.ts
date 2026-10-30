@@ -19,10 +19,17 @@ import { normalizeAddress } from "./lib/addressNormalizer";
 import { STORE_ID_NAMESPACE } from "./lib/storeId";
 import { buildGrid, findCandidates } from "./lib/storeMatcher";
 import { loadAllStores } from "./lib/loadStores";
+import { isDroppedRequest } from "./lib/isDroppedRequest";
 
 const DRY_RUN = process.env.DRY_RUN === "1";
 const REFERER = "https://www.lottorich.co.kr/lotto/lotto_store/index.html";
 const USER_AGENT = "Mozilla/5.0 (compatible; LottoMapEnrichBot/1.0; +personal-project)";
+
+// lottorich도 가끔 연결 단계에서 응답을 떨군다(2026-10-29 실행 실패가 그 예). 재시도가
+// 없으면 하루치 동기화 전체가 그 한 번의 운으로 죽는다 - fetchSpittoRounds.ts와 같은 판단.
+const MAX_ATTEMPTS = 6;
+const RETRY_DELAY_MS = 5_000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 interface CumulativeRaw {
   name?: string;
@@ -104,12 +111,26 @@ function coordMatchesSido(
   return false;
 }
 
-async function fetchCumulative(rank: 1 | 2): Promise<CumulativeRaw[]> {
+async function fetchCumulativeOnce(rank: 1 | 2): Promise<CumulativeRaw[]> {
   const url = `https://www.lottorich.co.kr/lotto/lotto_store/proc.html?mode=list&seq=0&rank=${rank}&pg=1&item_num=30000`;
   const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Referer: REFERER } });
   if (!res.ok) throw new Error(`lottorich 누적 조회 실패(rank ${rank}): HTTP ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   return JSON.parse(iconv.decode(buf, "euc-kr")) as CumulativeRaw[];
+}
+
+async function fetchCumulative(rank: 1 | 2): Promise<CumulativeRaw[]> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetchCumulativeOnce(rank);
+    } catch (err) {
+      if (!isDroppedRequest(err) || attempt >= MAX_ATTEMPTS) throw err;
+      console.warn(
+        `⚠️  rank ${rank} ${attempt}/${MAX_ATTEMPTS}번째 시도 실패 - ${RETRY_DELAY_MS / 1000}초 뒤 다시 시도한다. lottorich가 간헐적으로 응답을 떨군다.`,
+      );
+      await sleep(RETRY_DELAY_MS);
+    }
+  }
 }
 
 interface NewStore {
