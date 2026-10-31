@@ -3,6 +3,8 @@ import { ActivityIndicator, ScrollView, View, Text, Pressable, StyleSheet, Share
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { LottoBall } from "@/components/LottoBall";
+import { useAuth } from "@/features/auth/useAuth";
+import { ADMIN_EMAILS } from "@/constants/config";
 import { colors, spacing, radius, cardShadow } from "@/constants/theme";
 import { useResponsive, getResponsiveFontSize } from "@/utils/responsive";
 import { GENIUSES, upcomingDrawNo } from "@/features/generator/geniusGenerator";
@@ -215,17 +217,22 @@ const LIVE_ROW_LIMIT = 5;
 // 추첨 전이라 등수·당첨금이 없다 - "많이 나온 순서"일 뿐 당첨 확률과는 상관없다는 점을
 // 고지문에 꼭 넣어야 한다("확률이 높다"로 읽히면 geniusGenerator.ts의 원칙과 어긋난다).
 function LivePopularity({ drawNo }: { drawNo: number }) {
+  // 아직 다듬는 중이라 관리자 계정에만 먼저 보여준다 - 일반 유저는 그대로 둔다.
+  // 전체 공개할 준비가 되면 이 체크만 지우면 된다.
+  const user = useAuth((s) => s.user);
+  const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email);
   const { data } = useQuery({
     queryKey: ["generator", "live-popularity", drawNo],
     queryFn: () => getLiveGeneratedStats(drawNo),
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
+    enabled: isAdmin,
   });
   const rows = useMemo(
     () => (data?.bySource ?? []).filter((s) => s.games > 0).sort((a, b) => b.games - a.games),
     [data],
   );
-  if (rows.length === 0) return null;
+  if (!isAdmin || rows.length === 0) return null;
   const shown = rows.slice(0, LIVE_ROW_LIMIT);
   const hidden = rows.length - shown.length;
 
