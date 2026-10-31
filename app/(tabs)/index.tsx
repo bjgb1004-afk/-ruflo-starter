@@ -34,7 +34,7 @@ export default function MapScreen() {
   // guideCheckDone이 영원히 false로 남아 아래 locationError 분기가 스피너에서 못 빠져나왔다
   // (권한을 거부한 재방문 사용자가 무한 로딩에 갇히는 버그).
   const [guideCheckDone, setGuideCheckDone] = useState(false);
-  const { location, error: locationError } = useCurrentLocation();
+  const { location, error: locationError, canAskAgain, retry: retryLocation } = useCurrentLocation();
 
   // 앱 첫 진입 시 한 번만 위치 권한 안내 모달 표시
   useEffect(() => {
@@ -247,9 +247,17 @@ export default function MapScreen() {
       </Modal>
       <View style={styles.container}>
       {locationError && (
-        <Pressable style={styles.locationNotice} onPress={() => Linking.openSettings()}>
+        // canAskAgain이면(흔히는 안드로이드 "이번만 허용"이 앱 재시작 때마다 풀린 경우) 설정
+        // 화면을 안 거치고 바로 재요청 다이얼로그를 띄운다 - "다시 묻지 않음"으로 완전히
+        // 거부된 경우만 설정으로 보낸다.
+        <Pressable
+          style={styles.locationNotice}
+          onPress={canAskAgain ? retryLocation : () => Linking.openSettings()}
+        >
           <Text style={styles.locationNoticeText}>
-            📍 지금은 서울시청 기준으로 보여드리고 있어요 · 설정에서 위치 권한을 허용하면 내 주변으로 바로 바뀌어요
+            {canAskAgain
+              ? "📍 지금은 서울시청 기준으로 보여드리고 있어요 · 눌러서 위치 권한을 허용하면 내 주변으로 바로 바뀌어요"
+              : "📍 지금은 서울시청 기준으로 보여드리고 있어요 · 설정에서 위치 권한을 허용하면 내 주변으로 바로 바뀌어요"}
           </Text>
         </Pressable>
       )}
