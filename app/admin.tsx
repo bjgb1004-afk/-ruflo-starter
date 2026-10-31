@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import { getAdminOverview } from "@/features/admin/api/adminApi";
 import { ADMIN_EMAILS } from "@/constants/config";
+import { Scoreboard, sourceLabel } from "./(tabs)/more/generator";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 function formatDrawDate(dateStr: string): string {
@@ -115,12 +116,14 @@ export default function AdminScreen() {
         ) : (
           data.liveGenerated.bySource.map((item) => (
             <View key={item.source} style={styles.row}>
-              <Text style={styles.rowLabel}>{item.source}</Text>
+              <Text style={styles.rowLabel}>{sourceLabel(item.source)}</Text>
               <Text style={styles.rowValue}>{item.games.toLocaleString()}게임</Text>
             </View>
           ))
         )}
       </View>
+
+      <Scoreboard />
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>최근 7일 오류 (기능별)</Text>

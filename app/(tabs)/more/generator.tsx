@@ -117,7 +117,7 @@ function won(amount: number): string {
 
 // 집계에 들어간 코너 이름을 사람이 읽는 말로 바꾼다. 모르는 값이 와도 화면이 깨지지 않게
 // 그대로 돌려준다(새 코너를 추가하고 이 함수를 깜빡해도 숫자는 보여야 한다).
-function sourceLabel(source: string): string {
+export function sourceLabel(source: string): string {
   if (source === BAND_SOURCE) return "번호대 분석";
   const [kind, id] = source.split(":");
   if (kind === "genius") return `천재들의 한수 · ${GENIUSES.find((g) => g.id === id)?.name ?? id}`;
@@ -136,7 +136,10 @@ function rankCountOf(t: GeneratorTotals, rank: (typeof RANKS)[number]): number {
 // 고장처럼 보인다.
 const SOURCE_ROW_LIMIT = 5;
 
-function Scoreboard() {
+// 관리자 화면(app/admin.tsx)도 이 성적표를 그대로 가져다 쓴다 - 집계 로직과 "다음 회차가
+// 집계되기 전까지 지난 결과를 유지한다"는 동작(getGeneratorStats가 마지막으로 집계된
+// drawNo를 돌려줄 뿐이라 자동으로 그렇게 된다)을 중복 구현하지 않기 위해서다.
+export function Scoreboard() {
   const { data } = useQuery({
     queryKey: ["generator", "stats"],
     queryFn: getGeneratorStats,

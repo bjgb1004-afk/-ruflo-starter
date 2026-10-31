@@ -514,7 +514,7 @@ export default function ScanScreen() {
                 <ScrollView style={styles.checkScroll}>
                   {result.games.map((g, idx) => (
                     <View key={idx} style={styles.checkGameRow}>
-                      <Text style={styles.checkGameIndex}>{String.fromCharCode(65 + idx)}</Text>
+                      <Text style={styles.checkGameIndex}>{idx + 1}</Text>
                       <TicketNumberRow numbers={g.numbers} winningSet={null} ballSize="small" containerStyle={styles.checkGameBalls} />
                     </View>
                   ))}
@@ -540,7 +540,7 @@ export default function ScanScreen() {
                     <ScrollView style={styles.checkScroll}>
                       {result.games.map((g, idx) => (
                         <View key={idx} style={styles.checkGameRow}>
-                          <Text style={styles.checkGameIndex}>{String.fromCharCode(65 + idx)}</Text>
+                          <Text style={styles.checkGameIndex}>{idx + 1}</Text>
                           <TicketNumberRow
                             numbers={g.numbers}
                             winningSet={winningSet}

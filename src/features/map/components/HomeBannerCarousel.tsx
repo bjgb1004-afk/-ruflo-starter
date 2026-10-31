@@ -114,7 +114,9 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel() {
   return (
     <Animated.View style={{ opacity }}>
       <Pressable style={[styles.banner, current.urgent && styles.urgent]} onPress={handlePress}>
-        <Text style={[styles.text, current.urgent && styles.urgentText]}>{current.text}</Text>
+        <Text style={[styles.text, current.urgent && styles.urgentText]} numberOfLines={1} ellipsizeMode="tail">
+          {current.text}
+        </Text>
       </Pressable>
     </Animated.View>
   );
@@ -128,8 +130,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md + 2,
     paddingVertical: spacing.sm + 2,
     borderRadius: radius.md,
+    // 평소엔 테두리가 없고 urgent일 때만 1px 테두리가 붙으면 그만큼 칸 높이가 바뀌어
+    // 아래 지도의 검색창이 번갈아 뜨는 배너마다 조금씩 움직인다 - 항상 투명 테두리를
+    // 깔아 두고 urgent일 때 색만 바꾼다.
+    borderWidth: 1,
+    borderColor: "transparent",
   },
   text: { fontSize: 13, color: colors.primaryDark, fontWeight: "600" },
-  urgent: { backgroundColor: colors.sealLight, borderWidth: 1, borderColor: colors.seal },
+  urgent: { backgroundColor: colors.sealLight, borderColor: colors.seal },
   urgentText: { color: colors.seal, fontWeight: "700" },
 });
