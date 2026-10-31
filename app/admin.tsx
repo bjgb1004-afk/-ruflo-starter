@@ -6,7 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import { getAdminOverview } from "@/features/admin/api/adminApi";
 import { ADMIN_EMAILS } from "@/constants/config";
-import { Scoreboard, sourceLabel } from "./(tabs)/more/generator";
+import { Scoreboard } from "@/features/generator/components/Scoreboard";
+import { sourceLabel } from "@/features/generator/sourceLabel";
 import { colors, spacing, radius, cardShadow, numericFont } from "@/constants/theme";
 
 function formatDrawDate(dateStr: string): string {

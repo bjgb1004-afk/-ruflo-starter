@@ -7,7 +7,7 @@ import { useAuth } from "@/features/auth/useAuth";
 import { ADMIN_EMAILS } from "@/constants/config";
 import { colors, spacing, radius, cardShadow } from "@/constants/theme";
 import { useResponsive, getResponsiveFontSize } from "@/utils/responsive";
-import { GENIUSES, upcomingDrawNo } from "@/features/generator/geniusGenerator";
+import { upcomingDrawNo } from "@/features/generator/geniusGenerator";
 import {
   comboKey,
   formatThreadPost,
@@ -22,12 +22,9 @@ import { AdBanner } from "@/features/ads/AdBanner";
 import { needsAdForDraw, requestDraw, type DrawPermission } from "@/features/generator/requestDraw";
 import { useDrawCredits } from "@/features/generator/useDrawCredits";
 import { BAND_SOURCE, mathSource, recordGeneratedTickets } from "@/features/generator/recordGeneratedTickets";
-import {
-  getGeneratorStats,
-  totalHits,
-  type GeneratorTotals,
-} from "@/features/generator/api/generatorStatsApi";
 import { getLiveGeneratedStats } from "@/features/generator/api/liveGeneratedApi";
+import { Scoreboard } from "@/features/generator/components/Scoreboard";
+import { MATH_CHIPS, sourceLabel } from "@/features/generator/sourceLabel";
 import { getDrawsForBacktest } from "@/features/backtest/api/backtestDrawsApi";
 import {
   ARCHIMEDES_RECIPE,
@@ -112,104 +109,7 @@ export default function GeneratorScreen() {
   );
 }
 
-// ---------- 앱 성적표 ----------
-
-function won(amount: number): string {
-  return `${amount.toLocaleString("ko-KR")}원`;
-}
-
-// 집계에 들어간 코너 이름을 사람이 읽는 말로 바꾼다. 모르는 값이 와도 화면이 깨지지 않게
-// 그대로 돌려준다(새 코너를 추가하고 이 함수를 깜빡해도 숫자는 보여야 한다).
-export function sourceLabel(source: string): string {
-  if (source === BAND_SOURCE) return "번호대 분석";
-  const [kind, id] = source.split(":");
-  if (kind === "genius") return `천재들의 한수 · ${GENIUSES.find((g) => g.id === id)?.name ?? id}`;
-  if (kind === "math") return `수학 분석 · ${ANALYSIS_METHODS.find((m) => m.recipe.id === id)?.chip ?? id}`;
-  return source;
-}
-
-const RANKS = [1, 2, 3, 4, 5] as const;
-
-function rankCountOf(t: GeneratorTotals, rank: (typeof RANKS)[number]): number {
-  return rank === 1 ? t.rank1 : rank === 2 ? t.rank2 : rank === 3 ? t.rank3 : rank === 4 ? t.rank4 : t.rank5;
-}
-
-// 앱에서 나간 번호가 실제로 몇 등을 했는지. 추첨 후 배치가 집계한 값만 읽는다.
-// 집계된 회차가 하나도 없으면(첫 추첨 전) 카드를 아예 띄우지 않는다 - 0으로 가득한 표는
-// 고장처럼 보인다.
-const SOURCE_ROW_LIMIT = 5;
-
-// 관리자 화면(app/admin.tsx)도 이 성적표를 그대로 가져다 쓴다 - 집계 로직과 "다음 회차가
-// 집계되기 전까지 지난 결과를 유지한다"는 동작(getGeneratorStats가 마지막으로 집계된
-// drawNo를 돌려줄 뿐이라 자동으로 그렇게 된다)을 중복 구현하지 않기 위해서다.
-export function Scoreboard() {
-  const { data } = useQuery({
-    queryKey: ["generator", "stats"],
-    queryFn: getGeneratorStats,
-    staleTime: 10 * 60 * 1000,
-  });
-  if (!data || data.drawNo == null) return null;
-
-  const hits = totalHits(data.round);
-  const rows = data.bySource.filter((s) => s.games > 0);
-  const shown = rows.slice(0, SOURCE_ROW_LIMIT);
-  const hidden = rows.length - shown.length;
-
-  return (
-    <View style={styles.scoreCard}>
-      <Text style={styles.scoreTitle}>{data.drawNo}회 앱 성적표</Text>
-      <Text style={styles.subtitle}>
-        앱에서 나간 번호 {data.round.games.toLocaleString("ko-KR")}게임 · 당첨 {hits.toLocaleString("ko-KR")}건
-      </Text>
-
-      <View style={styles.rankRow}>
-        {RANKS.map((rank) => (
-          <View key={rank} style={styles.rankCell}>
-            <Text style={styles.rankLabel}>{rank}등</Text>
-            <Text style={[styles.rankValue, rankCountOf(data.round, rank) > 0 && styles.rankValueHit]}>
-              {rankCountOf(data.round, rank).toLocaleString("ko-KR")}
-            </Text>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.moneyRow}>
-        <Text style={styles.moneyLabel}>이번 회차 당첨금</Text>
-        <Text style={styles.moneyValue}>{won(data.round.prizeTotal)}</Text>
-      </View>
-      <View style={styles.moneyRow}>
-        <Text style={styles.moneyLabel}>
-          누적 당첨금
-          {data.cumulative.fromDrawNo != null ? ` (${data.cumulative.fromDrawNo}회부터 ${data.cumulative.rounds}회차)` : ""}
-        </Text>
-        <Text style={styles.moneyValue}>{won(data.cumulative.prizeTotal)}</Text>
-      </View>
-
-      {shown.map((row) => (
-        <View key={row.source} style={styles.sourceRow}>
-          <Text style={styles.sourceName} numberOfLines={1}>
-            {sourceLabel(row.source)}
-          </Text>
-          <Text style={styles.sourceValue}>
-            {row.games.toLocaleString("ko-KR")}게임 · 당첨 {totalHits(row).toLocaleString("ko-KR")}건 ·{" "}
-            {won(row.prizeTotal)}
-          </Text>
-        </View>
-      ))}
-      {hidden > 0 && <Text style={styles.subtitle}>외 {hidden}개 코너</Text>}
-
-      {data.round.prizeUnknown > 0 && (
-        <Text style={styles.disclaimer}>
-          이 중 {data.round.prizeUnknown}건은 1~3등 1인 당첨금이 아직 공개되지 않아 합계에서 빠졌어요. 0원을 받았다는
-          뜻이 아니에요.
-        </Text>
-      )}
-      <Text style={styles.disclaimer}>
-        앱에서 나온 번호를 전부 세요. 실제로 샀는지는 앱이 알 수 없어서, 사지 않았다면 받을 수 없는 금액이에요.
-      </Text>
-    </View>
-  );
-}
+// ---------- 지금 인기 ----------
 
 const LIVE_ROW_LIMIT = 5;
 
@@ -413,7 +313,7 @@ interface AnalysisMethod {
 const ANALYSIS_METHODS: readonly AnalysisMethod[] = [
   {
     recipe: ARCHIMEDES_RECIPE,
-    chip: "아르키메데스",
+    chip: MATH_CHIPS[ARCHIMEDES_RECIPE.id],
     title: "아르키메데스 분석",
     grouping: "sector",
     groupTitle: "45개를 6구간으로 나눠서",
@@ -425,7 +325,7 @@ const ANALYSIS_METHODS: readonly AnalysisMethod[] = [
   },
   {
     recipe: PASCAL_RECIPE,
-    chip: "파스칼",
+    chip: MATH_CHIPS[PASCAL_RECIPE.id],
     title: "파스칼 조합",
     grouping: "sector",
     groupTitle: "파스칼의 계산",
@@ -439,7 +339,7 @@ const ANALYSIS_METHODS: readonly AnalysisMethod[] = [
   },
   {
     recipe: FIBONACCI_RECIPE,
-    chip: "피보나치",
+    chip: MATH_CHIPS[FIBONACCI_RECIPE.id],
     title: "피보나치 분석",
     grouping: "sector",
     groupTitle: "45개를 6구간으로 나눠서",
@@ -454,7 +354,7 @@ const ANALYSIS_METHODS: readonly AnalysisMethod[] = [
   },
   {
     recipe: GAUSSIAN_RECIPE,
-    chip: "가우시안",
+    chip: MATH_CHIPS[GAUSSIAN_RECIPE.id],
     title: "가우시안 분석",
     grouping: "sector",
     groupTitle: "기대치에 가까운 번호부터",
@@ -470,7 +370,7 @@ const ANALYSIS_METHODS: readonly AnalysisMethod[] = [
   },
   {
     recipe: EULER_RECIPE,
-    chip: "오일러",
+    chip: MATH_CHIPS[EULER_RECIPE.id],
     title: "오일러 분석",
     grouping: "mod5",
     groupTitle: "45개를 나머지 다섯 그룹으로 나눠서",
