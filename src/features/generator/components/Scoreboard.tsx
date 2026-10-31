@@ -25,8 +25,6 @@ function rankCountOf(t: GeneratorTotals, rank: (typeof RANKS)[number]): number {
   return rank === 1 ? t.rank1 : rank === 2 ? t.rank2 : rank === 3 ? t.rank3 : rank === 4 ? t.rank4 : t.rank5;
 }
 
-const SOURCE_ROW_LIMIT = 5;
-
 export function Scoreboard() {
   const { data } = useQuery({
     queryKey: ["generator", "stats"],
@@ -36,9 +34,9 @@ export function Scoreboard() {
   if (!data || data.drawNo == null) return null;
 
   const hits = totalHits(data.round);
-  const rows = data.bySource.filter((s) => s.games > 0);
-  const shown = rows.slice(0, SOURCE_ROW_LIMIT);
-  const hidden = rows.length - shown.length;
+  // 코너는 많아도 열 개 남짓이라 접지 않고 다 보여준다. 예전엔 5개만 보이고 나머지를
+  // "외 N개 코너"로 뭉갰는데, 그 줄만 보면 뭐가 빠졌는지 알 수가 없었다.
+  const rows = data.bySource.filter((s) => s.games > 0).sort((a, b) => b.games - a.games);
 
   return (
     <View style={styles.scoreCard}>
@@ -70,7 +68,7 @@ export function Scoreboard() {
         <Text style={styles.moneyValue}>{won(data.cumulative.prizeTotal)}</Text>
       </View>
 
-      {shown.map((row) => (
+      {rows.map((row) => (
         <View key={row.source} style={styles.sourceRow}>
           <Text style={styles.sourceName} numberOfLines={1}>
             {sourceLabel(row.source)}
@@ -81,7 +79,6 @@ export function Scoreboard() {
           </Text>
         </View>
       ))}
-      {hidden > 0 && <Text style={styles.subtitle}>외 {hidden}개 코너</Text>}
 
       {data.round.prizeUnknown > 0 && (
         <Text style={styles.disclaimer}>

@@ -109,13 +109,12 @@ export default function GeneratorScreen() {
   );
 }
 
-// ---------- 지금 인기 ----------
-
-const LIVE_ROW_LIMIT = 5;
+// ---------- 현재까지 나간 번호 ----------
 
 // 아직 추첨 전인 이번 회차에 지금까지 나간 번호를 코너별로 보여준다. Scoreboard와 달리
-// 추첨 전이라 등수·당첨금이 없다 - "많이 나온 순서"일 뿐 당첨 확률과는 상관없다는 점을
-// 고지문에 꼭 넣어야 한다("확률이 높다"로 읽히면 geniusGenerator.ts의 원칙과 어긋난다).
+// 추첨 전이라 등수·당첨금이 없다. "1위/2위"를 붙이지 않고 게임 수만 많은 순서로 세우는
+// 건 의도적이다 - 순위표처럼 보이면 "1위 코너가 더 잘 맞는다"로 읽히기 때문이다.
+// (전체 공개로 바꿀 때는 그 오해를 막는 한 줄을 다시 붙일지 같이 판단할 것.)
 function LivePopularity({ drawNo }: { drawNo: number }) {
   // 아직 다듬는 중이라 관리자 계정에만 먼저 보여준다 - 일반 유저는 그대로 둔다.
   // 전체 공개할 준비가 되면 이 체크만 지우면 된다.
@@ -133,23 +132,19 @@ function LivePopularity({ drawNo }: { drawNo: number }) {
     [data],
   );
   if (!isAdmin || rows.length === 0) return null;
-  const shown = rows.slice(0, LIVE_ROW_LIMIT);
-  const hidden = rows.length - shown.length;
 
   return (
     <View style={styles.scoreCard}>
-      <Text style={styles.scoreTitle}>{drawNo}회 지금 인기 (추첨 전)</Text>
-      <Text style={styles.subtitle}>지금까지 나간 번호 {data!.total.toLocaleString("ko-KR")}게임</Text>
-      {shown.map((row, i) => (
+      <Text style={styles.scoreTitle}>{drawNo}회 현재까지 나간 번호</Text>
+      <Text style={styles.subtitle}>전체 {data!.total.toLocaleString("ko-KR")}게임</Text>
+      {rows.map((row) => (
         <View key={row.source} style={styles.sourceRow}>
           <Text style={styles.sourceName} numberOfLines={1}>
-            {i + 1}위 · {sourceLabel(row.source)}
+            {sourceLabel(row.source)}
           </Text>
           <Text style={styles.sourceValue}>{row.games.toLocaleString("ko-KR")}게임</Text>
         </View>
       ))}
-      {hidden > 0 && <Text style={styles.subtitle}>외 {hidden}개 코너</Text>}
-      <Text style={styles.disclaimer}>지금 인기 순위예요 · 당첨 확률은 어떤 코너나 똑같아요.</Text>
     </View>
   );
 }
