@@ -249,7 +249,7 @@ function LivePopularity({ drawNo }: { drawNo: number }) {
         </View>
       ))}
       {hidden > 0 && <Text style={styles.subtitle}>외 {hidden}개 코너</Text>}
-      <Text style={styles.disclaimer}>많이 나온 순서일 뿐이에요. 당첨 확률은 어떤 코너도 똑같아요.</Text>
+      <Text style={styles.disclaimer}>지금 인기 순위예요 · 당첨 확률은 어떤 코너나 똑같아요.</Text>
     </View>
   );
 }
