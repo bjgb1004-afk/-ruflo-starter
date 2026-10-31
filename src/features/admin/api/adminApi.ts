@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { upcomingDrawNo } from "@/features/generator/geniusGenerator";
+import { getLiveGeneratedStats, type LiveGeneratedStats } from "@/features/generator/api/liveGeneratedApi";
 
 export interface AdminOverview {
   userCount: number;
@@ -9,11 +10,7 @@ export interface AdminOverview {
   totalRankedStores: number;
   errorsByFeature: { feature: string; count: number }[];
   /** 아직 추첨 전(집계 전) 회차에 지금까지 나간 생성 번호 현황. */
-  liveGenerated: {
-    drawNo: number;
-    total: number;
-    bySource: { source: string; games: number }[];
-  };
+  liveGenerated: LiveGeneratedStats;
 }
 
 const ERROR_LOOKBACK_DAYS = 7;
@@ -29,7 +26,10 @@ export async function getAdminOverview(): Promise<AdminOverview> {
         .from("app_error_logs")
         .select("feature")
         .gte("created_at", new Date(Date.now() - ERROR_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString()),
-      (supabase.rpc as any)("generated_tickets_live_stats", { p_draw_no: upcomingDrawNo() }),
+      getLiveGeneratedStats(upcomingDrawNo()).then(
+        (data) => ({ data, error: null }),
+        (error) => ({ data: null, error }),
+      ),
     ]);
 
   if (userCountRes.error) throw userCountRes.error;

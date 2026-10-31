@@ -25,6 +25,7 @@ import {
   totalHits,
   type GeneratorTotals,
 } from "@/features/generator/api/generatorStatsApi";
+import { getLiveGeneratedStats } from "@/features/generator/api/liveGeneratedApi";
 import { getDrawsForBacktest } from "@/features/backtest/api/backtestDrawsApi";
 import {
   ARCHIMEDES_RECIPE,
@@ -204,6 +205,44 @@ export function Scoreboard() {
       <Text style={styles.disclaimer}>
         앱에서 나온 번호를 전부 세요. 실제로 샀는지는 앱이 알 수 없어서, 사지 않았다면 받을 수 없는 금액이에요.
       </Text>
+    </View>
+  );
+}
+
+const LIVE_ROW_LIMIT = 5;
+
+// 아직 추첨 전인 이번 회차에 지금까지 나간 번호를 코너별로 보여준다. Scoreboard와 달리
+// 추첨 전이라 등수·당첨금이 없다 - "많이 나온 순서"일 뿐 당첨 확률과는 상관없다는 점을
+// 고지문에 꼭 넣어야 한다("확률이 높다"로 읽히면 geniusGenerator.ts의 원칙과 어긋난다).
+function LivePopularity({ drawNo }: { drawNo: number }) {
+  const { data } = useQuery({
+    queryKey: ["generator", "live-popularity", drawNo],
+    queryFn: () => getLiveGeneratedStats(drawNo),
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
+  });
+  const rows = useMemo(
+    () => (data?.bySource ?? []).filter((s) => s.games > 0).sort((a, b) => b.games - a.games),
+    [data],
+  );
+  if (rows.length === 0) return null;
+  const shown = rows.slice(0, LIVE_ROW_LIMIT);
+  const hidden = rows.length - shown.length;
+
+  return (
+    <View style={styles.scoreCard}>
+      <Text style={styles.scoreTitle}>{drawNo}회 지금 인기 (추첨 전)</Text>
+      <Text style={styles.subtitle}>지금까지 나간 번호 {data!.total.toLocaleString("ko-KR")}게임</Text>
+      {shown.map((row, i) => (
+        <View key={row.source} style={styles.sourceRow}>
+          <Text style={styles.sourceName} numberOfLines={1}>
+            {i + 1}위 · {sourceLabel(row.source)}
+          </Text>
+          <Text style={styles.sourceValue}>{row.games.toLocaleString("ko-KR")}게임</Text>
+        </View>
+      ))}
+      {hidden > 0 && <Text style={styles.subtitle}>외 {hidden}개 코너</Text>}
+      <Text style={styles.disclaimer}>많이 나온 순서일 뿐이에요. 당첨 확률은 어떤 코너도 똑같아요.</Text>
     </View>
   );
 }
@@ -443,6 +482,7 @@ function AnalysisSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "
   const method = ANALYSIS_METHODS.find((m) => m.recipe.id === methodId) ?? ANALYSIS_METHODS[0];
   return (
     <>
+      <LivePopularity drawNo={drawNo} />
       <View style={styles.chips}>
         {ANALYSIS_METHODS.map((m) => {
           const active = m.recipe.id === methodId;
