@@ -52,16 +52,52 @@ function installedBuild() {
   return { runtime, versionCode: build.appBuildVersion };
 }
 
+// 채널이 실제로 서빙하는 매니페스트의 extra. supabase 접속값이 여기 없으면 앱은 시작과
+// 동시에 죽는다(src/lib/supabase.ts가 Constants.expoConfig.extra를 읽고 없으면 throw).
+// 그러면 expo-updates가 앱에 원래 들어있던 빌드 시점 번들로 되돌리기 때문에, 겉으로는
+// "배포는 성공했는데 몇 주 전 버전으로 돌아간" 모습이 된다(2026-10-31에 실제로 발생).
+function servedExtraByRuntime() {
+  const data = json(["channel:view", "production"]);
+  const found = [];
+  (function walk(node) {
+    if (!node || typeof node !== "object") return;
+    if (node.manifestFragment) found.push(node);
+    for (const key of Object.keys(node)) walk(node[key]);
+  })(data);
+  const map = new Map();
+  for (const update of found) {
+    try {
+      const extra = JSON.parse(update.manifestFragment)?.extra?.expoClient?.extra ?? {};
+      map.set(update.runtime?.version, extra);
+    } catch {
+      // 형식이 바뀌었으면 아래 검사에서 "못 읽었다"로 걸린다.
+    }
+  }
+  return map;
+}
+
 const verifyOnly = process.argv[2] === "--verify-only";
-const message = verifyOnly ? null : process.argv.slice(2).join(" ").trim();
+// 로컬 번들링이 메모리 부족으로 죽을 때 쓰는 우회 경로도 이 스크립트를 거치게 한다 -
+// 손으로 eas update를 쏘면 --environment를 빼먹고 위의 즉사 사고를 낸다(실제로 그랬다).
+//   npm run ota -- --input-dir dist "메시지"
+const inputDirFlag = process.argv.indexOf("--input-dir");
+const inputDir = inputDirFlag > -1 ? process.argv[inputDirFlag + 1] : null;
+const message = verifyOnly
+  ? null
+  : process.argv
+      .slice(2)
+      .filter((arg, i) => inputDirFlag === -1 || (i + 2 !== inputDirFlag && i + 2 !== inputDirFlag + 1))
+      .join(" ")
+      .trim();
 
 if (!verifyOnly && !message) {
   console.error('메시지가 필요하다:  npm run ota -- "무엇을 바꿨는지"');
+  console.error('번들링이 메모리 부족으로 죽으면:  npm run ota -- --input-dir dist "메시지"');
   process.exit(2);
 }
 
 if (message) {
-  console.log(`\n▶ 배포: ${BRANCH} 브랜치, production 환경\n`);
+  console.log(`\n▶ 배포: ${BRANCH} 브랜치, production 환경${inputDir ? ` (번들: ${inputDir})` : ""}\n`);
   // --environment 없이 쏘면 Supabase 접속값이 매니페스트에서 빠져 앱이 즉사한다.
   console.log(
     run([
@@ -69,6 +105,7 @@ if (message) {
       "--branch", BRANCH,
       "--platform", "android",
       "--environment", "production",
+      ...(inputDir ? ["--skip-bundler", "--input-dir", inputDir] : []),
       "--message", message,
       "--non-interactive",
     ]),
@@ -86,6 +123,20 @@ console.log(`               ${build.runtime}`);
 
 if (delivered) {
   console.log(`그 폰에 갈 것  : ${delivered.message}`);
+
+  // "올라갔다"와 "열린다"는 다른 얘기다. 접속값이 빠진 매니페스트는 올라가긴 해도 앱을
+  // 시작과 동시에 죽여서 구버전으로 되돌린다 - 그래서 여기서 같이 본다.
+  const extra = servedExtraByRuntime().get(build.runtime);
+  const missing = ["supabaseUrl", "supabaseAnonKey"].filter((key) => !extra?.[key]);
+  if (missing.length > 0) {
+    console.error(`\n❌ 채널 매니페스트에 ${missing.join(", ")}가 없다 — 받는 순간 앱이 죽고`);
+    console.error("   빌드 시점 번들로 되돌아간다(겉보기엔 '몇 주 전 버전으로 회귀').");
+    console.error("   원인은 거의 항상 eas update에 --environment production을 빼먹은 것이다.");
+    console.error('   이 스크립트로 다시 쏴라:  npm run ota -- "메시지"');
+    process.exit(1);
+  }
+  console.log(`접속값         : supabaseUrl·supabaseAnonKey 둘 다 매니페스트에 있음`);
+
   console.log("\n✅ 설치된 빌드의 표식에 맞는 업데이트가 올라가 있다 — 유저에게 간다.");
   console.log(`   실제 수신 인원은 하루쯤 뒤:  npx eas update:insights ${delivered.group}`);
 } else {
