@@ -28,24 +28,30 @@ export default function MapScreen() {
   const router = useRouter();
   const { breakpoint } = useResponsive();
   const [showLocationPermissionGuide, setShowLocationPermissionGuide] = useState(false);
-  // AsyncStorage 조회가 끝났는지만 추적한다 - "이번에 안내를 띄웠는지"와 혼동하면 안 된다.
-  // 예전엔 이 값이 "처음 보여줄 때만" true가 됐는데, 그러면 안내를 이미 본 사용자는
-  // guideCheckDone이 영원히 false로 남아 아래 locationError 분기가 스피너에서 못 빠져나왔다
-  // (권한을 거부한 재방문 사용자가 무한 로딩에 갇히는 버그).
-  const [guideCheckDone, setGuideCheckDone] = useState(false);
-  const { location, error: locationError, canAskAgain, retry: retryLocation } = useCurrentLocation();
+  // 예전엔 "AsyncStorage 조회가 끝났는지"(guideCheckDone)를 따로 들고, 그 값으로 스피너를
+  // 빠져나갈지 판단했다. 이제는 queryCenter 하나로 판단하므로 필요하지 않다 - 조회가 끝나지
+  // 않았으면 queryCenter도 비어 있고, 그 상태의 화면은 어차피 같다.
+  const {
+    location,
+    error: locationError,
+    canAskAgain,
+    request: requestLocation,
+    retry: retryLocation,
+  } = useCurrentLocation();
 
-  // 앱 첫 진입 시 한 번만 위치 권한 안내 모달 표시
+  // 설명을 먼저, 권한은 그다음. 처음 설치한 사람에게는 안내 모달만 띄우고 OS 권한 창은
+  // 띄우지 않는다 - 모달의 "위치 허용하기"를 눌렀을 때 비로소 묻는다. 예전엔 화면이 뜨자마자
+  // 물어서, 왜 필요한지 모른 채 거부하는 사람이 생겼다(2026-10-31 점검, 삭제율 19%).
+  //
+  // 이미 안내를 본 사람에게는 모달 없이 바로 묻는다. 설명을 두 번 보여줄 이유가 없고,
+  // 재방문자에게 모달이 또 뜨면 그게 더 거슬린다.
   useEffect(() => {
     (async () => {
       const shown = await AsyncStorage.getItem("location-permission-guide-shown");
-      if (!shown) {
-        setShowLocationPermissionGuide(true);
-        await AsyncStorage.setItem("location-permission-guide-shown", "true");
-      }
-      setGuideCheckDone(true);
+      if (shown) requestLocation();
+      else setShowLocationPermissionGuide(true);
     })();
-  }, []);
+  }, [requestLocation]);
 
   // 지도를 다른 지역으로 옮기면 그 지역 기준으로 다시 조회하도록, GPS 위치와는 별도로
   // "조회 기준 좌표"를 둔다. 최초 진입 시엔 GPS 위치로 채워지고, 이후 지도 이동이 우선한다.
@@ -63,6 +69,20 @@ export default function MapScreen() {
       setQueryCenter(DEFAULT_MAP_CENTER);
     }
   }, [location, locationError, queryCenter]);
+
+  // 안내 모달을 닫을 때 "봤음"으로 기록한다. 예전엔 띄우는 순간 기록해서, 허용을 누르든
+  // 나중을 누르든 구분이 없었다.
+  const dismissGuide = useCallback(
+    (allow: boolean) => {
+      setShowLocationPermissionGuide(false);
+      AsyncStorage.setItem("location-permission-guide-shown", "true").catch(() => {});
+      if (allow) requestLocation();
+      // "나중에"를 누르면 묻지 않는다. 그 경우 location도 locationError도 안 채워지므로,
+      // 아래에서 서울시청 기준으로 지도를 띄운다.
+      else setQueryCenter((c) => c ?? DEFAULT_MAP_CENTER);
+    },
+    [requestLocation],
+  );
 
   // 핀치 줌이나 마커 탭 후 카메라가 미세하게 움직이는 것까지 매번 재조회하면, 마커 전체가
   // 다시 그려지면서 방금 연 말풍선이 닫히고 "화면이 리셋"되는 것처럼 보인다.
@@ -194,58 +214,70 @@ export default function MapScreen() {
 
   const isSearchMode = debouncedQuery.length > 0;
 
-  if (locationError && !guideCheckDone) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-        <Text style={styles.loadingText}>내 위치를 확인하는 중이에요</Text>
+  // 안내는 로딩 스피너보다 **먼저** 보여야 한다. 예전엔 맨 아래 return에만 있어서,
+  // 위 스피너 분기에서 빠져나가는 동안은 아예 그려지지 않았다. 변수로 빼서 모든 분기가
+  // 같이 그린다.
+  const permissionGuide = (
+    <Modal
+      visible={showLocationPermissionGuide}
+      transparent
+      animationType="fade"
+      onRequestClose={() => dismissGuide(false)}
+    >
+      <View style={styles.modalBackdrop}>
+        {/* 바깥을 눌러 닫는 것은 "나중에"와 같다 - 권한 창을 띄우지 않는다. */}
+        <Pressable style={styles.modalBackdropTouchable} onPress={() => dismissGuide(false)} />
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>내 주변 판매점을 찾으려면</Text>
+          <Text style={styles.modalDescription}>
+            위치를 알려주시면 지금 있는 곳 근처의 로또 판매점을 바로 찾아드려요.
+          </Text>
+          <Text style={styles.modalBullet}>• 내 위치를 지도에 표시</Text>
+          <Text style={styles.modalBullet}>• 가까운 명당 판매점 추천</Text>
+          <Text style={styles.modalBullet}>• 명당 근처에 가면 알림</Text>
+          {/* 거부해도 앱이 쓸모없어지지 않는다는 걸 먼저 밝힌다. 막다른 길처럼 보이면
+              허용을 강요받는 느낌이 들고, 그 인상이 설치 직후 이탈로 이어진다. */}
+          <Text style={styles.modalDescription}>
+            허용하지 않아도 앱은 그대로 쓸 수 있어요. 그때는 서울시청 기준으로 보여드려요.
+          </Text>
+          <Pressable style={styles.modalButton} onPress={() => dismissGuide(true)}>
+            <Text style={styles.modalButtonText}>위치 허용하기</Text>
+          </Pressable>
+          <Pressable style={styles.modalSecondaryButton} onPress={() => dismissGuide(false)}>
+            <Text style={styles.modalSecondaryButtonText}>나중에</Text>
+          </Pressable>
+        </View>
       </View>
-    );
-  }
-
-  // 위치 권한을 거부해도 더 기다리지 않는다 - location은 영원히 안 채워지므로, 여기서
-  // 막으면 "위치 권한이 필요합니다"만 보이는 막다른 화면이 된다. 서울시청 기준 queryCenter로
-  // 바로 내려가 지도와 주변 명당을 보여주고, 권한 안내는 화면 위 작은 배너로만 띄운다.
-  if ((!location && !locationError) || isLoading) {
+    </Modal>
+  );
+  // 기다리는 기준을 location이 아니라 queryCenter로 바꿨다. "나중에"를 누르면 location도
+  // locationError도 영원히 안 채워져서, location을 기다리면 스피너에 갇힌다. queryCenter는
+  // 위치를 받았을 때 / 거부했을 때 / "나중에"를 눌렀을 때 모두 채워지므로 막다른 길이 없다.
+  //
+  // 스피너 위에 안내를 같이 그린다 - 안내를 읽는 동안 뒤에서 스피너가 도는 건 괜찮지만,
+  // 안내가 아예 안 보이면 왜 위치를 묻는지 모른 채 OS 창을 보게 된다(이번 수정의 핵심).
+  if (!queryCenter || isLoading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-        <Text style={styles.loadingText}>
-          {!location ? "내 위치를 확인하는 중이에요" : "주변 판매점을 찾는 중이에요"}
-        </Text>
-      </View>
+      <>
+        {permissionGuide}
+        <View style={styles.center}>
+          <ActivityIndicator />
+          <Text style={styles.loadingText}>
+            {!queryCenter ? "내 위치를 확인하는 중이에요" : "주변 판매점을 찾는 중이에요"}
+          </Text>
+        </View>
+      </>
     );
   }
 
   return (
     <>
-      <Modal
-        visible={showLocationPermissionGuide}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowLocationPermissionGuide(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <Pressable style={styles.modalBackdropTouchable} onPress={() => setShowLocationPermissionGuide(false)} />
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>위치 권한이 필요합니다</Text>
-            <Text style={styles.modalDescription}>
-              이 앱은 당신 주변의 로또 판매점을 찾기 위해 GPS 위치 정보를 사용합니다.{"\n\n"}
-              • 지도에 당신의 위치 표시{"\n"}
-              • 근처 판매점 추천{"\n"}
-              • 명당 알림 기능
-            </Text>
-            <Pressable
-              style={styles.modalButton}
-              onPress={() => setShowLocationPermissionGuide(false)}
-            >
-              <Text style={styles.modalButtonText}>확인</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      {permissionGuide}
       <View style={styles.container}>
-      {locationError && (
+      {/* 조건을 locationError가 아니라 "내 위치가 없다"로 바꿨다. 안내 모달에서 "나중에"를
+          누른 사람은 아예 묻지 않았으므로 오류도 없고, 예전 조건으로는 이 띠가 안 떠서
+          위치를 나중에 켤 길이 사라졌다("나중에"가 되돌릴 수 없는 문이 됐다). */}
+      {!location && (
         // canAskAgain이면(흔히는 안드로이드 "이번만 허용"이 앱 재시작 때마다 풀린 경우) 설정
         // 화면을 안 거치고 바로 재요청 다이얼로그를 띄운다 - "다시 묻지 않음"으로 완전히
         // 거부된 경우만 설정으로 보낸다.
@@ -374,6 +406,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   modalButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  // 목록은 가운데 정렬하지 않는다 - 글머리 기호가 들쭉날쭉해져 읽기 어렵다.
+  modalBullet: { fontSize: 14, color: colors.textSecondary, lineHeight: 22, textAlign: "left" },
+  // "나중에"는 테두리도 배경도 없다. 허용 버튼과 나란히 두면 둘 중 뭘 눌러야 하는지
+  // 고민하게 되는데, 권하는 쪽은 하나다.
+  modalSecondaryButton: { paddingVertical: 12, alignItems: "center" },
+  modalSecondaryButtonText: { color: colors.textMuted, fontSize: 14 },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
