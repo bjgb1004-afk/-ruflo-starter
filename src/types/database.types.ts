@@ -1127,6 +1127,36 @@ export type Database = {
         }
         Relationships: []
       }
+      app_feedback: {
+        Row: {
+          app_version: string | null
+          contact: string | null
+          created_at: string
+          id: number
+          kind: string
+          message: string
+          platform: string | null
+        }
+        Insert: {
+          app_version?: string | null
+          contact?: string | null
+          created_at?: string
+          id?: never
+          kind: string
+          message: string
+          platform?: string | null
+        }
+        Update: {
+          app_version?: string | null
+          contact?: string | null
+          created_at?: string
+          id?: never
+          kind?: string
+          message?: string
+          platform?: string | null
+        }
+        Relationships: []
+      }
       app_notices: {
         Row: {
           created_at: string

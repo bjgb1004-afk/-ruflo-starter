@@ -16,6 +16,7 @@ import * as WebBrowser from "expo-web-browser";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/features/auth/useAuth";
+import { FeedbackModal } from "@/features/feedback/FeedbackModal";
 import { GeofenceToggle } from "@/features/geofencing/GeofenceToggle";
 import { GEOFENCE_DEBUG_LOG_KEY } from "@/features/geofencing/geofenceTask";
 import { useScanSettings } from "@/features/mylotto/useScanSettings";
@@ -71,6 +72,7 @@ export default function SettingsScreen() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [geofenceDebugLog, setGeofenceDebugLog] = useState<string | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
 
   useEffect(() => {
@@ -237,6 +239,17 @@ export default function SettingsScreen() {
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
+          의견
+        </Text>
+        <Pressable style={styles.linkRow} onPress={() => setFeedbackOpen(true)}>
+          <Text style={[styles.linkRowText, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
+            💬 불편한 점·의견 보내기
+          </Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
           정보
         </Text>
         <Pressable
@@ -258,6 +271,8 @@ export default function SettingsScreen() {
           <Text style={styles.versionText}>v{appVersion}</Text>
         </Pressable>
       </View>
+
+      <FeedbackModal visible={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
 
       <Modal
         visible={masterKeyModalOpen}
