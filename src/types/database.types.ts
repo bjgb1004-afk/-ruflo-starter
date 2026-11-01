@@ -1108,22 +1108,34 @@ export type Database = {
       }
       app_error_logs: {
         Row: {
+          app_version: string | null
           created_at: string
           feature: string
           id: number
           message: string
+          runtime_version: string | null
+          session_id: string | null
+          update_id: string | null
         }
         Insert: {
+          app_version?: string | null
           created_at?: string
           feature: string
           id?: never
           message: string
+          runtime_version?: string | null
+          session_id?: string | null
+          update_id?: string | null
         }
         Update: {
+          app_version?: string | null
           created_at?: string
           feature?: string
           id?: never
           message?: string
+          runtime_version?: string | null
+          session_id?: string | null
+          update_id?: string | null
         }
         Relationships: []
       }
