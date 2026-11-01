@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet } from "react-native";
+import { useState } from "react";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import {
   getGeneratorStats,
@@ -26,6 +27,11 @@ function rankCountOf(t: GeneratorTotals, rank: (typeof RANKS)[number]): number {
 }
 
 export function Scoreboard() {
+  // 코너별 내역만 접는다. 숨기는 게 아니라 "몇 개 있는지"를 버튼에 적어두고 한 번에 다
+  // 펼친다 - 예전처럼 5개만 보여주고 나머지를 뭉개면 뭐가 빠졌는지 알 수가 없다.
+  // 당첨금 밑의 안내 문구는 접지 않는다: 유리한 숫자만 보이고 그걸 깎는 설명이 탭 뒤로
+  // 숨으면 정직하지 않다.
+  const [expanded, setExpanded] = useState(false);
   const { data } = useQuery({
     queryKey: ["generator", "stats"],
     queryFn: getGeneratorStats,
@@ -34,8 +40,6 @@ export function Scoreboard() {
   if (!data || data.drawNo == null) return null;
 
   const hits = totalHits(data.round);
-  // 코너는 많아도 열 개 남짓이라 접지 않고 다 보여준다. 예전엔 5개만 보이고 나머지를
-  // "외 N개 코너"로 뭉갰는데, 그 줄만 보면 뭐가 빠졌는지 알 수가 없었다.
   const rows = data.bySource.filter((s) => s.games > 0).sort((a, b) => b.games - a.games);
 
   return (
@@ -68,7 +72,20 @@ export function Scoreboard() {
         <Text style={styles.moneyValue}>{won(data.cumulative.prizeTotal)}</Text>
       </View>
 
-      {rows.map((row) => (
+      {rows.length > 0 && (
+        <Pressable
+          style={styles.toggleButton}
+          onPress={() => setExpanded((v) => !v)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+        >
+          <Text style={styles.toggleButtonText}>코너별 성적 ({rows.length}개)</Text>
+          <Text style={styles.toggleChevron}>{expanded ? "▲" : "▼"}</Text>
+        </Pressable>
+      )}
+
+      {expanded &&
+        rows.map((row) => (
         <View key={row.source} style={styles.sourceRow}>
           <Text style={styles.sourceName} numberOfLines={1}>
             {sourceLabel(row.source)}
@@ -78,7 +95,7 @@ export function Scoreboard() {
             {won(row.prizeTotal)}
           </Text>
         </View>
-      ))}
+        ))}
 
       {data.round.prizeUnknown > 0 && (
         <Text style={styles.disclaimer}>
@@ -119,6 +136,18 @@ const styles = StyleSheet.create({
   moneyRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.sm },
   moneyLabel: { flex: 1, fontSize: 13, color: colors.textSecondary },
   moneyValue: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
+  toggleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.background,
+  },
+  toggleButtonText: { fontSize: 13, fontWeight: "700", color: colors.primary },
+  toggleChevron: { fontSize: 12, color: colors.textMuted },
   sourceRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.sm },
   sourceName: { fontSize: 13, fontWeight: "700", color: colors.textPrimary },
   sourceValue: { fontSize: 12, color: colors.textSecondary },

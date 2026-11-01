@@ -3,8 +3,6 @@ import { ActivityIndicator, ScrollView, View, Text, Pressable, StyleSheet, Share
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { LottoBall } from "@/components/LottoBall";
-import { useAuth } from "@/features/auth/useAuth";
-import { ADMIN_EMAILS } from "@/constants/config";
 import { colors, spacing, radius, cardShadow } from "@/constants/theme";
 import { useResponsive, getResponsiveFontSize } from "@/utils/responsive";
 import { upcomingDrawNo } from "@/features/generator/geniusGenerator";
@@ -85,6 +83,7 @@ export default function GeneratorScreen() {
       contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
     >
       <Scoreboard />
+      <LivePopularity drawNo={drawNo} />
 
       <View style={styles.tabs}>
         {MODES.map((m) => {
@@ -114,24 +113,22 @@ export default function GeneratorScreen() {
 // 아직 추첨 전인 이번 회차에 지금까지 나간 번호를 코너별로 보여준다. Scoreboard와 달리
 // 추첨 전이라 등수·당첨금이 없다. "1위/2위"를 붙이지 않고 게임 수만 많은 순서로 세우는
 // 건 의도적이다 - 순위표처럼 보이면 "1위 코너가 더 잘 맞는다"로 읽히기 때문이다.
-// (전체 공개로 바꿀 때는 그 오해를 막는 한 줄을 다시 붙일지 같이 판단할 것.)
+//
+// 2026-11-01에 전체 공개했다. 등수를 뗀 것만으로는 부족해서 "확률은 어디나 똑같다"는
+// 한 줄을 다시 붙였다 - 게임 수가 많은 코너가 더 잘 맞는다는 오해는 등수 없이 숫자만
+// 봐도 생긴다. 이 줄은 지우지 말 것(geniusGenerator.ts의 원칙과 같은 이유다).
 function LivePopularity({ drawNo }: { drawNo: number }) {
-  // 아직 다듬는 중이라 관리자 계정에만 먼저 보여준다 - 일반 유저는 그대로 둔다.
-  // 전체 공개할 준비가 되면 이 체크만 지우면 된다.
-  const user = useAuth((s) => s.user);
-  const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email);
   const { data } = useQuery({
     queryKey: ["generator", "live-popularity", drawNo],
     queryFn: () => getLiveGeneratedStats(drawNo),
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
-    enabled: isAdmin,
   });
   const rows = useMemo(
     () => (data?.bySource ?? []).filter((s) => s.games > 0).sort((a, b) => b.games - a.games),
     [data],
   );
-  if (!isAdmin || rows.length === 0) return null;
+  if (rows.length === 0) return null;
 
   return (
     <View style={styles.scoreCard}>
@@ -145,6 +142,7 @@ function LivePopularity({ drawNo }: { drawNo: number }) {
           <Text style={styles.sourceValue}>{row.games.toLocaleString("ko-KR")}게임</Text>
         </View>
       ))}
+      <Text style={styles.disclaimer}>당첨 확률은 어떤 코너나 똑같아요.</Text>
     </View>
   );
 }
@@ -384,7 +382,6 @@ function AnalysisSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "
   const method = ANALYSIS_METHODS.find((m) => m.recipe.id === methodId) ?? ANALYSIS_METHODS[0];
   return (
     <>
-      <LivePopularity drawNo={drawNo} />
       <View style={styles.chips}>
         {ANALYSIS_METHODS.map((m) => {
           const active = m.recipe.id === methodId;
