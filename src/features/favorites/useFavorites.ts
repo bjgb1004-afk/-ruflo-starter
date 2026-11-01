@@ -7,6 +7,19 @@ import { mergeFavorites, type FavoriteStore } from "./mergeFavorites";
 
 export type { FavoriteStore };
 
+// 비로그인 사용자의 즐겨찾기는 이 폰에만 있고, **앱을 지우면 같이 사라진다. 그렇게 두기로
+// 결정했다(2026-11-01).** 버그가 아니므로 다시 파지 말 것.
+//
+// 왜 안 고치나: 되찾으려면 사용자가 다시 제시할 수 있는 신원이 있어야 한다. 익명 번호를
+// 만들어 서버에 올려도 그 번호가 이 폰의 저장소에 있으므로 앱과 함께 지워지고, 서버에 남은
+// 줄은 주인을 알 수 없는 쓰레기가 된다 - 즉 익명 방식으로는 구조적으로 못 푼다. 유일한
+// 방법은 로그인인데, 이 앱은 "로그인 벽 없음"이 설계 원칙이라 그 값을 치르지 않기로 했다.
+//
+// 안드로이드 자동백업(AndroidManifest의 allowBackup="true")이 운 좋으면 재설치 때
+// 복원해준다. 보장은 아니고, 거기까지가 이 기능의 한계다.
+//
+// 보관함 번호(useMyLottoTickets)도 같은 이유로 같은 상태다.
+
 interface FavoritesState {
   stores: Record<string, FavoriteStore>;
   // 클라우드 삭제 요청이 실패(오프라인 등)한 매장 id 목록. 로그인 시 클라우드와 병합할 때
