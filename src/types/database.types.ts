@@ -1578,6 +1578,7 @@ export type Database = {
           notified_at: string | null
           numbers: number[]
           purchase_type: string | null
+          purchased: boolean
           push_token: string
         }
         Insert: {
@@ -1587,6 +1588,7 @@ export type Database = {
           notified_at?: string | null
           numbers: number[]
           purchase_type?: string | null
+          purchased?: boolean
           push_token: string
         }
         Update: {
@@ -1596,6 +1598,7 @@ export type Database = {
           notified_at?: string | null
           numbers?: number[]
           purchase_type?: string | null
+          purchased?: boolean
           push_token?: string
         }
         Relationships: []

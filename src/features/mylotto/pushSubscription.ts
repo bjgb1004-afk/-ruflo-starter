@@ -22,9 +22,13 @@ let cachedToken: string | null = null;
 // 익명으로 서버에 등록해두고(번호와 함께), 서버 배치(sendMylottoNotifications.ts)가 추첨
 // 직후 결과를 계산해 실제 당첨/낙첨 내용으로 푸시를 보낸다 - 로컬 알림(drawReminders.ts)은
 // "확인해보세요" 정도만 가능하지만 이건 결과 자체를 담아 보낼 수 있다.
+//
+// purchased는 일부러 필수다(useMyLottoTickets의 NewTicketInput과 같은 이유). 기본값을 두면
+// 새 저장 경로를 붙일 때 조용히 빠져서, 안 산 번호에 "당첨을 축하합니다"가 가버린다.
 export async function registerResultPushSubscription(
   drawNo: number,
   games: { numbers: number[]; type: GameType | null }[],
+  purchased: boolean,
 ): Promise<void> {
   try {
     const { status: existing } = await Notifications.getPermissionsAsync();
@@ -50,6 +54,7 @@ export async function registerResultPushSubscription(
       draw_no: drawNo,
       numbers: g.numbers,
       purchase_type: g.type,
+      purchased,
     }));
     // (push_token, draw_no, numbers) unique 제약 위반(재스캔으로 인한 중복)은 조용히 무시한다.
     const { error } = await supabase

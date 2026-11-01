@@ -247,6 +247,7 @@ export default function ScanScreen() {
           registerResultPushSubscription(
             data.drawNo,
             pendingGames.map((g) => ({ numbers: g.numbers, type: g.type })),
+            true,
           );
         }
       } else {
@@ -263,6 +264,7 @@ export default function ScanScreen() {
         registerResultPushSubscription(
           data.drawNo,
           data.games.map((g) => ({ numbers: g.numbers, type: g.type })),
+          true,
         );
       }
     },

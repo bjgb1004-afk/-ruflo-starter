@@ -20,6 +20,7 @@ import { AdBanner } from "@/features/ads/AdBanner";
 import { needsAdForDraw, requestDraw, type DrawPermission } from "@/features/generator/requestDraw";
 import { useDrawCredits } from "@/features/generator/useDrawCredits";
 import { BAND_SOURCE, mathSource, recordGeneratedTickets } from "@/features/generator/recordGeneratedTickets";
+import { registerResultPushSubscription } from "@/features/mylotto/pushSubscription";
 import { getLiveGeneratedStats } from "@/features/generator/api/liveGeneratedApi";
 import { Scoreboard } from "@/features/generator/components/Scoreboard";
 import { MATH_CHIPS, sourceLabel } from "@/features/generator/sourceLabel";
@@ -193,10 +194,19 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
 
   const save = useCallback(() => {
     const added = addTickets(games.map((g) => ({ drawNo, numbers: g.numbers, purchaseType: null, purchased: false })));
+    // 새로 들어간 것만 결과 푸시를 등록한다. 산 번호가 아니므로 purchased=false -
+    // 서버가 이 값으로 문구를 가른다(안 산 번호에 당첨을 축하하지 않는다).
+    if (added.length > 0) {
+      registerResultPushSubscription(
+        drawNo,
+        added.map((numbers) => ({ numbers, type: null })),
+        false,
+      );
+    }
     Alert.alert(
       added.length > 0 ? "보관함에 저장했어요" : "이미 보관함에 있어요",
       added.length > 0
-        ? `${drawNo}회 ${added.length}게임을 보관함에 넣었어요. 추첨 후 자동으로 확인해 드려요.`
+        ? `${drawNo}회 ${added.length}게임을 보관함에 넣었어요. 추첨 후 결과를 알림으로 알려드려요.`
         : `${drawNo}회에 같은 번호가 이미 저장돼 있어요.`,
     );
   }, [addTickets, games, drawNo]);
@@ -502,10 +512,19 @@ function RecipeAnalysis({
 
   const save = useCallback(() => {
     const added = addTickets(games.map((numbers) => ({ drawNo, numbers, purchaseType: null, purchased: false })));
+    // 새로 들어간 것만 결과 푸시를 등록한다. 산 번호가 아니므로 purchased=false -
+    // 서버가 이 값으로 문구를 가른다(안 산 번호에 당첨을 축하하지 않는다).
+    if (added.length > 0) {
+      registerResultPushSubscription(
+        drawNo,
+        added.map((numbers) => ({ numbers, type: null })),
+        false,
+      );
+    }
     Alert.alert(
       added.length > 0 ? "보관함에 저장했어요" : "이미 보관함에 있어요",
       added.length > 0
-        ? `${drawNo}회 ${added.length}게임을 보관함에 넣었어요. 추첨 후 자동으로 확인해 드려요.`
+        ? `${drawNo}회 ${added.length}게임을 보관함에 넣었어요. 추첨 후 결과를 알림으로 알려드려요.`
         : `${drawNo}회에 같은 번호가 이미 저장돼 있어요.`,
     );
   }, [addTickets, games, drawNo, recipe.id]);

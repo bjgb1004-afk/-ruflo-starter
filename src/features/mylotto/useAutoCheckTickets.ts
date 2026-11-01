@@ -4,7 +4,7 @@ import { computeWinRank, getPrizeAmount } from "@/features/qr/checkWinnings";
 import { reportError } from "@/lib/errorLog";
 import { notifyWins } from "./winNotification";
 import type { WinToNotify } from "./winNotificationText";
-import { useMyLottoTickets } from "./useMyLottoTickets";
+import { isPurchased, useMyLottoTickets } from "./useMyLottoTickets";
 
 // 보관함 화면을 열 때마다 아직 결과를 확인하지 않은 티켓들을 draw_history와 대조한다.
 // 추첨 전 회차는 조회해도 결과가 없어(getDrawByNo가 null 반환) 자연스럽게 건너뛰고,
@@ -62,7 +62,7 @@ export function useAutoCheckTickets() {
             draw.third_prize_amount_per_win,
           );
           markChecked(t.id, rank, prizeAmount);
-          if (rank !== null) wins.push({ drawNo, rank, prizeAmount });
+          if (rank !== null) wins.push({ drawNo, rank, prizeAmount, purchased: isPurchased(t) });
         }
       }
 
