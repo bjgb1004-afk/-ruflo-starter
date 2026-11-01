@@ -65,11 +65,13 @@ export async function scheduleRankingWeeklyReminder(): Promise<void> {
       body: `즐겨찾기한 ${ranked.store.name}, 전국 ${ranked.rank}위예요. 다른 명당도 둘러보세요.`,
       sound: true,
       data: { type: "ranking-weekly" },
-      ...(Platform.OS === "android" ? { channelId: CHANNEL_ID } : {}),
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
       date: nextWeekdayAt(NOTIFY_WEEKDAY, NOTIFY_HOUR, new Date()),
+      // 안드로이드 알림채널은 trigger에 적는다. content에 적으면 예약 자체가 실패한다
+      // (타입스크립트가 스프레드의 여분 속성을 검사하지 않아 컴파일은 통과한다).
+      ...(Platform.OS === "android" ? { channelId: CHANNEL_ID } : {}),
     },
   });
 }

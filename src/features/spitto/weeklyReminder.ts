@@ -60,11 +60,13 @@ export async function scheduleSpittoWeeklyReminder(): Promise<void> {
       body,
       sound: true,
       data: { type: "spitto-weekly" },
-      ...(Platform.OS === "android" ? { channelId: CHANNEL_ID } : {}),
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
       date: nextFridayEvening(new Date()),
+      // 안드로이드 알림채널은 trigger에 적는다. content에 적으면 예약 자체가 실패한다
+      // (타입스크립트가 스프레드의 여분 속성을 검사하지 않아 컴파일은 통과한다).
+      ...(Platform.OS === "android" ? { channelId: CHANNEL_ID } : {}),
     },
   });
 }

@@ -39,9 +39,13 @@ export async function scheduleDrawReminder(drawNo: number): Promise<void> {
       body: `${drawNo}회 추첨 결과가 곧 나와요. 내 복권 보관함에서 당첨을 확인해보세요.`,
       sound: true,
       data: { type: "draw-reminder", drawNo },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: drawAt,
+      // 안드로이드 알림채널은 trigger에 적는다. content에 적으면 예약 자체가 실패한다.
       ...(Platform.OS === "android" ? { channelId: REMINDER_CHANNEL_ID } : {}),
     },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: drawAt },
   });
 }
 

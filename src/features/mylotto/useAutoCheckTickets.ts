@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { getDrawByNo } from "@/features/draws/api/drawHistoryApi";
 import { computeWinRank, getPrizeAmount } from "@/features/qr/checkWinnings";
 import { reportError } from "@/lib/errorLog";
+import { notifyWins } from "./winNotification";
+import type { WinToNotify } from "./winNotificationText";
 import { useMyLottoTickets } from "./useMyLottoTickets";
 
 // 보관함 화면을 열 때마다 아직 결과를 확인하지 않은 티켓들을 draw_history와 대조한다.
@@ -24,6 +26,10 @@ export function useAutoCheckTickets() {
     isCheckingRef.current = true;
 
     (async () => {
+      // 당첨은 모아서 한 건의 알림으로 보낸다. 한 용지에서 여러 게임이 맞으면 알림이
+      // 그만큼 쏟아져 오히려 안 읽힌다(추첨일 알림이 8개 동시 발송된 사고와 같은 종류).
+      const wins: WinToNotify[] = [];
+
       for (const drawNo of uniqueDrawNos) {
         let draw;
         try {
@@ -56,8 +62,14 @@ export function useAutoCheckTickets() {
             draw.third_prize_amount_per_win,
           );
           markChecked(t.id, rank, prizeAmount);
+          if (rank !== null) wins.push({ drawNo, rank, prizeAmount });
         }
       }
+
+      // 티켓은 checked=true로 바뀌어 다음 실행에서 걸러지므로, 같은 당첨으로 두 번
+      // 알리는 일은 없다 - 별도의 "알림 보냈음" 표시가 필요하지 않다.
+      await notifyWins(wins).catch((err) => reportError(err, "win-alert"));
+
       isCheckingRef.current = false;
     })();
   }, [tickets, markChecked]);

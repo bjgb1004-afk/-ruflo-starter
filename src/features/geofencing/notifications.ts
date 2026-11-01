@@ -42,8 +42,9 @@ export async function sendStoreArrivalNotification(storeName: string, rank: numb
         ? `${storeName} (전국 ${rank}위)이(가) 근처에 있어요. 방문해보세요!`
         : `${storeName}이(가) 근처에 있어요. 방문해보세요!`,
       sound: true,
-      ...(Platform.OS === "android" ? { channelId: GEOFENCE_CHANNEL_ID } : {}),
     },
-    trigger: null, // 즉시 발송
+    // 즉시 발송. 채널만 적은 trigger가 "지금 보내되 이 채널로"를 뜻한다 - channelId를
+    // content에 적으면 발송 자체가 실패한다(타입 검사는 스프레드라 통과한다).
+    trigger: Platform.OS === "android" ? { channelId: GEOFENCE_CHANNEL_ID } : null
   });
 }
