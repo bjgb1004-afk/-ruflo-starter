@@ -3,14 +3,16 @@ import type { Database } from "@/types/database.types";
 
 export type AppNotice = Database["public"]["Tables"]["app_notices"]["Row"];
 
-export async function getLatestNotice(): Promise<AppNotice | null> {
+/**
+ * 최근 소식 목록. 업데이트 팝업이 쓴다.
+ */
+export async function getRecentNotices(limit = 5): Promise<AppNotice[]> {
   const { data, error } = await supabase
     .from("app_notices")
     .select("*")
     .eq("is_active", true)
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(limit);
   if (error) throw error;
-  return data;
+  return data ?? [];
 }

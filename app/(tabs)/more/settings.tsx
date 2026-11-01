@@ -16,6 +16,7 @@ import * as WebBrowser from "expo-web-browser";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/features/auth/useAuth";
+import { openUpdatePopup } from "@/features/notices/useUpdatePopup";
 import { GeofenceToggle } from "@/features/geofencing/GeofenceToggle";
 import { GEOFENCE_DEBUG_LOG_KEY } from "@/features/geofencing/geofenceTask";
 import { useScanSettings } from "@/features/mylotto/useScanSettings";
@@ -239,6 +240,13 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionTitle, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
           정보
         </Text>
+        {/* 팝업 안 스위치로 자동 띄우기를 끈 사람이 다시 볼 수 있는 유일한 길이다.
+            이 줄을 지우면 끈 뒤에 되돌릴 방법이 없어진다. */}
+        <Pressable style={styles.linkRow} onPress={openUpdatePopup}>
+          <Text style={[styles.linkRowText, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
+            📢 업데이트 소식 다시 보기
+          </Text>
+        </Pressable>
         <Pressable
           style={styles.linkRow}
           onPress={() => WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)}

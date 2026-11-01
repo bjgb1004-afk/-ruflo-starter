@@ -25,6 +25,7 @@ import { cleanupLegacyDrawReminders } from "@/features/mylotto/drawReminders";
 import { scheduleSpittoWeeklyReminder } from "@/features/spitto/weeklyReminder";
 import { scheduleRankingWeeklyReminder } from "@/features/stores/rankingWeeklyReminder";
 import { UpdateGate } from "@/features/appUpdate/components/UpdateGate";
+import { UpdatePopup } from "@/features/notices/components/UpdatePopup";
 import { useAutoCheckTickets } from "@/features/mylotto/useAutoCheckTickets";
 import { colors } from "@/constants/theme";
 // 지오펜스 백그라운드 태스크는 앱 로드 시점에 반드시 최상위에서 등록되어야
@@ -165,6 +166,10 @@ export default function RootLayout() {
             해당 런타임 표식이 등록돼 있을 때만 그려지고, 평소엔 null이다. Stack
             뒤에 둬서 탭바·헤더까지 덮는다 - 뒤 화면을 만질 수 있으면 안내가 아니다. */}
         <UpdateGate />
+        {/* 업데이트 소식 팝업. 여기 한 번만 달아둔다 - 화면마다 달면 두 개가 겹쳐 뜬다.
+            UpdateGate보다 뒤(= 아래 층)에 둬서, 구버전 안내가 뜬 상황에서는 소식이
+            그 위를 덮지 않게 한다. 안내를 가리면 탈출 경로를 못 찾는다. */}
+        <UpdatePopup />
       </PersistQueryClientProvider>
     </SafeAreaProvider>
   );

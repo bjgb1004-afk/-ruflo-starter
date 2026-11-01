@@ -8,7 +8,6 @@ import { useNearbyStores } from "@/features/map/hooks/useNearbyStores";
 import { StoreMapView } from "@/features/map/components/StoreMapView";
 import { TopStoresCarousel } from "@/features/map/components/TopStoresCarousel";
 import { searchStores, type StoreSearchResult } from "@/features/stores/api/storesApi";
-import { NoticeCard } from "@/features/notices/components/NoticeCard";
 import { HomeBannerCarousel } from "@/features/map/components/HomeBannerCarousel";
 import { getLatestFirstPrizeWinners } from "@/features/draws/api/drawHistoryApi";
 import { useFavorites } from "@/features/favorites/useFavorites";
@@ -262,12 +261,9 @@ export default function MapScreen() {
         </Pressable>
       )}
 
-      {!isSearchMode && (
-        <>
-          <NoticeCard />
-          <HomeBannerCarousel />
-        </>
-      )}
+      {/* 소식 띠(NoticeCard)는 업데이트 소식 팝업으로 옮겼다 - 같은 app_notices를 띠와
+          팝업으로 두 번 보여주면 같은 글을 두 군데서 읽게 된다. */}
+      {!isSearchMode && <HomeBannerCarousel />}
 
       <View style={[styles.searchBar, { marginHorizontal: getResponsiveSpacing(spacing.md, breakpoint) }]}>
         <TextInput
