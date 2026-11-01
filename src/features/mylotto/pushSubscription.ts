@@ -47,20 +47,35 @@ export async function registerResultPushSubscription(
       cachedToken = data;
     }
     const token = cachedToken;
-    if (!token) return;
+    // 토큰이 비면 조용히 끝내지 않는다 - 예전엔 그래서 "오류도 없고 등록도 0건"인 상태가
+    // 되어 원인을 찾을 수가 없었다.
+    if (!token) throw new Error("Expo 푸시 토큰이 비어 있음");
 
-    const rows = games.map((g) => ({
-      push_token: token,
-      draw_no: drawNo,
-      numbers: g.numbers,
-      purchase_type: g.type,
-      purchased,
-    }));
-    // (push_token, draw_no, numbers) unique 제약 위반(재스캔으로 인한 중복)은 조용히 무시한다.
-    const { error } = await supabase
-      .from("mylotto_push_subscriptions")
-      .upsert(rows, { onConflict: "push_token,draw_no,numbers", ignoreDuplicates: true });
-    if (error) throw error;
+    // upsert가 아니라 한 줄씩 insert한다. upsert(=INSERT ON CONFLICT)는 "이미 있는 줄인지"
+    // 보려고 표를 읽으려 하는데, 이 표는 select 정책이 일부러 없다(남의 번호와 알림 주소가
+    // 들어 있어 아무나 읽으면 안 된다). 그래서 anon이 upsert하면 RLS에 걸려 전부 실패했다 -
+    // 2026-08부터 이 표가 0행이었던 이유다(2026-11-01에 실측으로 확인:
+    // 일반 insert는 통과, on conflict는 do nothing/do update 모두 42501).
+    //
+    // 읽기를 열어 해결하지 않는다. 그러면 누구나 모든 사용자의 번호를 볼 수 있다.
+    //
+    // 한 줄씩 보내는 이유: 여러 줄을 한 번에 보내면 그중 하나가 중복일 때 전부 실패한다
+    // (같은 용지를 다시 스캔하면 실제로 그렇게 된다). 한 장은 보통 1~5게임이라 요청 몇 개는
+    // 저장 버튼을 누른 순간에만 생기고 끝이다.
+    const results = await Promise.all(
+      games.map((g) =>
+        supabase.from("mylotto_push_subscriptions").insert({
+          push_token: token,
+          draw_no: drawNo,
+          numbers: g.numbers,
+          purchase_type: g.type,
+          purchased,
+        }),
+      ),
+    );
+    // 23505 = unique 제약 위반. 이미 등록된 번호라는 뜻이니 성공으로 본다.
+    const failed = results.find((r) => r.error && r.error.code !== "23505");
+    if (failed?.error) throw failed.error;
   } catch (err) {
     reportError(err, "mylotto-push-subscription");
   }
