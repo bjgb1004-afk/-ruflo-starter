@@ -14,7 +14,9 @@ describe("normalizeAddress - 시/군/구 판정", () => {
 
   it("폐지·개칭된 지명은 현재 행정구역으로 보정한다", () => {
     expect(normalizeAddress("인천광역시 남구 도화동 80-83").sigungu).toBe("미추홀구");
-    expect(normalizeAddress("인천광역시 검단구 서곶로 788").sigungu).toBe("서구");
+    // 2026-07-01 신설. 서구로 되돌리지 않는지 확인한다(한 번 되돌린 적 있다).
+    expect(normalizeAddress("인천광역시 검단구 서곶로 788").sigungu).toBe("검단구");
+    expect(normalizeAddress("인천광역시 서해구 가정로 301-1").sigungu).toBe("서해구");
     expect(normalizeAddress("경상남도 마산시 구암2동 85-1").sigungu).toBe("창원시");
   });
 
