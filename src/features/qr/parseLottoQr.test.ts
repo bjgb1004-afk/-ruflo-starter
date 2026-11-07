@@ -1,4 +1,4 @@
-import { parseLottoQr } from "./parseLottoQr";
+import { parseLottoQr, describeQrShape } from "./parseLottoQr";
 
 // 아래 URL은 실제 로또 6/45 용지 QR코드를 스캔해 확보한 원문이다(사용자 제공, 2026-08-08).
 const REAL_TICKET_QR =
@@ -49,6 +49,38 @@ describe("parseLottoQr", () => {
 
   it("returns null when the draw number is not followed by a separator letter", () => {
     expect(parseLottoQr("https://qr.dhlottery.co.kr/?v=1248031015283541")).toBeNull();
+  });
+
+  it("parses the 2026-11-07 ticket shape: m/n separators and a serial block of its own", () => {
+    // 에러 로그에 찍힌 실물 모양: v=<4d>m<12d>m<12d>m<12d>n<12d>n<30d>.
+    // 마지막 30자리는 번호로 읽히지 않는다(앞 12자리 99/88/77이 1~45 범위를 벗어남) -
+    // 일련번호 묶음이 자기 구분자를 달고 떨어져 나온 것이라 보고 버린다.
+    const result = parseLottoQr(
+      "http://qr.dhlottery.co.kr/?v=1249m030915233143m111930333639m020323313941n081825304244n999888777666123456789012345678",
+    );
+    expect(result).toEqual({
+      drawNo: 1249,
+      games: [
+        { numbers: [3, 9, 15, 23, 31, 43], type: null },
+        { numbers: [11, 19, 30, 33, 36, 39], type: null },
+        { numbers: [2, 3, 23, 31, 39, 41], type: null },
+        { numbers: [8, 18, 25, 30, 42, 44], type: null },
+      ],
+    });
+  });
+
+  it("still rejects the whole ticket when a middle block is broken", () => {
+    // 가운데가 깨진 건 일련번호로 볼 수 없다 - 게임 하나를 조용히 잃는 것보다 안 읽는 게 낫다.
+    expect(
+      parseLottoQr("https://qr.dhlottery.co.kr/?v=1249m999888777666m030915233143"),
+    ).toBeNull();
+  });
+
+  it("names the failing block in the logged shape, without the numbers", () => {
+    const shape = describeQrShape(
+      "http://qr.dhlottery.co.kr/?v=1249m999888777666m030915233143",
+    );
+    expect(shape).toBe("http://qr.dhlottery.co.kr/?v=<4d>m<12d>m<12d> | block-1-of-2-invalid(len=12)");
   });
 
   it("returns null for a URL with no dhlottery.co.kr host", () => {
