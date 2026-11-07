@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -7,6 +7,7 @@ import {
   type GeneratorTotals,
 } from "../api/generatorStatsApi";
 import { sourceLabel } from "../sourceLabel";
+import { reportError } from "@/lib/errorLog";
 import { colors, spacing, radius, cardShadow } from "@/constants/theme";
 
 // 생성기 화면과 관리자 화면이 같이 쓰는 카드라 라우트 파일(app/*)이 아니라 여기 둔다 -
@@ -32,11 +33,17 @@ export function Scoreboard() {
   // 당첨금 밑의 안내 문구는 접지 않는다: 유리한 숫자만 보이고 그걸 깎는 설명이 탭 뒤로
   // 숨으면 정직하지 않다.
   const [expanded, setExpanded] = useState(false);
-  const { data } = useQuery({
+  const { data, error } = useQuery({
     queryKey: ["generator", "stats"],
     queryFn: getGeneratorStats,
     staleTime: 10 * 60 * 1000,
   });
+  // 이 카드는 받을 게 없으면 조용히 사라진다. 그 자체는 맞는 동작이지만(집계 전엔 보여줄
+  // 게 없다), 조회가 실패해서 사라진 경우와 구분이 안 된다 - 2026-11-07에 "1249회 성적표가
+  // 안 보인다"는 신고를 받고도 서버는 멀쩡해서 확인할 길이 없었다. 실패는 남겨둔다.
+  useEffect(() => {
+    if (error) reportError(error, "generator-stats");
+  }, [error]);
   if (!data || data.drawNo == null) return null;
 
   const hits = totalHits(data.round);
