@@ -1681,6 +1681,10 @@ export type Database = {
         Args: { p_draw_no?: number }
         Returns: Json
       }
+      migrate_push_token: {
+        Args: { p_old: string; p_new: string }
+        Returns: number
+      }
       consecutive_win_sigungu: {
         Args: { streak_weeks?: number }
         Returns: {

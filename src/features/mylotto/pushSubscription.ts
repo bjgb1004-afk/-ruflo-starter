@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
@@ -17,6 +18,30 @@ async function ensureResultChannel() {
 }
 
 let cachedToken: string | null = null;
+
+// 직전에 서버에 등록한 푸시 주소. 폰의 푸시 주소는 영구적이지 않아(앱 데이터 삭제·재설치·
+// FCM 갱신) 바뀔 수 있고, 바뀌면 그 전에 등록된 줄은 옛 주소를 들고 남는다. 발송은 주소로
+// 묶으니 양쪽이 각각 한 통씩 가고, 옛 주소도 한동안 같은 폰에 배달된다 - 2026-11-07
+// 1249회에 실제로 한 폰이 두 통을 받았다. 두 주소가 같은 폰인지 아는 건 폰 자신뿐이라,
+// 직전 주소를 여기 적어두고 달라졌을 때 서버에 알려 옛 줄을 새 주소로 잇게 한다.
+const LAST_TOKEN_KEY = "mylotto.lastPushToken";
+
+/** 주소가 바뀌었으면 서버의 옛 줄을 새 주소로 옮긴다. 실패해도 등록은 계속한다. */
+async function reconcileToken(token: string): Promise<void> {
+  try {
+    const previous = await AsyncStorage.getItem(LAST_TOKEN_KEY);
+    if (previous === token) return;
+    if (previous) {
+      const { error } = await supabase.rpc("migrate_push_token", { p_old: previous, p_new: token });
+      // 옮기기가 실패하면 알림이 두 통 갈 뿐이니, 주소를 새로 적어두는 건 미룬다 -
+      // 다음 등록에서 다시 시도하게 둔다.
+      if (error) throw error;
+    }
+    await AsyncStorage.setItem(LAST_TOKEN_KEY, token);
+  } catch (err) {
+    reportError(err, "mylotto-push-token-migrate");
+  }
+}
 
 // 추첨 전 티켓을 보관함에 저장할 때 호출한다. 로그인 없는 앱이라 기기의 Expo 푸시 토큰만
 // 익명으로 서버에 등록해두고(번호와 함께), 서버 배치(sendMylottoNotifications.ts)가 추첨
@@ -50,6 +75,8 @@ export async function registerResultPushSubscription(
     // 토큰이 비면 조용히 끝내지 않는다 - 예전엔 그래서 "오류도 없고 등록도 0건"인 상태가
     // 되어 원인을 찾을 수가 없었다.
     if (!token) throw new Error("Expo 푸시 토큰이 비어 있음");
+
+    await reconcileToken(token);
 
     // upsert가 아니라 한 줄씩 insert한다. upsert(=INSERT ON CONFLICT)는 "이미 있는 줄인지"
     // 보려고 표를 읽으려 하는데, 이 표는 select 정책이 일부러 없다(남의 번호와 알림 주소가
