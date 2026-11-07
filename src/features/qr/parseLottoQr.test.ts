@@ -87,6 +87,22 @@ describe("parseLottoQr", () => {
     );
   });
 
+  // 1,000원(1줄)부터 5,000원(5줄)까지 전부 저장돼야 한다. 용지 정보 묶음(n)이 몇 개
+  // 붙어 있든 게임 수에 영향을 주지 않아야 한다 - 5줄 용지에서 n 묶음을 게임으로
+  // 세면 "6게임"이 되어 통째로 거부당한다.
+  it.each([1, 2, 3, 4, 5])("saves all %i games, with trailing ticket-info blocks attached", (count) => {
+    const blocks = ["030915233143", "111930333639", "020323313941", "081825304244", "020822283740"];
+    const payload = "1249" + blocks.slice(0, count).map((b) => "m" + b).join("") + "n081825304244n999888777666123456789012345678";
+    const result = parseLottoQr(`http://qr.dhlottery.co.kr/?v=${payload}`);
+    expect(result?.games).toHaveLength(count);
+    expect(result?.drawNo).toBe(1249);
+  });
+
+  it("saves a ticket that mixes 자동(q) and 수동(m) rows", () => {
+    const result = parseLottoQr("http://qr.dhlottery.co.kr/?v=1249q030915233143m111930333639n999888777666");
+    expect(result?.games).toHaveLength(2);
+  });
+
   it("returns null for a URL with no dhlottery.co.kr host", () => {
     expect(parseLottoQr("https://example.com/?v=1193q030915233143")).toBeNull();
   });
