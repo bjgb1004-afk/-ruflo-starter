@@ -72,27 +72,56 @@ export const useMyLottoTickets = create<MyLottoState>()(
         const now = new Date().toISOString();
         const groupId = generateId();
         const next = { ...get().tickets };
-        // 같은 용지를 실수로 다시 스캔(리스캔 잠금 창 밖에서 재시도, 화면 재진입 후 재스캔 등)
-        // 해도 중복 저장되지 않게, 같은 회차+같은 번호 조합이 이미 있으면 건너뛴다. 그대로 두면
-        // 보관함 통계(총 구매액)가 부풀려지고, 추첨 후 같은 결과로 알림도 두 번 온다.
-        const existingKeys = new Set(Object.values(next).map((t) => `${t.drawNo}:${t.numbers.join(",")}`));
+        const keyOf = (drawNo: number, numbers: number[]) => `${drawNo}:${numbers.join(",")}`;
+
+        // 같은 용지를 실수로 다시 스캔(리스캔 잠금 창 밖에서 재시도, 화면 재진입 후 재스캔)
+        // 해도 중복 저장되지 않게 막는다. 가리는 기준은 번호가 아니라 **용지**다 - QR 원문에는
+        // 그 용지만의 일련번호가 들어 있어 용지 한 장을 정확히 가리킨다.
+        //
+        // 번호로 가리면 같은 번호를 여러 장 산 사람의 게임이 사라진다. 2026-11-07 1249회에
+        // 같은 번호 3장(3,000원)짜리 용지가 보관함에 1줄로 들어갔다 - 구매액이 1/3로,
+        // 당첨됐다면 당첨금도 1/3로 보인다. 같은 번호를 여러 장 사는 건 흔한 구매 방식이다.
+        const paperUrl = inputs[0]?.qrUrl;
+        if (paperUrl && Object.values(next).some((t) => t.qrUrl === paperUrl)) return [];
+
         // 건너뛴 건 화면에서 알아야 한다. 안 그러면 두 번 누른 사람에게 "저장했어요"라고 거짓말한다.
         const added: number[][] = [];
+        // 이번 호출에서 이미 "산 것으로 승격"에 쓴 줄. 같은 번호가 용지에 두 번 적혀 있으면
+        // 두 번째는 승격 대상이 없으니 새 줄로 들어가야 한다.
+        const consumed = new Set<string>();
+
         for (const input of inputs) {
-          const key = `${input.drawNo}:${input.numbers.join(",")}`;
-          if (existingKeys.has(key)) {
-            // 저장만 해뒀던 번호를 나중에 실제로 사서 스캔한 경우. 그냥 건너뛰면 영원히
-            // "안 산 번호"로 남아 구매액에서 빠진다 - 그 칸을 산 것으로 올려준다.
-            if (input.purchased) {
-              for (const [id, t] of Object.entries(next)) {
-                if (`${t.drawNo}:${t.numbers.join(",")}` === key && t.purchased === false) {
-                  next[id] = { ...t, purchased: true, purchaseType: input.purchaseType };
-                }
-              }
+          const key = keyOf(input.drawNo, input.numbers);
+
+          // 저장만 해뒀던 번호를 나중에 실제로 사서 스캔한 경우. 그냥 새로 넣으면 같은 번호가
+          // "안 산 것"과 "산 것"으로 두 줄 보이고, 건너뛰면 영원히 구매액에서 빠진다 -
+          // 있던 줄을 산 것으로 올려준다.
+          if (input.purchased) {
+            const upgradeId = Object.keys(next).find((id) => {
+              const t = next[id];
+              return !!t && !consumed.has(id) && t.purchased === false && keyOf(t.drawNo, t.numbers) === key;
+            });
+            if (upgradeId) {
+              const previous = next[upgradeId]!;
+              consumed.add(upgradeId);
+              next[upgradeId] = {
+                ...previous,
+                purchased: true,
+                purchaseType: input.purchaseType,
+                qrUrl: input.qrUrl ?? previous.qrUrl,
+              };
+              added.push(input.numbers);
+              continue;
             }
+          }
+
+          // 용지를 모르는 경로(번호 직접 입력, 생성기에서 "이 번호 저장")는 지금까지처럼
+          // 번호로 가린다 - 복사본이 쌓이면 구매액과 성적 통계만 부풀려진다. 용지를 아는
+          // 스캔은 위에서 용지 단위로 이미 걸렀으므로 여기서 또 가리지 않는다.
+          if (!input.qrUrl && Object.values(next).some((t) => keyOf(t.drawNo, t.numbers) === key)) {
             continue;
           }
-          existingKeys.add(key);
+
           const id = generateId();
           next[id] = {
             ...input,

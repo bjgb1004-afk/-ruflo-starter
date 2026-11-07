@@ -89,16 +89,25 @@ export async function registerResultPushSubscription(
     // 한 줄씩 보내는 이유: 여러 줄을 한 번에 보내면 그중 하나가 중복일 때 전부 실패한다
     // (같은 용지를 다시 스캔하면 실제로 그렇게 된다). 한 장은 보통 1~5게임이라 요청 몇 개는
     // 저장 버튼을 누른 순간에만 생기고 끝이다.
+    // 같은 번호가 한 용지에 여러 장 있으면(흔한 구매 방식) 몇 번째 장인지 함께 보낸다.
+    // 이게 없으면 유니크 제약에 걸려 한 장분만 등록되고, 알림은 "1게임 5,000원"인데
+    // 보관함은 "3게임 15,000원"이라고 해서 같은 앱이 돈에 대해 다른 말을 한다.
+    const copyNoByNumbers = new Map<string, number>();
+    const rows = games.map((g) => {
+      const key = g.numbers.join(",");
+      const copyNo = (copyNoByNumbers.get(key) ?? 0) + 1;
+      copyNoByNumbers.set(key, copyNo);
+      return {
+        push_token: token,
+        draw_no: drawNo,
+        numbers: g.numbers,
+        purchase_type: g.type,
+        purchased,
+        copy_no: copyNo,
+      };
+    });
     const results = await Promise.all(
-      games.map((g) =>
-        supabase.from("mylotto_push_subscriptions").insert({
-          push_token: token,
-          draw_no: drawNo,
-          numbers: g.numbers,
-          purchase_type: g.type,
-          purchased,
-        }),
-      ),
+      rows.map((row) => supabase.from("mylotto_push_subscriptions").insert(row)),
     );
     // 23505 = unique 제약 위반. 이미 등록된 번호라는 뜻이니 성공으로 본다.
     const failed = results.find((r) => r.error && r.error.code !== "23505");

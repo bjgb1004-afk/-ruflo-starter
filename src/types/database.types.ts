@@ -1584,6 +1584,7 @@ export type Database = {
       }
       mylotto_push_subscriptions: {
         Row: {
+          copy_no: number
           created_at: string
           draw_no: number
           id: string
@@ -1594,6 +1595,7 @@ export type Database = {
           push_token: string
         }
         Insert: {
+          copy_no?: number
           created_at?: string
           draw_no: number
           id?: string
@@ -1604,6 +1606,7 @@ export type Database = {
           push_token: string
         }
         Update: {
+          copy_no?: number
           created_at?: string
           draw_no?: number
           id?: string
