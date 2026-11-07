@@ -27,6 +27,30 @@ describe("parseLottoQr", () => {
     expect(result?.games[4].numbers).toEqual([2, 8, 22, 28, 37, 40]);
   });
 
+  it("parses the official qr.do link shape (path and extra query params)", () => {
+    // 공식 사이트/앱이 쓰는 주소 꼴. 경로가 "/?v=" 가 아니라 "/qr.do?method=winQr&v=" 다.
+    const result = parseLottoQr(
+      "https://m.dhlottery.co.kr/qr.do?method=winQr&v=1248q031015283541",
+    );
+    expect(result).toEqual({ drawNo: 1248, games: [{ numbers: [3, 10, 15, 28, 35, 41], type: null }] });
+  });
+
+  it("parses game separators other than q", () => {
+    // 구분자 글자가 q가 아니어도(자동/수동 구분일 가능성) 번호는 그대로 읽어야 한다.
+    const result = parseLottoQr("https://qr.dhlottery.co.kr/?v=1248m031015283541q010203040506");
+    expect(result).toEqual({
+      drawNo: 1248,
+      games: [
+        { numbers: [3, 10, 15, 28, 35, 41], type: null },
+        { numbers: [1, 2, 3, 4, 5, 6], type: null },
+      ],
+    });
+  });
+
+  it("returns null when the draw number is not followed by a separator letter", () => {
+    expect(parseLottoQr("https://qr.dhlottery.co.kr/?v=1248031015283541")).toBeNull();
+  });
+
   it("returns null for a URL with no dhlottery.co.kr host", () => {
     expect(parseLottoQr("https://example.com/?v=1193q030915233143")).toBeNull();
   });
