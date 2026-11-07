@@ -51,10 +51,9 @@ describe("parseLottoQr", () => {
     expect(parseLottoQr("https://qr.dhlottery.co.kr/?v=1248031015283541")).toBeNull();
   });
 
-  it("parses the 2026-11-07 ticket shape: m/n separators and a serial block of its own", () => {
+  it("parses the 2026-11-07 ticket: three m blocks are the three games, n blocks are not", () => {
     // 에러 로그에 찍힌 실물 모양: v=<4d>m<12d>m<12d>m<12d>n<12d>n<30d>.
-    // 마지막 30자리는 번호로 읽히지 않는다(앞 12자리 99/88/77이 1~45 범위를 벗어남) -
-    // 일련번호 묶음이 자기 구분자를 달고 떨어져 나온 것이라 보고 버린다.
+    // 용지에는 3줄(3,000원)만 찍혀 있었다 - 즉 n으로 시작하는 두 묶음은 게임이 아니다.
     const result = parseLottoQr(
       "http://qr.dhlottery.co.kr/?v=1249m030915233143m111930333639m020323313941n081825304244n999888777666123456789012345678",
     );
@@ -64,23 +63,28 @@ describe("parseLottoQr", () => {
         { numbers: [3, 9, 15, 23, 31, 43], type: null },
         { numbers: [11, 19, 30, 33, 36, 39], type: null },
         { numbers: [2, 3, 23, 31, 39, 41], type: null },
-        { numbers: [8, 18, 25, 30, 42, 44], type: null },
       ],
     });
   });
 
-  it("still rejects the whole ticket when a middle block is broken", () => {
-    // 가운데가 깨진 건 일련번호로 볼 수 없다 - 게임 하나를 조용히 잃는 것보다 안 읽는 게 낫다.
+  it("returns null when a game-marked block is broken", () => {
+    // m 묶음은 게임이라고 선언된 것이다. 그게 번호로 안 읽히면 추측하지 않고 실패한다.
     expect(
       parseLottoQr("https://qr.dhlottery.co.kr/?v=1249m999888777666m030915233143"),
     ).toBeNull();
   });
 
-  it("names the failing block in the logged shape, without the numbers", () => {
-    const shape = describeQrShape(
-      "http://qr.dhlottery.co.kr/?v=1249m999888777666m030915233143",
+  it("returns null when no block carries a game marker", () => {
+    expect(parseLottoQr("https://qr.dhlottery.co.kr/?v=1249n030915233143")).toBeNull();
+  });
+
+  it("names the failing block and its marker in the logged shape, without the numbers", () => {
+    expect(describeQrShape("https://qr.dhlottery.co.kr/?v=1249m999888777666m030915233143")).toBe(
+      "https://qr.dhlottery.co.kr/?v=<4d>m<12d>m<12d> | block-1-of-2-marker-m-invalid(len=12)",
     );
-    expect(shape).toBe("http://qr.dhlottery.co.kr/?v=<4d>m<12d>m<12d> | block-1-of-2-invalid(len=12)");
+    expect(describeQrShape("https://qr.dhlottery.co.kr/?v=1249n030915233143")).toBe(
+      "https://qr.dhlottery.co.kr/?v=<4d>n<12d> | no-game-markers(first=n)",
+    );
   });
 
   it("returns null for a URL with no dhlottery.co.kr host", () => {

@@ -502,7 +502,9 @@ export default function ScanScreen() {
                 <Text style={styles.sheetTitle}>인식할 수 없는 QR코드예요</Text>
                 <Text style={styles.sheetSubtitle}>로또 6/45 용지의 QR코드가 맞는지 확인해 주세요.</Text>
                 {/* 읽은 원문을 보여준다 - 이게 없으면 신고를 받아도 무엇을 못 읽었는지 알 수 없다. */}
-                <Text style={styles.sheetRawQr} numberOfLines={3}>
+                {/* selectable: 길게 눌러 복사해 보내줄 수 있게 한다 - 70자 넘는 숫자열을
+                    사람이 받아적게 하면 틀린다. 폰에서 복사하는 것이니 아무 데도 안 보낸다. */}
+                <Text style={styles.sheetRawQr} numberOfLines={4} selectable>
                   {result.raw.slice(0, 160)}
                 </Text>
               </>
