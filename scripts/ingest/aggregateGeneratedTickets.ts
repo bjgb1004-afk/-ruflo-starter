@@ -53,11 +53,22 @@ async function pendingDrawNos(): Promise<number[]> {
   return [...seen].sort((a, b) => a - b);
 }
 
-async function loadDraw(drawNo: number): Promise<LottoDraw | null> {
+// 1~3등 금액이 아직 안 붙은 회차를 언제까지 미룰지. 추첨 당일엔 당첨번호가 먼저 들어오고
+// 금액은 몇 분~몇십 분 뒤에 붙으므로 그동안은 기다린다. 다만 영구히 미루면 원본 번호가
+// 서버에 계속 남으므로(회차마다 리셋이 이 기능의 전제다) 사흘이 지나면 그냥 집계한다.
+const PRIZE_WAIT_DAYS = 3;
+
+interface LoadedDraw {
+  draw: LottoDraw;
+  /** 1~3등 금액이 아직 집계 전이고, 기다려 볼 만큼 최근인 회차 */
+  prizesPending: boolean;
+}
+
+async function loadDraw(drawNo: number): Promise<LoadedDraw | null> {
   const { data, error } = await supabaseAdmin
     .from("draw_history")
     .select(
-      "draw_no, winning_numbers, bonus_number, first_prize_amount_per_win, second_prize_amount_per_win, third_prize_amount_per_win",
+      "draw_no, draw_date, winning_numbers, bonus_number, first_prize_amount_per_win, second_prize_amount_per_win, third_prize_amount_per_win",
     )
     .eq("draw_no", drawNo)
     .maybeSingle();
@@ -67,20 +78,34 @@ async function loadDraw(drawNo: number): Promise<LottoDraw | null> {
   if (data.first_prize_amount_per_win != null) prizePerWin[1] = data.first_prize_amount_per_win;
   if (data.second_prize_amount_per_win != null) prizePerWin[2] = data.second_prize_amount_per_win;
   if (data.third_prize_amount_per_win != null) prizePerWin[3] = data.third_prize_amount_per_win;
+
+  const ageDays = (Date.now() - new Date(data.draw_date).getTime()) / (24 * 60 * 60 * 1000);
   return {
-    round: data.draw_no,
-    numbers: data.winning_numbers,
-    bonus: data.bonus_number,
-    prizePerWin,
+    draw: {
+      round: data.draw_no,
+      numbers: data.winning_numbers,
+      bonus: data.bonus_number,
+      prizePerWin,
+    },
+    prizesPending: Object.keys(prizePerWin).length < 3 && ageDays < PRIZE_WAIT_DAYS,
   };
 }
 
 async function aggregate(drawNo: number): Promise<void> {
-  const draw = await loadDraw(drawNo);
-  if (!draw) {
+  const loaded = await loadDraw(drawNo);
+  if (!loaded) {
     console.log(`  ${drawNo}회: 아직 추첨 결과 없음 - 다음 실행에서 재시도`);
     return;
   }
+
+  // 금액이 비어 있는 채로 집계하면 1~3등을 0원으로 적고 원본 번호까지 지워 되돌릴 수 없다
+  // (성적표는 회차당 한 줄만 남기고 원본을 삭제하는 구조다). 금액이 붙은 뒤에 센다.
+  if (loaded.prizesPending) {
+    console.log(`  ${drawNo}회: 1~3등 당첨금 집계 전 - 다음 실행에서 재시도`);
+    return;
+  }
+
+  const draw = loaded.draw;
 
   const tickets = await fetchTickets(drawNo);
   if (tickets.length === 0) {
