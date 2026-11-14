@@ -3,7 +3,7 @@
 //
 // 실행: npm run ingest:draws (GitHub Actions sync-data.yml에서 매일 1회 자동 실행)
 import { supabaseAdmin } from "./lib/supabaseAdmin";
-import { normalizeMirrorDraw, type MirrorDrawResponse, type NormalizedDraw } from "./lib/mirrorDraw";
+import { normalizeMirrorDraw, prizeColumns, type MirrorDrawResponse, type NormalizedDraw } from "./lib/mirrorDraw";
 import {
   fetchWinStoreRecords,
   resolveWinStores,
@@ -22,14 +22,25 @@ const MIRROR_ENDPOINT = "https://raw.githubusercontent.com/smok95/lotto/master/r
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
+function nowKst(): Date {
+  return new Date(Date.now() + KST_OFFSET_MS);
+}
+
 // 추첨(토 20:35)~미러 갱신(실측 20:49경) 사이의 "발표 직후" 창. 이 창 밖(평소 안전망
 // 3시 cron 등)에서는 신규 회차가 있을 수 없으니 기다릴 이유가 없다.
 function isDrawAnnouncementWindow(): boolean {
-  const kst = new Date(Date.now() + KST_OFFSET_MS);
+  const kst = nowKst();
   const day = kst.getUTCDay(); // 6 = 토요일
   const hour = kst.getUTCHours();
   const minute = kst.getUTCMinutes();
   return day === 6 && ((hour === 20 && minute >= 30) || (hour === 21 && minute <= 30));
+}
+
+// 배당(1~3등 금액)은 당첨번호보다 늦게 확정된다 - 번호 발표 직후가 아니라 추첨일 밤 내내
+// 기다릴 수 있어야 한다. 번호 대기 창(위)보다 넓게 잡는 이유다.
+function isDrawNight(): boolean {
+  const kst = nowKst();
+  return kst.getUTCDay() === 6 && kst.getUTCHours() >= 20;
 }
 
 const MIRROR_POLL_INTERVAL_MS = 20_000;
@@ -57,14 +68,65 @@ async function fetchDrawWaitingForAnnouncement(drwNo: number): Promise<Normalize
   return null;
 }
 
-// 아직 발표되지 않은 회차는 404, 번호만 올라오고 배당이 아직 없는 회차는 normalizeMirrorDraw가
-// null - 어느 쪽이든 "여기까지가 최신"으로 취급한다(lib/mirrorDraw.ts 주석 참고).
+// 아직 발표되지 않은 회차는 404 - null 반환으로 "여기까지가 최신"임을 알린다. 번호만 있고
+// 배당이 아직 없는 회차는 draw.prizes가 null로 온다(lib/mirrorDraw.ts 참고).
 async function fetchDrawFromMirror(drwNo: number): Promise<NormalizedDraw | null> {
   // 쿼리로 캐시를 비켜간다. raw.githubusercontent는 응답을 몇 분간 캐시하므로, 발표 직후
   // 20초 간격 폴링이 같은 구버전만 반복해 받으면 기다리는 의미가 없다.
   const res = await fetch(`${MIRROR_ENDPOINT}${drwNo}.json?t=${Date.now()}`);
   if (!res.ok) return null;
   return normalizeMirrorDraw((await res.json()) as MirrorDrawResponse);
+}
+
+// 당첨번호는 먼저, 배당은 곧. 이 둘을 한 번에 기다리지 않는 게 핵심이다 - 번호를 배당까지
+// 기다렸다 저장하면 유저가 제일 먼저 보고 싶은 번호가 늦어진다. 번호는 위에서 바로 저장하고,
+// 배당은 이 함수가 채운다.
+//
+// 왜 "다음 실행"에 안 맡기는가: 예약 실행(cron)은 몇 시간씩 밀리고 토요일 밤 실행은 통째로
+// 스킵된 적도 있다(1250회 실측: 토요일 cron 8개가 전부 안 떴고, 실제로 돈 건 앱오픈 트리거
+// 하나였다). 그러니 "지금 돌고 있는 이 실행"이 추첨일 밤엔 끝까지 기다리는 게 가장 빠르다.
+async function fillLatestPrizes(): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from("draw_history")
+    .select("draw_no, first_prize_amount_per_win")
+    .order("draw_no", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || data.first_prize_amount_per_win !== null) return;
+
+  // 추첨일 밤에만 기다린다. 그 외 시각엔 이미 올라와 있는 것만 가져오고 바로 넘어간다
+  // (과거 회차는 backfillPrizeAmounts가 맡는다).
+  const maxAttempts = isDrawNight() ? MIRROR_POLL_MAX_ATTEMPTS : 1;
+  console.log("");
+  console.log(
+    `💰 회차 ${data.draw_no} 배당 채우기` +
+      (maxAttempts > 1 ? ` (아직이면 20초 간격으로 최대 ${(MIRROR_POLL_INTERVAL_MS * maxAttempts) / 60_000}분 대기)` : ""),
+  );
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const draw = await fetchDrawFromMirror(data.draw_no);
+    if (draw?.prizes) {
+      const { error: updateError } = await supabaseAdmin
+        .from("draw_history")
+        .update(prizeColumns(draw.prizes))
+        .eq("draw_no", data.draw_no);
+      if (updateError) {
+        console.error(`   ❌ 배당 저장 실패: ${updateError.message}`);
+        return;
+      }
+      const waited = ((attempt - 1) * MIRROR_POLL_INTERVAL_MS) / 1000;
+      console.log(
+        `   ✅ 1등 ${draw.prizes.firstPrizeWinnerCount}명 / ` +
+          `${draw.prizes.firstPrizeAmountPerWin.toLocaleString("ko-KR")}원` +
+          (waited > 0 ? ` (${waited}초 대기)` : " (즉시)"),
+      );
+      return;
+    }
+    if (attempt < maxAttempts) await new Promise((resolve) => setTimeout(resolve, MIRROR_POLL_INTERVAL_MS));
+  }
+
+  console.log("   미러에 아직 배당 없음 - 다음 실행(앱오픈 트리거 포함)에서 재시도");
 }
 
 // 배출점 조회·매칭은 과거 회차 재수집(rebuildWinStoresFromOfficial.ts)과 규칙이 같아야 해서
@@ -205,26 +267,16 @@ async function backfillPrizeAmounts(): Promise<void> {
 
   for (const { draw_no } of targets) {
     const draw = await fetchDrawFromMirror(draw_no);
-    if (!draw) {
-      // 미러에도 아직 배당이 없는 회차(추첨 직후). 다음 실행에서 다시 본다.
+    if (!draw?.prizes) {
+      // 미러에도 아직 배당이 없는 회차(추첨 직후). 빈 값으로 덮어쓰지 않고 다음 실행에서
+      // 다시 본다 - null을 써버리면 이미 채워진 회차를 지우는 사고가 난다.
       missing += 1;
       continue;
     }
 
     const { error: updateError } = await supabaseAdmin
       .from("draw_history")
-      .update({
-        first_prize_amount_per_win: draw.firstPrizeAmountPerWin,
-        first_prize_winner_count: draw.firstPrizeWinnerCount,
-        first_prize_total_amount: draw.firstPrizeTotalAmount,
-        second_prize_amount_per_win: draw.secondPrizeAmountPerWin,
-        second_prize_winner_count: draw.secondPrizeWinnerCount,
-        third_prize_amount_per_win: draw.thirdPrizeAmountPerWin,
-        third_prize_winner_count: draw.thirdPrizeWinnerCount,
-        fourth_prize_winner_count: draw.fourthPrizeWinnerCount,
-        fifth_prize_winner_count: draw.fifthPrizeWinnerCount,
-        total_sales_amount: draw.totalSalesAmount,
-      })
+      .update(prizeColumns(draw.prizes))
       .eq("draw_no", draw_no);
     if (updateError) {
       console.error(`  ❌ 회차 ${draw_no} 금액 보정 실패: ${updateError.message}`);
@@ -268,7 +320,7 @@ async function backfillEarlyDraws(): Promise<void> {
 
   for (let drwNo = firstStored - 1; drwNo >= 1 && filled + missing < EARLY_BACKFILL_LIMIT; drwNo--) {
     const draw = await fetchDrawFromMirror(drwNo);
-    if (!draw) {
+    if (!draw?.prizes) {
       // 미러에 그 회차 파일이 없거나 배당이 비어 있다 - 건너뛰고 계속 내려간다.
       missing += 1;
       continue;
@@ -280,16 +332,7 @@ async function backfillEarlyDraws(): Promise<void> {
         draw_date: draw.drwNoDate,
         winning_numbers: draw.numbers,
         bonus_number: draw.bnusNo,
-        first_prize_total_amount: draw.firstPrizeTotalAmount,
-        first_prize_winner_count: draw.firstPrizeWinnerCount,
-        first_prize_amount_per_win: draw.firstPrizeAmountPerWin,
-        second_prize_amount_per_win: draw.secondPrizeAmountPerWin,
-        second_prize_winner_count: draw.secondPrizeWinnerCount,
-        third_prize_amount_per_win: draw.thirdPrizeAmountPerWin,
-        third_prize_winner_count: draw.thirdPrizeWinnerCount,
-        fourth_prize_winner_count: draw.fourthPrizeWinnerCount,
-        fifth_prize_winner_count: draw.fifthPrizeWinnerCount,
-        total_sales_amount: draw.totalSalesAmount,
+        ...prizeColumns(draw.prizes),
         first_prize_store_ids: [],
         second_prize_store_ids: [],
       },
@@ -364,29 +407,22 @@ async function main() {
         // 되면 조회 함수가 조용히 빈 배열만 반환해 "당첨자는 있는데 배출점 0건"이던 예전
         // DATA_GO_KR_API_KEY 문제가 티 안 나게 재발한다 - 당첨자 수(0보다 큼)와 매칭된
         // 배출점 수(0)가 어긋나면 명시적으로 경고해 GitHub Actions 로그에서 바로 눈에 띄게 한다.
-        if (draw.firstPrizeWinnerCount > 0 && firstPrizeStoreIds.length === 0) {
+        if ((draw.prizes?.firstPrizeWinnerCount ?? 0) > 0 && firstPrizeStoreIds.length === 0) {
           console.warn(
-            `  ⚠️ 1등 당첨자가 ${draw.firstPrizeWinnerCount}명인데 배출점이 0건입니다 - ` +
+            `  ⚠️ 1등 당첨자가 ${draw.prizes!.firstPrizeWinnerCount}명인데 배출점이 0건입니다 - ` +
               `배출점 소스(공식/lottorich) 응답 구조가 바뀌었을 가능성이 있습니다. 확인 필요.`,
           );
         }
 
+        // 배당이 아직 집계 전이면 배당 칸을 아예 안 보낸다(null로 덮어쓰지 않는다).
+        // 당첨번호는 이 자리에서 바로 저장되고, 배당은 아래 fillLatestPrizes()가 채운다.
         const { error } = await supabaseAdmin.from("draw_history").upsert(
           {
             draw_no: draw.drwNo,
             draw_date: draw.drwNoDate,
             winning_numbers: draw.numbers,
             bonus_number: draw.bnusNo,
-            first_prize_total_amount: draw.firstPrizeTotalAmount,
-            first_prize_winner_count: draw.firstPrizeWinnerCount,
-            first_prize_amount_per_win: draw.firstPrizeAmountPerWin,
-            second_prize_amount_per_win: draw.secondPrizeAmountPerWin,
-            second_prize_winner_count: draw.secondPrizeWinnerCount,
-            third_prize_amount_per_win: draw.thirdPrizeAmountPerWin,
-            third_prize_winner_count: draw.thirdPrizeWinnerCount,
-            fourth_prize_winner_count: draw.fourthPrizeWinnerCount,
-            fifth_prize_winner_count: draw.fifthPrizeWinnerCount,
-            total_sales_amount: draw.totalSalesAmount,
+            ...(draw.prizes ? prizeColumns(draw.prizes) : {}),
             first_prize_store_ids: firstPrizeStoreIds,
             second_prize_store_ids: secondPrizeStoreIds,
           },
@@ -397,7 +433,7 @@ async function main() {
           console.error(`  ❌ DB 저장 실패: ${error.message}`);
           failed += 1;
         } else {
-          console.log(`  ✅ 저장 완료`);
+          console.log(draw.prizes ? `  ✅ 저장 완료` : `  ✅ 당첨번호 저장 완료 (배당은 아직 집계 전)`);
           inserted += 1;
           // draw_first_prize_methods.draw_no가 draw_history를 참조하므로 회차 저장 뒤에 넣는다.
           await syncFirstPrizeMethodsIfAvailable(draw.drwNo, firstMethods);
@@ -412,6 +448,11 @@ async function main() {
         }
       }
     }
+
+    // 배당 채우기를 배출점 작업보다 먼저 한다. 앱 화면의 "집계 중..."을 지우는 게 배출점
+    // 목록보다 급하고, 배출점 조회는 느리고 실패도 잦아서 뒤에 두는 게 안전하다
+    // (같은 이유로 당첨 알림도 배출점 작업보다 앞으로 옮긴 적이 있다 - 커밋 00c227c).
+    await fillLatestPrizes();
 
     await backfillPrizeStoreIds(storeIndex);
     await backfillPrizeAmounts();

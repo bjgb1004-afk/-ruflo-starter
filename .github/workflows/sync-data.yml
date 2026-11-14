@@ -47,6 +47,14 @@ on:
           - 'false'
           - 'true'
 
+# 같은 일을 하는 실행이 겹치지 않게 한 번에 하나만 돌린다. 앱이 열릴 때 깨우는 트리거가
+# "당첨번호는 있는데 배당이 아직 비었다"에도 반응하므로(trigger-draw-sync), 추첨 당일 밤엔
+# 예약 실행과 겹칠 수 있다. 취소하지 않고 줄 세우는 이유: 이 배치는 멱등이라 늦게 한 번 더
+# 도는 건 안전한데, 돌던 걸 끊으면 배당 대기 중이던 실행이 날아간다.
+concurrency:
+  group: sync-data
+  cancel-in-progress: false
+
 env:
   NODE_VERSION: '24'
   WORKING_DIR: 'scripts/ingest'
