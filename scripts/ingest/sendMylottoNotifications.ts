@@ -157,11 +157,16 @@ async function main() {
 
   // 발송이 0통이어도 처리한 묶음은 통보 완료로 찍는다. 안 산 번호의 낙첨은 보낼 내용이
   // 없을 뿐 처리는 끝난 것이고, 안 찍으면 그 번호가 서버에서 영원히 안 지워진다.
-  if (notifiedIds.length > 0) {
+  // PostgREST는 조건을 URL에 싣는다 - id 수백 개를 한 번에 넣으면 URL 길이 제한에 걸려
+  // 통째로 400이 떨어진다(1250회 실측: 733건 → "Bad Request"). 그러면 발송은 됐는데 통보
+  // 기록이 안 남아 다음 실행에서 같은 알림이 또 가고, 번호도 서버에서 안 지워진다.
+  const NOTIFIED_UPDATE_CHUNK = 100;
+  const notifiedAt = new Date().toISOString();
+  for (let i = 0; i < notifiedIds.length; i += NOTIFIED_UPDATE_CHUNK) {
     const { error: updateError } = await supabaseAdmin
       .from("mylotto_push_subscriptions")
-      .update({ notified_at: new Date().toISOString() })
-      .in("id", notifiedIds);
+      .update({ notified_at: notifiedAt })
+      .in("id", notifiedIds.slice(i, i + NOTIFIED_UPDATE_CHUNK));
     if (updateError) console.error("  ❌ notified_at 갱신 실패:", updateError.message);
   }
 
