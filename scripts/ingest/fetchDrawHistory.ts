@@ -3,6 +3,7 @@
 //
 // 실행: npm run ingest:draws (GitHub Actions sync-data.yml에서 매일 1회 자동 실행)
 import { supabaseAdmin } from "./lib/supabaseAdmin";
+import { normalizeMirrorDraw, type MirrorDrawResponse, type NormalizedDraw } from "./lib/mirrorDraw";
 import {
   fetchWinStoreRecords,
   resolveWinStores,
@@ -18,32 +19,6 @@ import { loadAllStores } from "./lib/loadStores";
 // 요청으로 모두 준다. 배출점은 개편으로 열린 공식 경로를 쓰므로(lib/dhlotteryWinStores.ts)
 // "공식은 전부 막혔다"로 뭉뚱그리면 안 된다 - 막힌 건 이 당첨번호 경로다.
 const MIRROR_ENDPOINT = "https://raw.githubusercontent.com/smok95/lotto/master/results/";
-
-interface MirrorDrawResponse {
-  draw_no: number;
-  numbers: number[];
-  bonus_no: number;
-  date: string; // ISO, 예: "2026-08-08T00:00:00Z"
-  divisions: { prize: number; winners: number }[];
-  total_sales_amount: number;
-}
-
-interface NormalizedDraw {
-  drwNo: number;
-  drwNoDate: string;
-  numbers: number[];
-  bnusNo: number;
-  firstPrizeAmountPerWin: number;
-  firstPrizeWinnerCount: number;
-  firstPrizeTotalAmount: number;
-  secondPrizeAmountPerWin: number | null;
-  secondPrizeWinnerCount: number | null;
-  thirdPrizeAmountPerWin: number | null;
-  thirdPrizeWinnerCount: number | null;
-  fourthPrizeWinnerCount: number | null;
-  fifthPrizeWinnerCount: number | null;
-  totalSalesAmount: number;
-}
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -82,34 +57,14 @@ async function fetchDrawWaitingForAnnouncement(drwNo: number): Promise<Normalize
   return null;
 }
 
-// 아직 발표되지 않은 회차는 404 - null 반환으로 "여기까지가 최신"임을 알린다.
+// 아직 발표되지 않은 회차는 404, 번호만 올라오고 배당이 아직 없는 회차는 normalizeMirrorDraw가
+// null - 어느 쪽이든 "여기까지가 최신"으로 취급한다(lib/mirrorDraw.ts 주석 참고).
 async function fetchDrawFromMirror(drwNo: number): Promise<NormalizedDraw | null> {
-  const res = await fetch(`${MIRROR_ENDPOINT}${drwNo}.json`);
+  // 쿼리로 캐시를 비켜간다. raw.githubusercontent는 응답을 몇 분간 캐시하므로, 발표 직후
+  // 20초 간격 폴링이 같은 구버전만 반복해 받으면 기다리는 의미가 없다.
+  const res = await fetch(`${MIRROR_ENDPOINT}${drwNo}.json?t=${Date.now()}`);
   if (!res.ok) return null;
-  const d = (await res.json()) as MirrorDrawResponse;
-  const first = d.divisions?.[0];
-  const second = d.divisions?.[1];
-  const third = d.divisions?.[2];
-  const fourth = d.divisions?.[3];
-  const fifth = d.divisions?.[4];
-  if (!first || !d.numbers || d.numbers.length !== 6) return null;
-
-  return {
-    drwNo: d.draw_no,
-    drwNoDate: d.date.split("T")[0],
-    numbers: d.numbers,
-    bnusNo: d.bonus_no,
-    firstPrizeAmountPerWin: first.prize,
-    firstPrizeWinnerCount: first.winners,
-    firstPrizeTotalAmount: first.prize * first.winners,
-    secondPrizeAmountPerWin: second?.prize ?? null,
-    secondPrizeWinnerCount: second?.winners ?? null,
-    thirdPrizeAmountPerWin: third?.prize ?? null,
-    thirdPrizeWinnerCount: third?.winners ?? null,
-    fourthPrizeWinnerCount: fourth?.winners ?? null,
-    fifthPrizeWinnerCount: fifth?.winners ?? null,
-    totalSalesAmount: d.total_sales_amount,
-  };
+  return normalizeMirrorDraw((await res.json()) as MirrorDrawResponse);
 }
 
 // 배출점 조회·매칭은 과거 회차 재수집(rebuildWinStoresFromOfficial.ts)과 규칙이 같아야 해서
