@@ -4,6 +4,7 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { supabase } from "@/lib/supabase";
 import { reportError } from "@/lib/errorLog";
+import { useNotificationSettings } from "@/features/notifications/useNotificationSettings";
 import type { GameType } from "@/features/qr/parseLottoQr";
 
 const RESULT_CHANNEL_ID = "draw-result";
@@ -56,6 +57,11 @@ export async function registerResultPushSubscription(
   purchased: boolean,
 ): Promise<void> {
   try {
+    // 설정 스위치는 호출하는 화면이 아니라 여기서 본다 - 부르는 자리가 여러 곳이라(스캔,
+    // 생성기) 호출부마다 조건을 달면 새 저장 경로를 붙일 때 조용히 빠진다. 권한을 묻기
+    // 전에 본다: 끈 유저에게 OS 권한 창을 띄우지 않기 위해서다.
+    if (!useNotificationSettings.getState().drawAlerts) return;
+
     const { status: existing } = await Notifications.getPermissionsAsync();
     let status = existing;
     if (status !== "granted") {
@@ -114,5 +120,25 @@ export async function registerResultPushSubscription(
     if (failed?.error) throw failed.error;
   } catch (err) {
     reportError(err, "mylotto-push-subscription");
+  }
+}
+
+/**
+ * 서버에 등록해둔 이 폰의 미통보 구독을 지운다. 설정에서 추첨 알림을 끌 때 쓴다 -
+ * 앞으로 등록을 안 하는 것만으로는 부족하다(이미 등록된 번호는 다음 추첨 뒤에 알림이
+ * 한 통 더 간다).
+ *
+ * 주소는 이번 실행에서 받아둔 것이 있으면 그걸, 없으면 직전에 등록할 때 적어둔 것을
+ * 쓴다. 앱을 켜고 저장 한 번 없이 바로 설정에서 끄는 경우가 흔해서, 받아둔 주소에만
+ * 의존하면 그때 아무것도 못 지운다. 둘 다 없으면 등록된 적이 없다는 뜻이라 지울 것도 없다.
+ */
+export async function unsubscribeResultPush(): Promise<void> {
+  try {
+    const token = cachedToken ?? (await AsyncStorage.getItem(LAST_TOKEN_KEY));
+    if (!token) return;
+    const { error } = await supabase.rpc("unsubscribe_push_token", { p_token: token });
+    if (error) throw error;
+  } catch (err) {
+    reportError(err, "mylotto-push-unsubscribe");
   }
 }

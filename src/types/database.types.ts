@@ -1688,6 +1688,10 @@ export type Database = {
         Args: { p_old: string; p_new: string }
         Returns: number
       }
+      unsubscribe_push_token: {
+        Args: { p_token: string }
+        Returns: number
+      }
       consecutive_win_sigungu: {
         Args: { streak_weeks?: number }
         Returns: {

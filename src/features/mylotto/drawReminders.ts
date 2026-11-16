@@ -1,5 +1,6 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { useNotificationSettings } from "@/features/notifications/useNotificationSettings";
 
 // 로또 6/45는 1회차(2002-12-07 20:45 KST)부터 매주 토요일 같은 시각에 추첨한다.
 // 회차 번호만으로 추첨 일시를 역산할 수 있어, 아직 draw_history에 없는(미래) 회차라도
@@ -24,7 +25,12 @@ async function ensureReminderChannel() {
 
 // 보관함에 저장한 회차의 추첨 시각에 맞춰 로컬 알림을 예약한다. 이미 지난 회차(과거 회차를
 // 나중에 스캔한 경우)는 예약할 필요가 없어 조용히 넘어간다.
+//
+// 설정 스위치는 호출하는 화면이 아니라 여기서 본다 - 부르는 자리가 여러 곳이라(스캔,
+// 생성기) 호출부마다 조건을 달면 새 저장 경로를 붙일 때 조용히 빠진다.
 export async function scheduleDrawReminder(drawNo: number): Promise<void> {
+  if (!useNotificationSettings.getState().drawAlerts) return;
+
   const drawAt = estimateDrawDateTime(drawNo);
   if (drawAt.getTime() <= Date.now()) return;
 
@@ -47,6 +53,21 @@ export async function scheduleDrawReminder(drawNo: number): Promise<void> {
       ...(Platform.OS === "android" ? { channelId: REMINDER_CHANNEL_ID } : {}),
     },
   });
+}
+
+/**
+ * 예약해둔 추첨일 알림을 전부 취소한다. 설정에서 스위치를 끌 때 쓴다 - 앞으로 예약을
+ * 안 하는 것만으로는 부족하다(이미 예약된 것이 추첨 시각에 그대로 울린다).
+ *
+ * identifier 규칙을 믿지 않고 data.type으로 고른다 - 옛 규칙으로 예약된 것도 같이
+ * 지워야 하기 때문이다(아래 cleanupLegacyDrawReminders 참고).
+ */
+export async function cancelAllDrawReminders(): Promise<void> {
+  const all = await Notifications.getAllScheduledNotificationsAsync();
+  for (const n of all) {
+    if (n.content.data?.type !== "draw-reminder") continue;
+    await Notifications.cancelScheduledNotificationAsync(n.identifier);
+  }
 }
 
 // identifier 고정 전(위 fix 이전)에 예약된 알림은 회차마다 겹쳐 쌓여있을 수 있다 - 앱 시작
