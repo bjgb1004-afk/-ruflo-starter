@@ -11,8 +11,8 @@ interface Row {
   draw_date: string;
   winning_numbers: number[];
   bonus_number: number;
-  // 1등 금액은 982회 중 18회만 채워져 있다. 리플레이에서 1등이 걸릴 일은 사실상 없어
-  // (982회 돌려도 기대 0.00012회) 비어 있어도 화면에 영향이 없다.
+  // 당첨자가 없던 옛 회차 16건만 영구히 비어 있다(project_draw_history_coverage 참고). 그 외
+  // 비어 있는 건 추첨 직후라 아직 안 붙은 것 - roundToRefetchFrom이 다시 받아 채운다.
   first_prize_amount_per_win: number | null;
   second_prize_amount_per_win: number | null;
   third_prize_amount_per_win: number | null;
@@ -30,6 +30,22 @@ function toDraw(r: Row): LottoDraw {
       ...(r.third_prize_amount_per_win ? { 3: r.third_prize_amount_per_win } : {}),
     },
   };
+}
+
+// 당첨번호는 추첨 직후 바로 뜨지만 1등 금액은 몇 분 늦게 붙는다(mirrorDraw.ts 참고). 그 틈에
+// 폰이 하필 앱을 열면 "번호만 있고 금액은 빈" 상태로 캐시에 박히고, 그 뒤로는 영원히 안
+// 고쳐진다 - 아래 fetchDrawsAfter가 "이미 가진 회차보다 큰 것만" 서버에 물어보기 때문이다.
+// 그래서 최근 몇 회차는 캐시에 있어도 금액이 비어 있으면 다시 받는다. 오래된 회차가 금액이
+// 없는 건 당첨자가 없었던 회차라 영구 결측이므로(282회 이전 등), 이 창 밖은 건드리지 않는다.
+const RECENT_RECHECK_WINDOW = 10;
+
+export function roundToRefetchFrom(cached: readonly LottoDraw[]): number {
+  if (cached.length === 0) return 0;
+  const tailStart = Math.max(0, cached.length - RECENT_RECHECK_WINDOW);
+  for (let i = tailStart; i < cached.length; i++) {
+    if (cached[i].prizePerWin?.[1] === undefined) return cached[i].round - 1;
+  }
+  return cached[cached.length - 1].round;
 }
 
 /** afterRound보다 큰 회차만 페이징으로 받는다. afterRound가 0이면 전체. */
@@ -65,7 +81,7 @@ async function fetchDrawsAfter(afterRound: number): Promise<LottoDraw[]> {
  */
 export async function getDrawsForBacktest(): Promise<LottoDraw[]> {
   const cached = await readCachedDraws();
-  const lastRound = cached?.length ? cached[cached.length - 1].round : 0;
+  const lastRound = roundToRefetchFrom(cached ?? []);
 
   let fresh: LottoDraw[];
   try {
