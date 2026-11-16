@@ -17,8 +17,11 @@ import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/features/auth/useAuth";
 import { openUpdatePopup } from "@/features/notices/useUpdatePopup";
+import { openPlayStore } from "@/features/appUpdate/updateGate";
 import { GeofenceToggle } from "@/features/geofencing/GeofenceToggle";
 import { GEOFENCE_DEBUG_LOG_KEY } from "@/features/geofencing/geofenceTask";
+import { cancelAllDrawReminders } from "@/features/mylotto/drawReminders";
+import { unsubscribeResultPush } from "@/features/mylotto/pushSubscription";
 import { useScanSettings } from "@/features/mylotto/useScanSettings";
 import { useNotificationSettings } from "@/features/notifications/useNotificationSettings";
 import { cancelSpittoWeeklyReminder } from "@/features/spitto/weeklyReminder";
@@ -44,6 +47,8 @@ export default function SettingsScreen() {
   const setSpittoWeekly = useNotificationSettings((s) => s.setSpittoWeekly);
   const rankingWeekly = useNotificationSettings((s) => s.rankingWeekly);
   const setRankingWeekly = useNotificationSettings((s) => s.setRankingWeekly);
+  const drawAlerts = useNotificationSettings((s) => s.drawAlerts);
+  const setDrawAlerts = useNotificationSettings((s) => s.setDrawAlerts);
 
   const handleToggleSpittoWeekly = useCallback(
     (v: boolean) => {
@@ -51,6 +56,19 @@ export default function SettingsScreen() {
       if (!v) cancelSpittoWeeklyReminder();
     },
     [setSpittoWeekly],
+  );
+
+  // 끌 때는 앞으로 안 보내는 것만으로 부족하다 - 이미 예약된 로컬 알림과 서버에 등록된
+  // 구독을 같이 걷어내야 "껐는데 또 왔다"가 안 생긴다.
+  const handleToggleDrawAlerts = useCallback(
+    (v: boolean) => {
+      setDrawAlerts(v);
+      if (!v) {
+        cancelAllDrawReminders();
+        unsubscribeResultPush();
+      }
+    },
+    [setDrawAlerts],
   );
 
   const handleToggleRankingWeekly = useCallback(
@@ -183,6 +201,22 @@ export default function SettingsScreen() {
             {geofenceDebugLog}
           </Text>
         )}
+        {/* 보관함 번호에 딸린 알림 두 종류(추첨 시각 로컬 알림 + 추첨 후 결과 푸시)를 한
+            스위치로 묶는다 - 유저 눈에는 둘 다 "내가 저장한 번호 때문에 오는 알림"이다.
+            끄면 이미 예약·등록된 것까지 걷어낸다(handleToggleDrawAlerts). 다시 켜도 그
+            전에 저장해둔 번호는 소급 등록하지 않아서, 그 경계를 안내문에 적는다. */}
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleTextGroup}>
+            <Text style={[styles.toggleTitle, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
+              저장한 번호 추첨 알림
+            </Text>
+            <Text style={[styles.toggleSubtitle, { fontSize: getResponsiveFontSize(12, breakpoint) }]}>
+              보관함에 저장한 번호의 추첨 시각과 당첨 결과를 알려드려요. 다시 켠 뒤 저장한 번호부터
+              적용돼요
+            </Text>
+          </View>
+          <Switch value={drawAlerts} onValueChange={handleToggleDrawAlerts} />
+        </View>
         <View style={styles.toggleRow}>
           <View style={styles.toggleTextGroup}>
             <Text style={[styles.toggleTitle, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
@@ -245,6 +279,16 @@ export default function SettingsScreen() {
         <Pressable style={styles.linkRow} onPress={openUpdatePopup}>
           <Text style={[styles.linkRowText, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
             📢 업데이트 소식 다시 보기
+          </Text>
+        </Pressable>
+        {/* 스토어 평점이 아직 표시되지 않는다(표시 임계값 미달) - 몇 개만 더 받으면 별점이
+            뜨고, 그때부터 스토어 노출 전체의 설치 전환율이 같이 올라간다. 유저가 직접 눌러
+            스토어 페이지로 가는 길이므로 정책상 문제없다. 평점을 조건으로 걸러 보여주거나
+            보상을 주지 않는다(그 쪽이 정책 위반). 진짜 인앱 리뷰 팝업은 네이티브 부품이
+            필요해 다음 빌드로 미뤘다 - tasks/in-app-review.md 참고. */}
+        <Pressable style={styles.linkRow} onPress={() => openPlayStore("settings-rate-app")}>
+          <Text style={[styles.linkRowText, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
+            ⭐ 별점 남기기
           </Text>
         </Pressable>
         <Pressable
