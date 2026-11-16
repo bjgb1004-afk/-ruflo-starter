@@ -1,4 +1,6 @@
+import { Linking } from "react-native";
 import * as Updates from "expo-updates";
+import { reportError } from "@/lib/errorLog";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/database.types";
 
@@ -36,3 +38,16 @@ export async function getUpdateGate(runtimeVersion: string): Promise<AppUpdateGa
 export const PLAY_STORE_URL = "market://details?id=com.gzc.lottomap";
 export const PLAY_STORE_WEB_URL =
   "https://play.google.com/store/apps/details?id=com.gzc.lottomap";
+
+/**
+ * 이 앱의 Play 스토어 페이지를 연다. market:// 이 열리지 않는 기기(스토어 미설치/
+ * 사이드로드)에서는 웹 주소로 떨어진다.
+ *
+ * 고립 안내(UpdateGate)와 설정의 "별점 남기기"가 같은 동작을 쓴다 - 떨어뜨리는 순서가
+ * 한쪽에만 들어가 있으면 일부 기기에서 버튼이 아무 일도 안 하는 것처럼 보인다.
+ */
+export function openPlayStore(context: string) {
+  Linking.openURL(PLAY_STORE_URL).catch(() =>
+    Linking.openURL(PLAY_STORE_WEB_URL).catch((err) => reportError(err, context)),
+  );
+}
