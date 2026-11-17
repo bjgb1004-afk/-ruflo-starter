@@ -71,8 +71,9 @@ const config: ExpoConfig = {
     // 빌드는 "서버 알림만 없는 멀쩡한 앱"이면 된다(AdMob 플러그인과 같은 방식).
     ...(fs.existsSync("./google-services.json") ? { googleServicesFile: "./google-services.json" } : {}),
     // Play는 전보다 큰 순번만 받아준다 - 같은 번호를 다시 올리면 거절한다.
-    // 2(2026-09-18 출시) → 3. 이 빌드에 Analytics·광고 SDK·FCM·fingerprint 전환이 함께 들어간다.
-    versionCode: 3,
+    // 2(2026-09-18 출시) → 3(2026-10-14, Analytics·광고 SDK·FCM·fingerprint 전환) → 4.
+    // 이 빌드엔 인앱 리뷰 팝업(expo-store-review)이 들어간다 - runtimeVersion도 "5"로 같이 올림.
+    versionCode: 4,
     jsEngine: "hermes",
     adaptiveIcon: {
       foregroundImage: "./assets/images/adaptive-icon.png",
