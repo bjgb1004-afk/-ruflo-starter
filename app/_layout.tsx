@@ -17,6 +17,7 @@ import {
 import { initSentry } from "@/lib/sentry";
 import { logAppOpen, logScreenView } from "@/lib/analytics";
 import { checkForNativeUpdate } from "@/lib/inAppUpdate";
+import { recordLaunch } from "@/lib/storeReview";
 import { reportError } from "@/lib/errorLog";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/features/auth/useAuth";
@@ -118,6 +119,12 @@ export default function RootLayout() {
   // 스토어 새 버전을 강제로 받게 한다 - 안 그러면 구버전 껍데기가 영원히 남아있게 된다.
   useEffect(() => {
     checkForNativeUpdate();
+  }, []);
+
+  // 인앱 리뷰 팝업 조건(누적 실행 횟수·설치 후 경과일) 판단용 실행 기록. 리뷰 요청 자체는
+  // 당첨 확인 성공 지점(scan.tsx)에서 뜬다 - 여긴 "몇 번째 실행인지"만 센다.
+  useEffect(() => {
+    recordLaunch();
   }, []);
 
   // 로또 추첨은 매주 토요일 20시35분 KST - GitHub Actions의 schedule 트리거는 정시성이

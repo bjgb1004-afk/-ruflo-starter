@@ -18,6 +18,7 @@ import { groupTicketsByDraw, withGameLabel, type TicketGroup } from "@/features/
 import { useScanSettings } from "@/features/mylotto/useScanSettings";
 import { scheduleDrawReminder } from "@/features/mylotto/drawReminders";
 import { registerResultPushSubscription } from "@/features/mylotto/pushSubscription";
+import { maybeRequestReview } from "@/lib/storeReview";
 import { colors, spacing, radius, cardShadow } from "@/constants/theme";
 
 // 같은 용지를 계속 카메라에 비추고 있을 때, 스캔 직후 즉시 재인식되어 중복 저장되는
@@ -342,6 +343,8 @@ export default function ScanScreen() {
           games,
           qrUrl: scan.data,
         };
+        // 당첨 확인이 성공한 지점 - 자동저장/수동확인 두 경로 모두 여길 지난다.
+        maybeRequestReview();
         if (autoCapture) {
           saveResult(ok);
           const bestRank = games.reduce<WinRank>((best, g) => {

@@ -41,11 +41,11 @@ const config: ExpoConfig = {
   // 된다 - 새 빌드부터는 어차피 새 표식이기 때문이다. CLAUDE.md의 네이티브 변경 체크리스트에
   // 이 항목이 들어 있다.
   //
-  // 지금 이 값으로 바꿔도 앱이 안 죽는 근거: 스토어 빌드(10/14 02:04) 이후 네이티브 관련
-  // 변경이 0건이다(patches/ package-lock android/ app.config.ts assets/ google-services.json
-  // eas.json 전부). AdMob 네이티브 패치는 10/14 01:13 커밋이라 그 빌드에 들어가 있다.
-  // 그 이후 바뀐 건 화면 코드(JS)·문서·배치 스크립트뿐이고, JS는 지문 재료가 아니다.
-  runtimeVersion: "ba19255c8691a039326d48adafb9e3f46e6de005",
+  // 2026-11-17: expo-store-review(인앱 리뷰 팝업)를 추가하면서 다시 올렸다 - 새 네이티브
+  // 모듈이 들어갔으니 이전 표식(ba19255c…)을 그대로 쓰면 구버전 폰이 "없는 부품을 부르는
+  // JS"를 받아 즉사한다. 이 빌드가 나가면 그 전 표식으로 깔린 폰은 app_update_gates에
+  // ba19255c…를 등록해 고립 탈출 안내를 띄운다(CLAUDE.md 참고).
+  runtimeVersion: "5",
   updates: {
     url: "https://u.expo.dev/9eeff5c8-c217-4e45-9426-c0569f8c500e",
   },

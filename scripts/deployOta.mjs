@@ -97,6 +97,28 @@ if (!verifyOnly && !message) {
 }
 
 if (message) {
+  // 쏘는 것은 git 브랜치 이름이 아니라 "지금 작업 트리"다. 다른 브랜치에서 쏘면 그 브랜치의
+  // 미출시 작업이 통째로 유저에게 나간다 - 2026-11-13에 analysis-lab(17커밋, 미적용 마이그레이션
+  // 3개 포함)에서 쏠 뻔했다. 위 BRANCH 상수는 EAS 브랜치 이름일 뿐 git과 아무 상관이 없다.
+  const git = (args) => execFileSync("git", args, { encoding: "utf8" }).trim();
+  const head = git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  if (head !== "main") {
+    console.error(`\n\u274c git 브랜치가 '${head}'다. OTA는 main에서만 쏜다.`);
+    console.error(`   지금 쏘면 '${head}'에만 있는 작업이 전부 유저 폰으로 나간다.`);
+    console.error("   git checkout main 하고 다시 쏴라.");
+    process.exit(1);
+  }
+  // 추적 중인 파일의 미커밋 변경만 본다(untracked 잡동사니까지 막으면 매번 걸린다).
+  const dirty = git(["status", "--porcelain", "--untracked-files=no"]);
+  if (dirty) {
+    console.error("\n\u274c 커밋 안 된 변경이 있다. 쏘는 건 커밋이 아니라 작업 트리다.");
+    console.error(dirty.split("\n").map((l) => "   " + l).join("\n"));
+    console.error("   커밋하고 다시 쏴라.");
+    process.exit(1);
+  }
+}
+
+if (message) {
   console.log(`\n▶ 배포: ${BRANCH} 브랜치, production 환경${inputDir ? ` (번들: ${inputDir})` : ""}\n`);
   // --environment 없이 쏘면 Supabase 접속값이 매니페스트에서 빠져 앱이 즉사한다.
   console.log(
