@@ -47,7 +47,11 @@ export function Scoreboard() {
   if (!data || data.drawNo == null) return null;
 
   const hits = totalHits(data.round);
-  const rows = data.bySource.filter((s) => s.games > 0).sort((a, b) => b.games - a.games);
+  // "lab"은 삭제된 번호 분석실(관리자 전용 테스트)이 남긴 과거 집계다. 코너가 없어졌으니
+  // 새로 쌓이진 않지만, 지난 회차 행은 여전히 서버에 남아 있어 걸러야 한다.
+  const rows = data.bySource
+    .filter((s) => s.games > 0 && s.source !== "lab")
+    .sort((a, b) => b.games - a.games);
 
   return (
     <View style={styles.scoreCard}>
