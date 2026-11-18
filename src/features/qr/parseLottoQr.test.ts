@@ -1,4 +1,4 @@
-import { parseLottoQr } from "./parseLottoQr";
+import { parseLottoQr, describeQrShape } from "./parseLottoQr";
 
 // 아래 URL은 실제 로또 6/45 용지 QR코드를 스캔해 확보한 원문이다(사용자 제공, 2026-08-08).
 const REAL_TICKET_QR =
@@ -25,6 +25,82 @@ describe("parseLottoQr", () => {
     // 숫자가 더 붙어있다 - 그 초과분은 무시하고 앞 12자리만 번호로 써야 한다.
     const result = parseLottoQr(REAL_TICKET_QR);
     expect(result?.games[4].numbers).toEqual([2, 8, 22, 28, 37, 40]);
+  });
+
+  it("parses the official qr.do link shape (path and extra query params)", () => {
+    // 공식 사이트/앱이 쓰는 주소 꼴. 경로가 "/?v=" 가 아니라 "/qr.do?method=winQr&v=" 다.
+    const result = parseLottoQr(
+      "https://m.dhlottery.co.kr/qr.do?method=winQr&v=1248q031015283541",
+    );
+    expect(result).toEqual({ drawNo: 1248, games: [{ numbers: [3, 10, 15, 28, 35, 41], type: null }] });
+  });
+
+  it("parses game separators other than q", () => {
+    // 구분자 글자가 q가 아니어도(자동/수동 구분일 가능성) 번호는 그대로 읽어야 한다.
+    const result = parseLottoQr("https://qr.dhlottery.co.kr/?v=1248m031015283541q010203040506");
+    expect(result).toEqual({
+      drawNo: 1248,
+      games: [
+        { numbers: [3, 10, 15, 28, 35, 41], type: null },
+        { numbers: [1, 2, 3, 4, 5, 6], type: null },
+      ],
+    });
+  });
+
+  it("returns null when the draw number is not followed by a separator letter", () => {
+    expect(parseLottoQr("https://qr.dhlottery.co.kr/?v=1248031015283541")).toBeNull();
+  });
+
+  it("parses the 2026-11-07 ticket: three m blocks are the three games, n blocks are not", () => {
+    // 에러 로그에 찍힌 실물 모양: v=<4d>m<12d>m<12d>m<12d>n<12d>n<30d>.
+    // 용지에는 3줄(3,000원)만 찍혀 있었다 - 즉 n으로 시작하는 두 묶음은 게임이 아니다.
+    const result = parseLottoQr(
+      "http://qr.dhlottery.co.kr/?v=1249m030915233143m111930333639m020323313941n081825304244n999888777666123456789012345678",
+    );
+    expect(result).toEqual({
+      drawNo: 1249,
+      games: [
+        { numbers: [3, 9, 15, 23, 31, 43], type: null },
+        { numbers: [11, 19, 30, 33, 36, 39], type: null },
+        { numbers: [2, 3, 23, 31, 39, 41], type: null },
+      ],
+    });
+  });
+
+  it("returns null when a game-marked block is broken", () => {
+    // m 묶음은 게임이라고 선언된 것이다. 그게 번호로 안 읽히면 추측하지 않고 실패한다.
+    expect(
+      parseLottoQr("https://qr.dhlottery.co.kr/?v=1249m999888777666m030915233143"),
+    ).toBeNull();
+  });
+
+  it("returns null when no block carries a game marker", () => {
+    expect(parseLottoQr("https://qr.dhlottery.co.kr/?v=1249n030915233143")).toBeNull();
+  });
+
+  it("names the failing block and its marker in the logged shape, without the numbers", () => {
+    expect(describeQrShape("https://qr.dhlottery.co.kr/?v=1249m999888777666m030915233143")).toBe(
+      "https://qr.dhlottery.co.kr/?v=<4d>m<12d>m<12d> | block-1-of-2-marker-m-invalid(len=12)",
+    );
+    expect(describeQrShape("https://qr.dhlottery.co.kr/?v=1249n030915233143")).toBe(
+      "https://qr.dhlottery.co.kr/?v=<4d>n<12d> | no-game-markers(first=n)",
+    );
+  });
+
+  // 1,000원(1줄)부터 5,000원(5줄)까지 전부 저장돼야 한다. 용지 정보 묶음(n)이 몇 개
+  // 붙어 있든 게임 수에 영향을 주지 않아야 한다 - 5줄 용지에서 n 묶음을 게임으로
+  // 세면 "6게임"이 되어 통째로 거부당한다.
+  it.each([1, 2, 3, 4, 5])("saves all %i games, with trailing ticket-info blocks attached", (count) => {
+    const blocks = ["030915233143", "111930333639", "020323313941", "081825304244", "020822283740"];
+    const payload = "1249" + blocks.slice(0, count).map((b) => "m" + b).join("") + "n081825304244n999888777666123456789012345678";
+    const result = parseLottoQr(`http://qr.dhlottery.co.kr/?v=${payload}`);
+    expect(result?.games).toHaveLength(count);
+    expect(result?.drawNo).toBe(1249);
+  });
+
+  it("saves a ticket that mixes 자동(q) and 수동(m) rows", () => {
+    const result = parseLottoQr("http://qr.dhlottery.co.kr/?v=1249q030915233143m111930333639n999888777666");
+    expect(result?.games).toHaveLength(2);
   });
 
   it("returns null for a URL with no dhlottery.co.kr host", () => {

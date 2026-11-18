@@ -11,8 +11,6 @@ interface MoreMenuItem {
   emoji: string;
   label: string;
   href: Href;
-  // 아직 유저에게 공개하지 않은 메뉴. 공개할 때 이 줄만 지우면 된다.
-  adminOnly?: boolean;
 }
 
 // 추후 메뉴가 늘어나도 이 배열에 항목만 추가하면 되도록 데이터 기반으로 구성한다.
@@ -36,7 +34,7 @@ export default function MoreScreen() {
     () =>
       isAdmin
         ? [...MENU_ITEMS, { key: "admin", emoji: "🛠️", label: "관리자", href: "/admin" as Href }]
-        : MENU_ITEMS.filter((item) => !item.adminOnly),
+        : MENU_ITEMS,
     [isAdmin],
   );
 

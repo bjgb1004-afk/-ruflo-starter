@@ -1,8 +1,10 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { supabase } from "@/lib/supabase";
 import { reportError } from "@/lib/errorLog";
+import { useNotificationSettings } from "@/features/notifications/useNotificationSettings";
 import type { GameType } from "@/features/qr/parseLottoQr";
 
 const RESULT_CHANNEL_ID = "draw-result";
@@ -18,6 +20,30 @@ async function ensureResultChannel() {
 
 let cachedToken: string | null = null;
 
+// 직전에 서버에 등록한 푸시 주소. 폰의 푸시 주소는 영구적이지 않아(앱 데이터 삭제·재설치·
+// FCM 갱신) 바뀔 수 있고, 바뀌면 그 전에 등록된 줄은 옛 주소를 들고 남는다. 발송은 주소로
+// 묶으니 양쪽이 각각 한 통씩 가고, 옛 주소도 한동안 같은 폰에 배달된다 - 2026-11-07
+// 1249회에 실제로 한 폰이 두 통을 받았다. 두 주소가 같은 폰인지 아는 건 폰 자신뿐이라,
+// 직전 주소를 여기 적어두고 달라졌을 때 서버에 알려 옛 줄을 새 주소로 잇게 한다.
+const LAST_TOKEN_KEY = "mylotto.lastPushToken";
+
+/** 주소가 바뀌었으면 서버의 옛 줄을 새 주소로 옮긴다. 실패해도 등록은 계속한다. */
+async function reconcileToken(token: string): Promise<void> {
+  try {
+    const previous = await AsyncStorage.getItem(LAST_TOKEN_KEY);
+    if (previous === token) return;
+    if (previous) {
+      const { error } = await supabase.rpc("migrate_push_token", { p_old: previous, p_new: token });
+      // 옮기기가 실패하면 알림이 두 통 갈 뿐이니, 주소를 새로 적어두는 건 미룬다 -
+      // 다음 등록에서 다시 시도하게 둔다.
+      if (error) throw error;
+    }
+    await AsyncStorage.setItem(LAST_TOKEN_KEY, token);
+  } catch (err) {
+    reportError(err, "mylotto-push-token-migrate");
+  }
+}
+
 // 추첨 전 티켓을 보관함에 저장할 때 호출한다. 로그인 없는 앱이라 기기의 Expo 푸시 토큰만
 // 익명으로 서버에 등록해두고(번호와 함께), 서버 배치(sendMylottoNotifications.ts)가 추첨
 // 직후 결과를 계산해 실제 당첨/낙첨 내용으로 푸시를 보낸다 - 로컬 알림(drawReminders.ts)은
@@ -31,6 +57,11 @@ export async function registerResultPushSubscription(
   purchased: boolean,
 ): Promise<void> {
   try {
+    // 설정 스위치는 호출하는 화면이 아니라 여기서 본다 - 부르는 자리가 여러 곳이라(스캔,
+    // 생성기) 호출부마다 조건을 달면 새 저장 경로를 붙일 때 조용히 빠진다. 권한을 묻기
+    // 전에 본다: 끈 유저에게 OS 권한 창을 띄우지 않기 위해서다.
+    if (!useNotificationSettings.getState().drawAlerts) return;
+
     const { status: existing } = await Notifications.getPermissionsAsync();
     let status = existing;
     if (status !== "granted") {
@@ -51,6 +82,8 @@ export async function registerResultPushSubscription(
     // 되어 원인을 찾을 수가 없었다.
     if (!token) throw new Error("Expo 푸시 토큰이 비어 있음");
 
+    await reconcileToken(token);
+
     // upsert가 아니라 한 줄씩 insert한다. upsert(=INSERT ON CONFLICT)는 "이미 있는 줄인지"
     // 보려고 표를 읽으려 하는데, 이 표는 select 정책이 일부러 없다(남의 번호와 알림 주소가
     // 들어 있어 아무나 읽으면 안 된다). 그래서 anon이 upsert하면 RLS에 걸려 전부 실패했다 -
@@ -62,21 +95,50 @@ export async function registerResultPushSubscription(
     // 한 줄씩 보내는 이유: 여러 줄을 한 번에 보내면 그중 하나가 중복일 때 전부 실패한다
     // (같은 용지를 다시 스캔하면 실제로 그렇게 된다). 한 장은 보통 1~5게임이라 요청 몇 개는
     // 저장 버튼을 누른 순간에만 생기고 끝이다.
+    // 같은 번호가 한 용지에 여러 장 있으면(흔한 구매 방식) 몇 번째 장인지 함께 보낸다.
+    // 이게 없으면 유니크 제약에 걸려 한 장분만 등록되고, 알림은 "1게임 5,000원"인데
+    // 보관함은 "3게임 15,000원"이라고 해서 같은 앱이 돈에 대해 다른 말을 한다.
+    const copyNoByNumbers = new Map<string, number>();
+    const rows = games.map((g) => {
+      const key = g.numbers.join(",");
+      const copyNo = (copyNoByNumbers.get(key) ?? 0) + 1;
+      copyNoByNumbers.set(key, copyNo);
+      return {
+        push_token: token,
+        draw_no: drawNo,
+        numbers: g.numbers,
+        purchase_type: g.type,
+        purchased,
+        copy_no: copyNo,
+      };
+    });
     const results = await Promise.all(
-      games.map((g) =>
-        supabase.from("mylotto_push_subscriptions").insert({
-          push_token: token,
-          draw_no: drawNo,
-          numbers: g.numbers,
-          purchase_type: g.type,
-          purchased,
-        }),
-      ),
+      rows.map((row) => supabase.from("mylotto_push_subscriptions").insert(row)),
     );
     // 23505 = unique 제약 위반. 이미 등록된 번호라는 뜻이니 성공으로 본다.
     const failed = results.find((r) => r.error && r.error.code !== "23505");
     if (failed?.error) throw failed.error;
   } catch (err) {
     reportError(err, "mylotto-push-subscription");
+  }
+}
+
+/**
+ * 서버에 등록해둔 이 폰의 미통보 구독을 지운다. 설정에서 추첨 알림을 끌 때 쓴다 -
+ * 앞으로 등록을 안 하는 것만으로는 부족하다(이미 등록된 번호는 다음 추첨 뒤에 알림이
+ * 한 통 더 간다).
+ *
+ * 주소는 이번 실행에서 받아둔 것이 있으면 그걸, 없으면 직전에 등록할 때 적어둔 것을
+ * 쓴다. 앱을 켜고 저장 한 번 없이 바로 설정에서 끄는 경우가 흔해서, 받아둔 주소에만
+ * 의존하면 그때 아무것도 못 지운다. 둘 다 없으면 등록된 적이 없다는 뜻이라 지울 것도 없다.
+ */
+export async function unsubscribeResultPush(): Promise<void> {
+  try {
+    const token = cachedToken ?? (await AsyncStorage.getItem(LAST_TOKEN_KEY));
+    if (!token) return;
+    const { error } = await supabase.rpc("unsubscribe_push_token", { p_token: token });
+    if (error) throw error;
+  } catch (err) {
+    reportError(err, "mylotto-push-unsubscribe");
   }
 }

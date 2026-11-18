@@ -77,3 +77,66 @@ describe("isPurchased", () => {
     expect(isPurchased({ purchased: true } as MyLottoTicket)).toBe(true);
   });
 });
+
+// 같은 번호를 여러 장 사는 건 흔한 구매 방식이다. 번호로 중복을 가리면 그 게임이 사라져
+// 구매액과 당첨금이 실제보다 적게 보인다(2026-11-07 1249회에 3장이 1줄로 들어갔다).
+// 그래서 스캔은 번호가 아니라 용지(QR 원문의 일련번호)로 가린다.
+describe("같은 번호를 여러 장 산 용지", () => {
+  beforeEach(() => {
+    useMyLottoTickets.setState({ tickets: {} });
+  });
+
+  const PAPER = "http://qr.dhlottery.co.kr/?v=1249m030915233143m030915233143m030915233143n1n2";
+  const bought = (numbers: number[], qrUrl?: string) => ({
+    drawNo: 1249,
+    numbers,
+    purchaseType: null,
+    purchased: true as const,
+    ...(qrUrl ? { qrUrl } : {}),
+  });
+
+  it("같은 번호 3장이면 3줄로 저장한다", () => {
+    const numbers = [3, 9, 15, 23, 31, 43];
+    const added = useMyLottoTickets
+      .getState()
+      .addTickets([bought(numbers, PAPER), bought(numbers, PAPER), bought(numbers, PAPER)]);
+    expect(added).toHaveLength(3);
+    expect(Object.values(useMyLottoTickets.getState().tickets)).toHaveLength(3);
+  });
+
+  it("같은 용지를 다시 스캔하면 아무것도 늘지 않는다", () => {
+    const numbers = [3, 9, 15, 23, 31, 43];
+    const { addTickets } = useMyLottoTickets.getState();
+    addTickets([bought(numbers, PAPER), bought(numbers, PAPER)]);
+    const again = addTickets([bought(numbers, PAPER), bought(numbers, PAPER)]);
+    expect(again).toEqual([]);
+    expect(Object.values(useMyLottoTickets.getState().tickets)).toHaveLength(2);
+  });
+
+  it("다른 용지에 같은 번호가 있으면 따로 저장한다", () => {
+    const numbers = [3, 9, 15, 23, 31, 43];
+    const { addTickets } = useMyLottoTickets.getState();
+    addTickets([bought(numbers, PAPER)]);
+    addTickets([bought(numbers, PAPER + "x")]);
+    expect(Object.values(useMyLottoTickets.getState().tickets)).toHaveLength(2);
+  });
+
+  it("저장해뒀던 생성기 번호를 그 번호 3장으로 사면 1줄은 승격되고 2줄이 더 들어간다", () => {
+    const numbers = [3, 9, 15, 23, 31, 43];
+    const { addTickets } = useMyLottoTickets.getState();
+    addTickets([{ drawNo: 1249, numbers, purchaseType: null, purchased: false }]);
+    addTickets([bought(numbers, PAPER), bought(numbers, PAPER), bought(numbers, PAPER)]);
+    const rows = Object.values(useMyLottoTickets.getState().tickets);
+    expect(rows).toHaveLength(3);
+    expect(rows.every((t) => isPurchased(t))).toBe(true);
+  });
+
+  it("용지를 모르는 직접 입력은 지금까지처럼 번호로 가린다", () => {
+    const numbers = [3, 9, 15, 23, 31, 43];
+    const { addTickets } = useMyLottoTickets.getState();
+    addTickets([bought(numbers)]);
+    const again = addTickets([bought(numbers)]);
+    expect(again).toEqual([]);
+    expect(Object.values(useMyLottoTickets.getState().tickets)).toHaveLength(1);
+  });
+});

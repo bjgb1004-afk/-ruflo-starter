@@ -115,9 +115,9 @@ export default function GeneratorScreen() {
 // 추첨 전이라 등수·당첨금이 없다. "1위/2위"를 붙이지 않고 게임 수만 많은 순서로 세우는
 // 건 의도적이다 - 순위표처럼 보이면 "1위 코너가 더 잘 맞는다"로 읽히기 때문이다.
 //
-// 2026-11-01에 전체 공개했다. 등수를 뗀 것만으로는 부족해서 "확률은 어디나 똑같다"는
-// 한 줄을 다시 붙였다 - 게임 수가 많은 코너가 더 잘 맞는다는 오해는 등수 없이 숫자만
-// 봐도 생긴다. 이 줄은 지우지 말 것(geniusGenerator.ts의 원칙과 같은 이유다).
+// 2026-11-01에 전체 공개했다. "확률은 어디나 똑같다"는 한 줄을 넣었다가 2026-11-05에
+// 뺐다 - 게임 수 많은 코너가 더 잘 맞는다는 오해를 막으려던 줄이었으니, 이 컴포넌트를
+// 다시 손댈 때는 그 오해가 실제로 없는지(또는 다른 방식으로 막혔는지) 확인할 것.
 function LivePopularity({ drawNo }: { drawNo: number }) {
   const { data } = useQuery({
     queryKey: ["generator", "live-popularity", drawNo],
@@ -143,7 +143,6 @@ function LivePopularity({ drawNo }: { drawNo: number }) {
           <Text style={styles.sourceValue}>{row.games.toLocaleString("ko-KR")}게임</Text>
         </View>
       ))}
-      <Text style={styles.disclaimer}>당첨 확률은 어떤 코너나 똑같아요.</Text>
     </View>
   );
 }

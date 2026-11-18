@@ -11,13 +11,14 @@ import { TicketNumberRow } from "@/components/TicketNumberRow";
 import { LottoBall } from "@/components/LottoBall";
 import { getDrawByNo, type DrawSummary } from "@/features/draws/api/drawHistoryApi";
 import { useDrawsByNo } from "@/features/draws/useDrawsByNo";
-import { parseLottoQr, type ParsedLottoGame } from "@/features/qr/parseLottoQr";
+import { parseLottoQr, describeQrShape, type ParsedLottoGame } from "@/features/qr/parseLottoQr";
 import { computeWinRank, getPrizeAmount, type WinRank } from "@/features/qr/checkWinnings";
 import { useMyLottoTickets, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
 import { groupTicketsByDraw, withGameLabel, type TicketGroup } from "@/features/mylotto/groupTickets";
 import { useScanSettings } from "@/features/mylotto/useScanSettings";
 import { scheduleDrawReminder } from "@/features/mylotto/drawReminders";
 import { registerResultPushSubscription } from "@/features/mylotto/pushSubscription";
+import { maybeRequestReview } from "@/lib/storeReview";
 import { colors, spacing, radius, cardShadow } from "@/constants/theme";
 
 // 같은 용지를 계속 카메라에 비추고 있을 때, 스캔 직후 즉시 재인식되어 중복 저장되는
@@ -47,7 +48,7 @@ type PendingScan = { status: "pending"; drawNo: number; games: ParsedLottoGame[]
 type SaveableScan = OkScan | PendingScan;
 
 // 수동모드에서만 뜨는 결과 모달 + 저장할 게 없는 경우(인식불가/에러)는 모드와 무관하게 항상 모달.
-type ModalResult = OkScan | PendingScan | { status: "unrecognized" } | { status: "error" };
+type ModalResult = OkScan | PendingScan | { status: "unrecognized"; raw: string } | { status: "error" };
 
 const RANK_LABEL: Record<Exclude<WinRank, null>, string> = {
   1: "1등",
@@ -279,8 +280,11 @@ export default function ScanScreen() {
 
       const parsed = parseLottoQr(scan.data);
       if (!parsed) {
+        // 용지 QR 주소 형식이 또 바뀌면(과거에 한 번 바뀌었다) 전 유저가 동시에 못 읽게 된다.
+        // 그때 "무엇을 못 읽었는지"를 알 수 있도록 번호를 뺀 모양만 로그에 남긴다.
+        reportError(new Error(`unrecognized qr: ${describeQrShape(scan.data)}`), "qr-scan-parse");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        setResult({ status: "unrecognized" });
+        setResult({ status: "unrecognized", raw: scan.data });
         return;
       }
 
@@ -339,6 +343,8 @@ export default function ScanScreen() {
           games,
           qrUrl: scan.data,
         };
+        // 당첨 확인이 성공한 지점 - 자동저장/수동확인 두 경로 모두 여길 지난다.
+        maybeRequestReview();
         if (autoCapture) {
           saveResult(ok);
           const bestRank = games.reduce<WinRank>((best, g) => {
@@ -498,6 +504,12 @@ export default function ScanScreen() {
               <>
                 <Text style={styles.sheetTitle}>인식할 수 없는 QR코드예요</Text>
                 <Text style={styles.sheetSubtitle}>로또 6/45 용지의 QR코드가 맞는지 확인해 주세요.</Text>
+                {/* 읽은 원문을 보여준다 - 이게 없으면 신고를 받아도 무엇을 못 읽었는지 알 수 없다. */}
+                {/* selectable: 길게 눌러 복사해 보내줄 수 있게 한다 - 70자 넘는 숫자열을
+                    사람이 받아적게 하면 틀린다. 폰에서 복사하는 것이니 아무 데도 안 보낸다. */}
+                <Text style={styles.sheetRawQr} numberOfLines={4} selectable>
+                  {result.raw.slice(0, 160)}
+                </Text>
               </>
             )}
             {result?.status === "error" && (
@@ -720,6 +732,12 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   sheetTitle: { fontSize: 18, fontWeight: "800", color: colors.textPrimary },
+  sheetRawQr: {
+    marginTop: spacing.sm,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textMuted,
+  },
   sheetSubtitle: { fontSize: 13, color: colors.textSecondary },
   officialLink: { alignSelf: "flex-start", marginTop: spacing.sm },
   officialLinkText: { fontSize: 12, fontWeight: "700", color: colors.primary },

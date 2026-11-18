@@ -21,6 +21,8 @@ export function mathSource(recipeId: string): string {
 
 export const BAND_SOURCE = "band";
 
+export const LAB_SOURCE = "lab";
+
 /**
  * 실패해도 화면은 멀쩡해야 한다 - 번호는 이미 화면에 떠 있고 이건 집계용일 뿐이다.
  * 그래서 await하지 않고(화면이 네트워크를 기다리지 않게) 오류는 조용히 흘린다.

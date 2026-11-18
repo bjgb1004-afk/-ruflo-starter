@@ -40,6 +40,7 @@
     "expo-router": "~6.0.0",
     "expo-sharing": "~14.0.8",
     "expo-status-bar": "~3.0.0",
+    "expo-store-review": "~9.0.9",
     "expo-task-manager": "~14.0.9",
     "expo-updates": "~29.0.19",
     "expo-web-browser": "~15.0.11",

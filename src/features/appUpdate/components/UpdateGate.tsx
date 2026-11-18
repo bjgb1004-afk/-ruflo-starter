@@ -1,13 +1,7 @@
-import { View, Text, Pressable, StyleSheet, Linking } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { colors } from "@/constants/theme";
-import { reportError } from "@/lib/errorLog";
-import {
-  getUpdateGate,
-  installedRuntime,
-  PLAY_STORE_URL,
-  PLAY_STORE_WEB_URL,
-} from "@/features/appUpdate/updateGate";
+import { getUpdateGate, installedRuntime, openPlayStore } from "@/features/appUpdate/updateGate";
 
 /**
  * 구버전 껍데기에 갇힌 앱에만 뜨는 전체화면 안내.
@@ -36,20 +30,13 @@ export function UpdateGate() {
 
   if (!gate) return null;
 
-  const openStore = () => {
-    // market:// 이 열리지 않는 기기(스토어 미설치/사이드로드)에서는 웹 주소로 떨어진다.
-    Linking.openURL(PLAY_STORE_URL).catch(() =>
-      Linking.openURL(PLAY_STORE_WEB_URL).catch((err) => reportError(err, "update-gate-store")),
-    );
-  };
-
   return (
     <View style={styles.overlay}>
       <View style={styles.card}>
         <Text style={styles.emoji}>🔄</Text>
         <Text style={styles.title}>{gate.title}</Text>
         <Text style={styles.message}>{gate.message}</Text>
-        <Pressable style={styles.button} onPress={openStore} accessibilityRole="button">
+        <Pressable style={styles.button} onPress={() => openPlayStore("update-gate-store")} accessibilityRole="button">
           <Text style={styles.buttonLabel}>스토어에서 업데이트</Text>
         </Pressable>
       </View>

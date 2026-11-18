@@ -1,0 +1,50 @@
+# 인앱 리뷰 팝업 — 다음 네이티브 빌드 때 같이 넣을 것
+
+2026-11-14 결정. 지금은 **안 넣었다.**
+
+## 왜 미뤘나
+
+`expo-store-review`는 네이티브 부품이다. 지금 붙이면 EAS 빌드 + `runtimeVersion` 변경이
+따라오고, 그러면 현재 유저 전원이 그 순간부터 OTA에서 고립된다(CLAUDE.md "네이티브 부품을
+바꾸는 빌드 전에" 참고). 평점 받으려다 평점 줄 사람을 끊는 셈이다. 빌드 쿼터도 월 15회뿐.
+
+대신 OTA로 나가는 것만 넣었다: 설정 > 정보 > **⭐ 별점 남기기** →
+`openPlayStore()`(`src/features/appUpdate/updateGate.ts`)로 스토어 페이지를 연다.
+유저가 직접 누르는 길이라 정책 문제없다.
+
+## 다음 네이티브 빌드에 끼워 넣을 것
+
+어차피 빌드가 필요한 다른 변경(FCM 재빌드 등)이 생겼을 때 **같이** 넣는다.
+이것만을 위해 빌드를 태우지 않는다.
+
+1. `npx expo install expo-store-review`
+2. `src/lib/storeReview.ts` 신규:
+   - `recordLaunch()` — 최초 설치 시각 + 누적 실행 횟수를 AsyncStorage에 기록
+     (AsyncStorage는 이미 설치돼 있음: `@react-native-async-storage/async-storage` 2.2.0)
+   - `maybeRequestReview()` — 아래 전부 만족할 때만 1회:
+     아직 요청 안 함 / 누적 실행 3회 이상 / 설치 후 3일 경과 / `isAvailableAsync()` true
+   - 요청 플래그는 `requestReview()` **호출 전에** 저장 — 실패 시 재시도 루프 방지
+   - 전체 try/catch. 리뷰 요청 실패가 당첨 확인 흐름을 깨면 안 된다
+   - 네이티브 모듈은 **최상위 import 금지**, 호출 시점 `require`
+     (`src/lib/inAppUpdate.ts` 패턴 그대로 — 안 지키면 구버전 폰에서 번들 로드가
+     실패해 앱이 즉사하고, 그러면 OTA 고립 탈출 안내도 못 뜬다)
+3. 호출부:
+   - `recordLaunch()` → `app/_layout.tsx` 에서 1회
+   - `maybeRequestReview()` → `app/(tabs)/scan.tsx`, QR 당첨 확인이 성공한 직후.
+     정확히는 `OkScan` 객체(`status: "ok"`)를 만든 뒤 — `autoCapture` 분기
+     **양쪽 모두**를 지나는 지점이어야 한다(자동저장/수동확인 어느 모드에서도 떠야 함).
+     추첨 전(`pending`) 경로는 당첨 확인이 아니므로 대상 아님.
+     `catch` 블록(`qr-scan-lookup`)도 당연히 아님.
+
+## 지켜야 할 정책 제약
+
+- 버튼에 연결하지 않는다. 조건 충족 시 자동으로 떠야 한다
+- 보상/혜택 금지. 별점 높을 때만 띄우는 필터링도 금지
+- `requestReview()`는 유저가 실제로 평가했는지 안 알려준다 — 콜백 결과로 분기 금지
+- 호출 빈도는 구글이 자체 제한한다. 강제로 띄우려 하지 않는다
+
+## 배경 숫자 (2026-11-14, Play Console 28일)
+
+노출 2,430 / 설치 178 / 전환율 34.67% / 월간 활성 196명.
+평점이 5.0점 1개뿐이라 스토어에 별점이 아직 **표시되지 않는다**(표시 임계값 미달).
+몇 개만 더 받으면 별점이 뜨고, 그 순간 노출 2,430건 전체의 전환율이 같이 올라간다.
