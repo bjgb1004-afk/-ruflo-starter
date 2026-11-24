@@ -42,9 +42,16 @@ export function shouldShowAds(): boolean {
 }
 
 /**
+ * 보상형 광고(뽑기 전에 광고 한 편)를 쓸지. 배너와 **따로** 켠다 - 스위치가 하나였을 때는
+ * 배너만 켜려 해도 보상형이 같이 붙어서, 켜는 순간 "다시 뽑기"가 광고를 요구하게 됐다.
+ * 없으면 꺼진 것으로 본다(배너처럼 실수로 켜지는 쪽보다 꺼지는 쪽이 안전하다).
+ */
+export const ADS_REWARDED_ENABLED: boolean = Constants.expoConfig?.extra?.adsRewardedEnabled === true;
+
+/**
  * 보상형 광고를 요구해도 되는 빌드인지. 꺼져 있거나 유닛 ID가 없으면 false -
  * 그때는 광고를 못 보니 뽑기를 막아선 안 된다(막으면 기능이 사라진 것처럼 보인다).
  */
 export function shouldGateWithRewardedAd(): boolean {
-  return ADS_ENABLED && Boolean(REWARDED_UNIT_ID);
+  return ADS_ENABLED && ADS_REWARDED_ENABLED && Boolean(REWARDED_UNIT_ID);
 }

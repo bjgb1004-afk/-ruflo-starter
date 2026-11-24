@@ -1,6 +1,7 @@
 # 광고 붙이기 + 다음 네이티브 빌드 체크리스트
 
-작성 2026-10-02. 코드 준비는 끝났고, **빌드는 아직 안 했다.**
+작성 2026-10-02. **2026-11-24: 배너 광고를 켰다** — 아래 "배너는 당분간 안 띄운다" 절과
+환경변수 표를 그 날짜 기준으로 갱신했다. 보상형은 아직 꺼져 있다.
 
 광고 SDK는 네이티브라 빌드가 필요하다. 어차피 FCM도 빌드가 필요하고 runtimeVersion 정책도
 빌드 때만 바꿀 수 있으니 **셋을 한 빌드에 묶는다.** EAS 무료 플랜은 Android 빌드 월 15회라
@@ -90,9 +91,22 @@ npx eas env:set --name EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID --value "..."   --visibi
 | 변수 | production | preview |
 |---|---|---|
 | `ADMOB_ANDROID_APP_ID` | `ca-app-pub-4850161179932319~9276130840` | 같음 |
-| `EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID` | **지움**(배너 안 띄움) — 진짜 ID는 `ca-app-pub-4850161179932319/5088281854` | `ca-app-pub-3940256099942544/6300978111` (구글 시험용) |
+| `EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID` | `ca-app-pub-4850161179932319/5088281854` (진짜, 2026-11-24 다시 넣음) | `ca-app-pub-3940256099942544/6300978111` (구글 시험용) |
 | `EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID` | `ca-app-pub-4850161179932319/3173399109` (진짜) | `ca-app-pub-3940256099942544/5224354917` (구글 시험용) |
-| `EXPO_PUBLIC_ADS_ENABLED` | `false` | `false` |
+| `EXPO_PUBLIC_ADS_ENABLED` | **`true`** (2026-11-24 켬 — 배너만) | `false` |
+| `EXPO_PUBLIC_ADS_REWARDED_ENABLED` | 없음(= 꺼짐) | 없음 |
+
+### 2026-11-24: 스위치를 둘로 쪼갰다 (배너 / 보상형)
+
+예전엔 `EXPO_PUBLIC_ADS_ENABLED` 하나가 배너와 보상형을 **같이** 켰다. 배너만 켜려는데
+보상형 유닛 ID가 production에 남아 있어서, 스위치를 켜는 순간 "다시 뽑기"가 광고를 요구하게
+됐다. 환경변수를 지워 우회하는 대신 스위치를 나눴다:
+
+- `EXPO_PUBLIC_ADS_ENABLED` — 배너
+- `EXPO_PUBLIC_ADS_REWARDED_ENABLED` — 보상형(없으면 꺼짐)
+
+보상형을 켤 때는 `npx eas env:set --name EXPO_PUBLIC_ADS_REWARDED_ENABLED --value "true"
+--visibility plaintext --type string --environment production --non-interactive` 뒤 `npm run ota`.
 
 ### 2026-10-03에 한 번 사고가 났다 — 꼭 읽을 것
 
@@ -117,8 +131,10 @@ SDK가 아예 없었다**(SDK는 10/2에 package.json에 들어갔다). 광고 �
 | 보상형 | 재뽑기 10명 × 수락 50% = 5편/일 → 월 150편 × 회당 13원 | 약 2,000원 |
 
 **둘 다 커피값이고, 차이도 거의 없다.** 그래서 돈이 아니라 인상을 기준으로 골랐다 - 배너는
-모두에게 항상 보이고 보상형은 원하는 사람만 본다. production에서는 배너 유닛 ID를 지워뒀다
-(코드는 그대로 있고, ID가 비면 배너를 그리지 않는다). 유저가 늘면 위 ID를 다시 넣으면 된다.
+모두에게 항상 보이고 보상형은 원하는 사람만 본다.
+
+**2026-11-24에 배너를 켰다**(보상형은 그대로 꺼둠). 유닛 ID를 production에 다시 넣고
+`EXPO_PUBLIC_ADS_ENABLED=true` + OTA. 빌드는 필요 없었다 — SDK는 이미 vc3/vc4 껍데기에 있다.
 
 **수익의 변수는 광고 형태가 아니라 유저 수다.** 같은 코드로 DAU 1,000명이면 월 5~10만원대가
 된다. 광고 설계를 더 다듬기보다 유저를 늘리는 쪽이 먼저다.

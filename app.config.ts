@@ -180,6 +180,8 @@ const config: ExpoConfig = {
       : {}),
     // 광고를 띄울지. 문자열 "true"만 켜진 것으로 본다 - 환경변수가 없거나 오타면 꺼진 쪽으로.
     adsEnabled: process.env.EXPO_PUBLIC_ADS_ENABLED === "true",
+    // 보상형 광고는 배너와 따로 켠다 - 스위치가 하나면 배너만 켜려 해도 뽑기에 광고가 붙는다.
+    adsRewardedEnabled: process.env.EXPO_PUBLIC_ADS_REWARDED_ENABLED === "true",
     eas: {
       projectId: "9eeff5c8-c217-4e45-9426-c0569f8c500e",
     },
