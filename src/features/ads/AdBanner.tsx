@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors } from "@/constants/theme";
 import { reportError } from "@/lib/errorLog";
 import { BANNER_UNIT_ID, shouldShowAds } from "./config";
 
@@ -12,7 +14,13 @@ import { BANNER_UNIT_ID, shouldShowAds } from "./config";
 // "최근 7일 오류"가 그것만으로 덮인다). 빌드 전에 미리 켜두는 게 정상 운영이라 한 번만 남긴다.
 let reportedMissing = false;
 
-export function AdBanner() {
+/**
+ * safeBottom: 화면 맨 아래(탭바가 없는 스택 화면)에 깔 때 켠다. 엣지투엣지라 화면 바닥은
+ * 제스처바 밑으로 들어가는데, 그러면 배너가 반쯤 가려진다. 탭바 위에 놓을 때는 탭바가
+ * 이미 자기 몫의 여백을 잡으므로 끈다 - 켜면 빈 칸이 두 번 들어간다.
+ */
+export function AdBanner({ safeBottom = false }: { safeBottom?: boolean } = {}) {
+  const insets = useSafeAreaInsets();
   const [Ad, setAd] = useState<{ BannerAd: React.ComponentType<Record<string, unknown>>; size: string } | null>(null);
 
   useEffect(() => {
@@ -45,12 +53,19 @@ export function AdBanner() {
   if (!Ad || !BANNER_UNIT_ID) return null;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, safeBottom && { paddingBottom: insets.bottom }]}>
       <Ad.BannerAd unitId={BANNER_UNIT_ID} size={Ad.size} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { alignItems: "center" },
+  // 지도처럼 꽉 찬 화면 위에 얹히므로 배경을 깔아준다 - 투명하면 배너 양옆으로 지도가
+  // 비쳐 광고가 화면에 떠 있는 것처럼 보인다.
+  container: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
 });

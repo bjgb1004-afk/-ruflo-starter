@@ -16,7 +16,6 @@ import {
   type BandGame,
 } from "@/features/generator/bandGenerator";
 import { useMyLottoTickets } from "@/features/mylotto/useMyLottoTickets";
-import { AdBanner } from "@/features/ads/AdBanner";
 import { needsAdForDraw, requestDraw, type DrawPermission } from "@/features/generator/requestDraw";
 import { useDrawCredits } from "@/features/generator/useDrawCredits";
 import { BAND_SOURCE, mathSource, recordGeneratedTickets } from "@/features/generator/recordGeneratedTickets";
@@ -255,7 +254,6 @@ function BandSection({ drawNo, breakpoint }: { drawNo: number; breakpoint: "smal
           {drawing ? "잠시만요…" : drawButtonLabel("다시 뽑기", needsAdForDraw(credits, BAND_SOURCE, drawNo))}
         </Text>
       </Pressable>
-      <AdBanner />
 
       <View style={styles.buttonRow}>
         <Pressable style={styles.secondaryButton} onPress={save} accessibilityRole="button">
@@ -683,7 +681,6 @@ function RecipeAnalysis({
           {drawing ? "잠시만요…" : drawButtonLabel("다시 뽑기", needsAdForDraw(credits, mathSource(recipe.id), drawNo))}
         </Text>
       </Pressable>
-      <AdBanner />
 
       <View style={styles.buttonRow}>
         <Pressable style={styles.secondaryButton} onPress={save} accessibilityRole="button">

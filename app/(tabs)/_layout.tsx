@@ -1,6 +1,8 @@
-import { Text } from "react-native";
+import { Text, View } from "react-native";
 import { Tabs } from "expo-router";
+import { BottomTabBar, type BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
+import { AdBanner } from "@/features/ads/AdBanner";
 import { colors } from "@/constants/theme";
 
 // 탭 아이콘을 지정하지 않으면 일부 기기에서 빈 사각형(깨진 아이콘)으로 표시된다.
@@ -9,9 +11,22 @@ const TabIcon = ({ emoji, focused }: { emoji: string; focused: boolean }) => (
   <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.5 }}>{emoji}</Text>
 );
 
+// 배너를 탭바 "위"에 붙인다. 탭 네 개(지도/랭킹/당첨확인/더보기)와 더보기 하위 화면이
+// 전부 이 한 줄을 공유한다 - 화면마다 따로 달면 빠뜨리는 화면이 생긴다.
+//
+// 탭바 아래가 아니라 위인 이유: 누르는 버튼 바로 밑에 광고를 두면 오터치가 광고 클릭으로
+// 잡히고, 애드몹은 그걸 무효 트래픽으로 보고 계정에 경고를 준다.
+const TabBarWithAd = (props: BottomTabBarProps) => (
+  <View>
+    <AdBanner />
+    <BottomTabBar {...props} />
+  </View>
+);
+
 export default function TabsLayout() {
   return (
     <Tabs
+      tabBar={TabBarWithAd}
       screenOptions={{
         headerShown: true,
         tabBarActiveTintColor: colors.primary,

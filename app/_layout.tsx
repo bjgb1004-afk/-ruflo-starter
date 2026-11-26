@@ -25,6 +25,7 @@ import { useFavoritesCloudSync } from "@/features/favorites/useFavoritesCloudSyn
 import { cleanupLegacyDrawReminders } from "@/features/mylotto/drawReminders";
 import { scheduleSpittoWeeklyReminder } from "@/features/spitto/weeklyReminder";
 import { scheduleRankingWeeklyReminder } from "@/features/stores/rankingWeeklyReminder";
+import { AdBanner } from "@/features/ads/AdBanner";
 import { UpdateGate } from "@/features/appUpdate/components/UpdateGate";
 import { UpdatePopup } from "@/features/notices/components/UpdatePopup";
 import { useAutoCheckTickets } from "@/features/mylotto/useAutoCheckTickets";
@@ -64,6 +65,24 @@ const asyncStoragePersister = createAsyncStoragePersister({
   storage: AsyncStorage,
   key: "lotto-query-cache",
 });
+
+// 탭 밖 화면(보관함·판매점 상세·회차 배출업소·번호 직접 입력·놓친 당첨금)의 바닥에
+// 배너를 한 줄 깐다. 화면 파일마다 붙이면 return 분기가 여럿이라 반드시 빠뜨린다.
+//
+// 탭 화면은 제외한다 - 거긴 탭바 위에 이미 붙어 있어서([(tabs)/_layout.tsx]) 둘 다 걸면
+// 한 화면에 배너가 두 개 뜬다. 관리자 화면도 뺀다(내부용이라 광고를 띄울 자리가 아니고,
+// 내가 직접 누르는 화면이라 자기 광고 클릭으로 잡힌다).
+const AD_FREE_ROUTES = new Set(["(tabs)", "admin"]);
+
+const ScreenWithAd = ({ route, children }: { route: { name: string }; children: React.ReactElement }) =>
+  AD_FREE_ROUTES.has(route.name) ? (
+    children
+  ) : (
+    <View style={{ flex: 1 }}>
+      {children}
+      <AdBanner safeBottom />
+    </View>
+  );
 
 export default function RootLayout() {
   const initAuth = useAuth((s) => s.init);
@@ -160,7 +179,7 @@ export default function RootLayout() {
             제대로 지원하는 react-native-edge-to-edge의 SystemBars로 교체. 배경이 대체로
             밝은 종이색이라 dark(짙은 아이콘)로 고정한다. */}
         <SystemBars style="dark" />
-        <Stack>
+        <Stack screenLayout={ScreenWithAd}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="store/[id]" options={{ title: "판매점 상세" }} />
           <Stack.Screen name="draw/[drawNo]" options={{ title: "회차 배출업소" }} />
