@@ -78,7 +78,7 @@ function RoundCard({ round }: { round: SpittoRound }) {
         <View style={styles.stockBox}>
           <Text style={styles.stockText}>{describeStock(stock)}</Text>
           {shouldSuggestCall(stock) && (
-            <Pressable style={styles.findButton} onPress={() => router.push("/")}>
+            <Pressable style={styles.findButton} onPress={() => router.push("/map")}>
               <Text style={styles.findButtonText}>
                 🔎 가게 찾아 전화로 물어보기
               </Text>

@@ -33,8 +33,21 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: colors.textMuted,
       }}
     >
+      {/* 첫 화면은 당첨확인이다. 이 분야에서 앱을 켜는 이유 1번은 "내가 됐나?"라서,
+          지도를 먼저 띄우면 당첨확인으로 들어온 사람이 엉뚱한 지역 지도와 위치 권한
+          요청을 먼저 본다(2026-11-26 경쟁앱 비교에서 확인). 지도는 두 번째 탭으로
+          내렸고, 탭은 기본이 lazy라 지도 탭을 누를 때까지 위치 권한도 묻지 않는다.
+          카메라 화면이라 몰입감을 위해 헤더는 숨긴다. */}
       <Tabs.Screen
         name="index"
+        options={{
+          title: "당첨확인",
+          headerShown: false,
+          tabBarIcon: ({ focused }) => <TabIcon emoji="📷" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="map"
         options={{ title: "지도", tabBarIcon: ({ focused }) => <TabIcon emoji="🗺️" focused={focused} /> }}
       />
       <Tabs.Screen
@@ -42,16 +55,6 @@ export default function TabsLayout() {
         options={{
           title: "명당 랭킹",
           tabBarIcon: ({ focused }) => <TabIcon emoji="🏆" focused={focused} />,
-        }}
-      />
-      {/* QR 당첨확인 - 더보기 하위 메뉴에 묻혀 있던 걸 탭으로 이동(design.txt 요구사항).
-          카메라 화면이라 몰입감을 위해 헤더는 숨긴다. */}
-      <Tabs.Screen
-        name="scan"
-        options={{
-          title: "당첨확인",
-          headerShown: false,
-          tabBarIcon: ({ focused }) => <TabIcon emoji="📷" focused={focused} />,
         }}
       />
       {/* 즐겨찾기/회차별 당첨현황/설정은 탭바에 안 보이고 "더보기" 하위 스택

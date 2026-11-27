@@ -1,455 +1,803 @@
-import { StyleSheet, View, ActivityIndicator, Text, TextInput, Pressable, FlatList, Modal, Linking } from "react-native";
-import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useCurrentLocation } from "@/hooks/useCurrentLocation";
-import { useNearbyStores } from "@/features/map/hooks/useNearbyStores";
-import { StoreMapView } from "@/features/map/components/StoreMapView";
-import { TopStoresCarousel } from "@/features/map/components/TopStoresCarousel";
-import { searchStores, type StoreSearchResult } from "@/features/stores/api/storesApi";
-import { HomeBannerCarousel } from "@/features/map/components/HomeBannerCarousel";
-import { getLatestFirstPrizeWinners } from "@/features/draws/api/drawHistoryApi";
-import { useFavorites } from "@/features/favorites/useFavorites";
-import { DEFAULT_SEARCH_RADIUS_M, DEFAULT_MAP_CENTER } from "@/constants/config";
+import { Alert, FlatList, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
+import { useIsFocused } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
+import * as WebBrowser from "expo-web-browser";
+import { reportError } from "@/lib/errorLog";
+import { TicketNumberRow } from "@/components/TicketNumberRow";
+import { LottoBall } from "@/components/LottoBall";
+import { LatestDrawBand } from "@/features/draws/components/LatestDrawBand";
+import { getDrawByNo, type DrawSummary } from "@/features/draws/api/drawHistoryApi";
+import { useDrawsByNo } from "@/features/draws/useDrawsByNo";
+import { parseLottoQr, describeQrShape, type ParsedLottoGame } from "@/features/qr/parseLottoQr";
+import { computeWinRank, getPrizeAmount, type WinRank } from "@/features/qr/checkWinnings";
+import { useMyLottoTickets, type MyLottoTicket } from "@/features/mylotto/useMyLottoTickets";
+import { groupTicketsByDraw, withGameLabel, type TicketGroup } from "@/features/mylotto/groupTickets";
+import { useScanSettings } from "@/features/mylotto/useScanSettings";
+import { scheduleDrawReminder } from "@/features/mylotto/drawReminders";
+import { registerResultPushSubscription } from "@/features/mylotto/pushSubscription";
+import { maybeRequestReview } from "@/lib/storeReview";
 import { colors, spacing, radius, cardShadow } from "@/constants/theme";
-import { useResponsive, getResponsiveSpacing, getResponsiveFontSize } from "@/utils/responsive";
 
-type SortMode = "recommend" | "distance";
+// 같은 용지를 계속 카메라에 비추고 있을 때, 스캔 직후 즉시 재인식되어 중복 저장되는
+// "깜빡임"을 막기 위한 잠금 해제 지연 시간.
+const RESCAN_LOCK_MS = 1500;
+// 인식불가/에러는 저장할 게 없어 사용자 입력을 기다리지 않고 이 시간 뒤 자동으로 닫는다.
+const AUTO_CLOSE_AFTER_FAIL_MS = 2000;
+// 자동촬영 모드일 때 "저장됐다"는 걸 화면으로도 보여주는 짧은 배너 노출 시간.
+const AUTO_TOAST_MS = 1600;
 
-const SearchResultRow = ({ item, onPress }: { item: StoreSearchResult; onPress: (id: string) => void }) => (
-  <Pressable style={styles.resultRow} onPress={() => onPress(item.id)}>
-    <Text style={styles.resultName}>{item.name}</Text>
-    <Text style={styles.resultAddress}>{item.address}</Text>
-  </Pressable>
-);
+type GameResult = ParsedLottoGame & { rank: WinRank; prizeAmount: number; amountPending: boolean };
 
-export default function MapScreen() {
+type OkScan = {
+  status: "ok";
+  drawNo: number;
+  drawDate: string;
+  winningNumbers: number[];
+  bonusNumber: number;
+  games: GameResult[];
+  qrUrl: string;
+};
+type PendingScan = { status: "pending"; drawNo: number; games: ParsedLottoGame[]; qrUrl: string };
+
+// 연속촬영(자동모드): 스캔에 성공하면(당첨확인/추첨전) 모달을 띄우지 않고 곧바로 저장한다 -
+// 결과 텍스트를 읽기도 전에 자동으로 닫히는 모달은 오히려 확인을 방해한다는 피드백에 따라,
+// 대신 하단 보관함 리스트에 카드가 즉시 쌓이는 것 + 짧은 토스트로 저장 여부를 확인한다.
+type SaveableScan = OkScan | PendingScan;
+
+// 수동모드에서만 뜨는 결과 모달 + 저장할 게 없는 경우(인식불가/에러)는 모드와 무관하게 항상 모달.
+type ModalResult = OkScan | PendingScan | { status: "unrecognized"; raw: string } | { status: "error" };
+
+const RANK_LABEL: Record<Exclude<WinRank, null>, string> = {
+  1: "1등",
+  2: "2등",
+  3: "3등",
+  4: "4등",
+  5: "5등",
+};
+
+// 회차별 카드 컴포넌트. draw가 있으면(체크 완료된 회차) 동행복권 공식 사이트처럼
+// 당첨번호와 일치하는 숫자만 색공으로, 나머지는 일반 텍스트로 표시한다. draw를 아직
+// 못 받아온 동안(로딩 중/추첨 전)은 기존처럼 전부 색공으로 보여준다.
+function VaultDrawCard({
+  drawNo,
+  tickets,
+  draw,
+  onDelete,
+}: {
+  drawNo: number;
+  tickets: MyLottoTicket[];
+  draw: DrawSummary | null | undefined;
+  onDelete: () => void;
+}) {
+  const winningSet = draw ? new Set(draw.winning_numbers) : null;
+  const qrUrl = tickets.find((t) => t.qrUrl)?.qrUrl;
+  return (
+    <View style={styles.vaultCard}>
+      <View style={styles.vaultCardMain}>
+        <View style={styles.vaultCardHeader}>
+          <Text style={styles.vaultCardTitle}>{drawNo}회</Text>
+          {draw && (
+            <View style={styles.vaultCardWinningBalls}>
+              {draw.winning_numbers.map((n) => (
+                <LottoBall key={n} number={n} size="xs" />
+              ))}
+              <Text style={styles.vaultCardPlus}>+</Text>
+              <LottoBall number={draw.bonus_number} size="xs" />
+            </View>
+          )}
+          <Pressable hitSlop={8} onPress={onDelete}>
+            <Text style={styles.vaultCardDeleteIcon}>🗑️</Text>
+          </Pressable>
+        </View>
+        {withGameLabel(tickets).map(({ ticket, label }) => (
+          <View key={ticket.id} style={styles.vaultCardGame}>
+            <Text style={styles.vaultCardGameIndex}>{label}</Text>
+            <TicketNumberRow
+              numbers={ticket.numbers}
+              winningSet={winningSet}
+              ballSize="xs"
+              containerStyle={styles.vaultCardBalls}
+              plainTextStyle={styles.vaultCardNumberPlain}
+            />
+            <View style={[styles.vaultCardBadge, ticket.checked ? (ticket.rank ? styles.vaultCardBadgeWin : styles.vaultCardBadgeLose) : styles.vaultCardBadgePending]}>
+              <Text style={styles.vaultCardBadgeText}>
+                {ticket.checked ? (ticket.rank ? RANK_LABEL[ticket.rank] : "낙첨") : "추첨 전"}
+              </Text>
+            </View>
+          </View>
+        ))}
+      </View>
+      {qrUrl && (
+        // 카드 세로 높이(minHeight:240, 5게임 기준으로 딱 맞춰둔 값)를 추가로 늘리지
+        // 않도록 별도 줄 대신 게임 목록 오른쪽에 세로 중앙 정렬로 붙인다 - 텍스트 줄이
+        // 하나 늘면 FlatList 카드 목록이 스크롤(드래그)되는 문제가 있었다.
+        <Pressable style={styles.vaultCardOfficialLink} onPress={() => WebBrowser.openBrowserAsync(qrUrl)}>
+          <Text style={styles.vaultCardOfficialLinkText}>동행복권{"\n"}원본확인</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+export default function ScanScreen() {
   const router = useRouter();
-  const { breakpoint } = useResponsive();
-  const [showLocationPermissionGuide, setShowLocationPermissionGuide] = useState(false);
-  // 예전엔 "AsyncStorage 조회가 끝났는지"(guideCheckDone)를 따로 들고, 그 값으로 스피너를
-  // 빠져나갈지 판단했다. 이제는 queryCenter 하나로 판단하므로 필요하지 않다 - 조회가 끝나지
-  // 않았으면 queryCenter도 비어 있고, 그 상태의 화면은 어차피 같다.
-  const {
-    location,
-    error: locationError,
-    canAskAgain,
-    request: requestLocation,
-    retry: retryLocation,
-  } = useCurrentLocation();
-
-  // 설명을 먼저, 권한은 그다음. 처음 설치한 사람에게는 안내 모달만 띄우고 OS 권한 창은
-  // 띄우지 않는다 - 모달의 "위치 허용하기"를 눌렀을 때 비로소 묻는다. 예전엔 화면이 뜨자마자
-  // 물어서, 왜 필요한지 모른 채 거부하는 사람이 생겼다(2026-10-31 점검, 삭제율 19%).
-  //
-  // 이미 안내를 본 사람에게는 모달 없이 바로 묻는다. 설명을 두 번 보여줄 이유가 없고,
-  // 재방문자에게 모달이 또 뜨면 그게 더 거슬린다.
-  useEffect(() => {
-    (async () => {
-      const shown = await AsyncStorage.getItem("location-permission-guide-shown");
-      if (shown) requestLocation();
-      else setShowLocationPermissionGuide(true);
-    })();
-  }, [requestLocation]);
-
-  // 지도를 다른 지역으로 옮기면 그 지역 기준으로 다시 조회하도록, GPS 위치와는 별도로
-  // "조회 기준 좌표"를 둔다. 최초 진입 시엔 GPS 위치로 채워지고, 이후 지도 이동이 우선한다.
-  const [queryCenter, setQueryCenter] = useState<{ latitude: number; longitude: number } | null>(
-    null,
+  const insets = useSafeAreaInsets();
+  const [permission, requestPermission] = useCameraPermissions();
+  const [result, setResult] = useState<ModalResult | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saved">("idle");
+  const [toast, setToast] = useState<string | null>(null);
+  const [torchOn, setTorchOn] = useState(false);
+  const [cameraError, setCameraError] = useState(false);
+  const addTickets = useMyLottoTickets((s) => s.addTickets);
+  const removeTicket = useMyLottoTickets((s) => s.removeTicket);
+  const clearAll = useMyLottoTickets((s) => s.clearAll);
+  // 자동촬영 on/off - 이 기기에만 저장되고 서버로는 안 간다(useScanSettings.ts). 켜고 끄는
+  // 스위치 자체는 설정 화면(settings.tsx)에 있다 - 카메라 화면 위에 얹으면 안내 문구를 가린다.
+  const autoCapture = useScanSettings((s) => s.autoCapture);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 화면을 카메라(상단)/보관함(하단) 2분할로 나누고, 저장한 순간 하단 목록이 실시간으로
+  // 갱신되는 걸 보여준다 - 스캔 결과를 모달로 잠깐 띄우는 대신, 계속 쌓이는 이 리스트를
+  // 드래그해서 훑어보는 것 자체가 "연속촬영" 결과 확인 방법이다.
+  const ticketsMap = useMyLottoTickets((s) => s.tickets);
+  const recentTickets = useMemo(
+    () =>
+      Object.values(ticketsMap)
+        .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+        .slice(0, 30),
+    [ticketsMap],
   );
+  // 보관함 카드의 번호를 실제 당첨번호와 매칭해 색칠하려면 회차별 당첨번호가 필요하다.
+  const recentDrawNos = useMemo(() => [...new Set(recentTickets.map((t) => t.drawNo))], [recentTickets]);
+  const drawsByNo = useDrawsByNo(recentDrawNos);
 
-  useEffect(() => {
-    if (location && !queryCenter) {
-      setQueryCenter({ latitude: location.coords.latitude, longitude: location.coords.longitude });
-    } else if (locationError && !queryCenter) {
-      // 위치 권한을 거부해도 지도가 빈 화면("설정 가세요"만 뜨는 막다른 길)이 되지 않도록
-      // 서울시청 기준으로라도 지도와 주변 명당을 보여준다. 거부=앱이 쓸모없다는 인상을
-      // 주는 게 설치 직후 이탈(18%)의 유력한 원인이었다.
-      setQueryCenter(DEFAULT_MAP_CENTER);
-    }
-  }, [location, locationError, queryCenter]);
-
-  // 안내 모달을 닫을 때 "봤음"으로 기록한다. 예전엔 띄우는 순간 기록해서, 허용을 누르든
-  // 나중을 누르든 구분이 없었다.
-  const dismissGuide = useCallback(
-    (allow: boolean) => {
-      setShowLocationPermissionGuide(false);
-      AsyncStorage.setItem("location-permission-guide-shown", "true").catch(() => {});
-      if (allow) requestLocation();
-      // "나중에"를 누르면 묻지 않는다. 그 경우 location도 locationError도 안 채워지므로,
-      // 아래에서 서울시청 기준으로 지도를 띄운다.
-      else setQueryCenter((c) => c ?? DEFAULT_MAP_CENTER);
+  // 회차(그룹) 단위로 삭제한다 - mylotto.tsx의 handleDeleteGroup과 동일한 방식(파괴적
+  // 동작이라 확인 알럿을 거친다).
+  const handleDeleteVaultGroup = useCallback(
+    (group: TicketGroup) => {
+      Alert.alert("보관함에서 삭제", `${group.drawNo}회 ${group.tickets.length}게임을 삭제할까요?`, [
+        { text: "취소", style: "cancel" },
+        { text: "삭제", style: "destructive", onPress: () => group.tickets.forEach((t) => removeTicket(t.id)) },
+      ]);
     },
-    [requestLocation],
+    [removeTicket],
   );
 
-  // 핀치 줌이나 마커 탭 후 카메라가 미세하게 움직이는 것까지 매번 재조회하면, 마커 전체가
-  // 다시 그려지면서 방금 연 말풍선이 닫히고 "화면이 리셋"되는 것처럼 보인다.
-  // 실제로 의미 있게(대략 검색 반경의 1/4 이상) 이동했을 때만 다시 불러온다.
-  // Android에서 onRegionChangeComplete가 관성 스크롤 중 연속으로 여러 번 호출될 수 있어,
-  // 400ms debounce로 마지막 호출만 반영하고(빈 화면/반복 새로고침 방지) unmount 시 타이머를 정리한다.
-  const regionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 되돌릴 수 없는 파괴적 동작이라 회차별 삭제(handleDeleteVaultGroup)와 동일하게 확인
+  // 알럿을 거친다 - mylotto.tsx의 handleClearAll과 같은 스토어(clearAll)를 그대로 쓴다.
+  const handleClearAll = useCallback(() => {
+    Alert.alert("전체 삭제", "저장된 복권을 모두 삭제할까요? 되돌릴 수 없어요.", [
+      { text: "취소", style: "cancel" },
+      { text: "전체 삭제", style: "destructive", onPress: () => clearAll() },
+    ]);
+  }, [clearAll]);
+
+  const handleCameraMountError = useCallback((event: { message: string }) => {
+    reportError(new Error(`camera mount error: ${event.message}`), "qr-scan-camera");
+    setCameraError(true);
+  }, []);
+  // Expo Router(Stack)는 다른 화면으로 이동해도 이 화면을 언마운트하지 않고 메모리에 남겨둘 수
+  // 있어, active 없이 두면 카메라가 백그라운드에서 계속 켜진 채로 배터리/발열 문제가 생긴다.
+  // 포커스를 잃으면 CameraView의 active를 꺼서 실제 카메라 리소스를 확실히 해제한다.
+  const isFocused = useIsFocused();
+
+  // active={false}만으로 카메라 세션이 끊겨도 일부 기기에서는 torch(LED)가 카메라 파이프라인과
+  // 완전히 동기화되지 않아 꺼지지 않을 수 있다. 또한 torchOn을 그대로 두면 나중에 이 화면으로
+  // 돌아왔을 때 active가 다시 true가 되면서 사용자가 누르지 않았는데도 손전등이 자동으로 다시
+  // 켜지는 문제가 생긴다 - 화면을 벗어나는 시점에 명시적으로 꺼서 두 문제를 함께 방지한다.
+  useEffect(() => {
+    if (!isFocused) setTorchOn(false);
+  }, [isFocused]);
+
+  // 결과 처리 중(파싱→DB조회→저장)에는 카메라 이벤트를 무시해 중복 스캔/중복 저장을 막는다.
+  const scanLockRef = useRef(false);
+  const unlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
-      if (regionDebounceRef.current) clearTimeout(regionDebounceRef.current);
+      if (unlockTimerRef.current) clearTimeout(unlockTimerRef.current);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
 
-  const handleRegionChangeComplete = useCallback(
-    (region: { latitude: number; longitude: number }) => {
-      if (regionDebounceRef.current) clearTimeout(regionDebounceRef.current);
-      regionDebounceRef.current = setTimeout(() => {
-        setQueryCenter((prev) => {
-          if (!prev) return { latitude: region.latitude, longitude: region.longitude };
-          const R = 6371000;
-          const dLat = ((region.latitude - prev.latitude) * Math.PI) / 180;
-          const dLng = ((region.longitude - prev.longitude) * Math.PI) / 180;
-          const a =
-            Math.sin(dLat / 2) ** 2 +
-            Math.cos((prev.latitude * Math.PI) / 180) *
-              Math.cos((region.latitude * Math.PI) / 180) *
-              Math.sin(dLng / 2) ** 2;
-          const distanceM = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          // 동일 지도 영역에 대한 불필요한 재조회 방지: 의미 있게 이동했을 때만 갱신
-          if (distanceM < DEFAULT_SEARCH_RADIUS_M / 4) return prev;
-          return { latitude: region.latitude, longitude: region.longitude };
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), AUTO_TOAST_MS);
+  }, []);
+
+  // 같은 용지가 계속 프레임 안에 있어도 곧바로 중복 저장되지 않도록, 일정 시간 뒤에만
+  // 다음 스캔 잠금을 푼다.
+  const scheduleRescanUnlock = useCallback(() => {
+    if (unlockTimerRef.current) clearTimeout(unlockTimerRef.current);
+    unlockTimerRef.current = setTimeout(() => {
+      scanLockRef.current = false;
+    }, RESCAN_LOCK_MS);
+  }, []);
+
+  const handleCloseSheet = useCallback(() => {
+    setResult(null);
+    scheduleRescanUnlock();
+  }, [scheduleRescanUnlock]);
+
+  const saveResult = useCallback(
+    (data: SaveableScan) => {
+      if (data.status === "ok") {
+        addTickets(
+          data.games.map((g) =>
+            g.amountPending
+              ? { drawNo: data.drawNo, numbers: g.numbers, purchaseType: g.type, qrUrl: data.qrUrl, purchased: true }
+              : {
+                  drawNo: data.drawNo,
+                  numbers: g.numbers,
+                  purchaseType: g.type,
+                  purchased: true,
+                  checked: true,
+                  rank: g.rank,
+                  prizeAmount: g.prizeAmount,
+                  qrUrl: data.qrUrl,
+                },
+          ),
+        );
+        // 금액 집계가 아직 안 끝난 게임이 있으면(1~3등 파리뮤추얼 금액 null), 다음 보관함
+        // 방문 때 재검사되긴 하지만 그새 앱을 안 열 수도 있으니 결과가 확정되면 푸시로도 알려준다.
+        const pendingGames = data.games.filter((g) => g.amountPending);
+        if (pendingGames.length > 0) {
+          registerResultPushSubscription(
+            data.drawNo,
+            pendingGames.map((g) => ({ numbers: g.numbers, type: g.type })),
+            true,
+          );
+        }
+      } else {
+        addTickets(
+          data.games.map((g) => ({
+            drawNo: data.drawNo,
+            numbers: g.numbers,
+            purchaseType: g.type,
+            qrUrl: data.qrUrl,
+            purchased: true,
+          })),
+        );
+        scheduleDrawReminder(data.drawNo).catch((err) => reportError(err, "mylotto-reminder"));
+        registerResultPushSubscription(
+          data.drawNo,
+          data.games.map((g) => ({ numbers: g.numbers, type: g.type })),
+          true,
+        );
+      }
+    },
+    [addTickets],
+  );
+
+  const handleBarcodeScanned = useCallback(
+    async (scan: BarcodeScanningResult) => {
+      if (scanLockRef.current) return;
+      scanLockRef.current = true;
+      setSaveState("idle");
+
+      const parsed = parseLottoQr(scan.data);
+      if (!parsed) {
+        // 용지 QR 주소 형식이 또 바뀌면(과거에 한 번 바뀌었다) 전 유저가 동시에 못 읽게 된다.
+        // 그때 "무엇을 못 읽었는지"를 알 수 있도록 번호를 뺀 모양만 로그에 남긴다.
+        reportError(new Error(`unrecognized qr: ${describeQrShape(scan.data)}`), "qr-scan-parse");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setResult({ status: "unrecognized", raw: scan.data });
+        return;
+      }
+
+      try {
+        const draw = await getDrawByNo(parsed.drawNo);
+        if (!draw) {
+          // 아직 추첨하지 않은 회차(구매 직후 스캔)일 가능성이 가장 크다 - 에러가 아니라
+          // 보관함에 저장하고 추첨일에 알림받는 흐름으로 처리한다.
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          const pending: PendingScan = { status: "pending", drawNo: parsed.drawNo, games: parsed.games, qrUrl: scan.data };
+          if (autoCapture) {
+            saveResult(pending);
+            showToast(`${parsed.drawNo}회 저장됨 · 추첨 전`);
+            scheduleRescanUnlock();
+          } else {
+            setResult(pending);
+          }
+          return;
+        }
+        // 1~3등은 회차별 변동(파리뮤추얼) 금액이라 추첨 직후(토 20:35~21:10경)엔 당첨번호만
+        // 먼저 채워지고 금액 집계가 비어있을 수 있다(useAutoCheckTickets.ts, 서버 알림 스크립트와
+        // 동일 이유). 이 경우 여기서 바로 "0원"으로 확정 저장하면 checked=true로 영구 고정되어
+        // 나중에 실제 금액이 채워져도 다시는 재검사되지 않는다 - amountPending으로 표시해
+        // saveResult가 checked:false로 저장하게 한다.
+        const games: GameResult[] = parsed.games.map((g) => {
+          const rank = computeWinRank(g.numbers, draw.winning_numbers, draw.bonus_number);
+          const amountByRank: Partial<Record<1 | 2 | 3, number | null>> = {
+            1: draw.first_prize_amount_per_win,
+            2: draw.second_prize_amount_per_win,
+            3: draw.third_prize_amount_per_win,
+          };
+          const amountPending = (rank === 1 || rank === 2 || rank === 3) && amountByRank[rank] === null;
+          return {
+            ...g,
+            rank,
+            amountPending,
+            prizeAmount: amountPending
+              ? 0
+              : getPrizeAmount(
+                  rank,
+                  draw.first_prize_amount_per_win,
+                  draw.second_prize_amount_per_win,
+                  draw.third_prize_amount_per_win,
+                ),
+          };
         });
-      }, 400);
+        // QR 스캔 자체가 성공적으로 완료됐다는 것을 화면을 보지 않고도 알 수 있도록 진동을 준다
+        // (당첨 여부와 무관하게 "스캔이 인식됐다"는 신호).
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        const ok: OkScan = {
+          status: "ok",
+          drawNo: draw.draw_no,
+          drawDate: draw.draw_date,
+          winningNumbers: draw.winning_numbers,
+          bonusNumber: draw.bonus_number,
+          games,
+          qrUrl: scan.data,
+        };
+        // 당첨 확인이 성공한 지점 - 자동저장/수동확인 두 경로 모두 여길 지난다.
+        maybeRequestReview();
+        if (autoCapture) {
+          saveResult(ok);
+          const bestRank = games.reduce<WinRank>((best, g) => {
+            if (g.rank === null) return best;
+            return best === null ? g.rank : (Math.min(best, g.rank) as WinRank);
+          }, null);
+          showToast(`${draw.draw_no}회 저장됨 · ${bestRank ? RANK_LABEL[bestRank] + " 당첨!" : "낙첨"}`);
+          scheduleRescanUnlock();
+        } else {
+          setResult(ok);
+        }
+      } catch (err) {
+        // QR 자체는 정상 파싱됐는데 네트워크/DB 조회가 실패한 경우다. "인식할 수 없는 QR"이라고
+        // 하면 사용자가 용지를 의심하게 되므로, 원인이 다른 별도 상태로 구분해 안내한다.
+        reportError(err, "qr-scan-lookup");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setResult({ status: "error" });
+      }
     },
-    [],
+    [saveResult, scheduleRescanUnlock, autoCapture, showToast],
   );
 
-  const { data: stores = [], isLoading } = useNearbyStores(
-    queryCenter?.latitude,
-    queryCenter?.longitude,
-    DEFAULT_SEARCH_RADIUS_M,
-  );
+  // 수동모드에서 결과가 뜨면 사용자가 직접 "보관함에 저장"을 눌러야 저장된다.
+  const handleManualSave = useCallback(() => {
+    if (!result || (result.status !== "ok" && result.status !== "pending")) return;
+    saveResult(result);
+    setSaveState("saved");
+  }, [result, saveResult]);
 
-  const [sortMode, setSortMode] = useState<SortMode>("recommend");
-  const [focusCoordinate, setFocusCoordinate] = useState<{
-    latitude: number;
-    longitude: number;
-    delta: number;
-  } | null>(null);
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  // 앱 자체 계산 결과 말고 동행복권 공식 사이트 결과도 직접 보고 싶다는 요청 - QR 스캔 시
+  // 원본으로 찍힌 URL(https://qr.dhlottery.co.kr/?v=...)을 그대로 열면 공식 결과 페이지로 간다.
+  const handleOpenOfficialSite = useCallback(() => {
+    if (!result || (result.status !== "ok" && result.status !== "pending")) return;
+    Linking.openURL(result.qrUrl).catch((err) => reportError(err, "qr-scan-open-official"));
+  }, [result]);
 
+  // 인식불가/에러, 그리고 수동모드에서 저장까지 끝난 결과는 사용자가 닫기를 누르지 않아도
+  // 일정 시간 뒤 자동으로 닫혀 다음 용지를 계속 비출 수 있게 한다. 수동모드에서 아직 저장
+  // 전인 ok/pending은 사용자가 직접 판단해야 하니 자동으로 닫지 않는다.
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(searchInput.trim()), 300);
+    if (!result) return;
+    if ((result.status === "ok" || result.status === "pending") && saveState !== "saved") return;
+    const timer = setTimeout(() => handleCloseSheet(), AUTO_CLOSE_AFTER_FAIL_MS);
     return () => clearTimeout(timer);
-  }, [searchInput]);
+  }, [result, saveState, handleCloseSheet]);
 
-  const { data: searchResults = [], isFetching: isSearching } = useQuery({
-    queryKey: ["stores", "search", debouncedQuery],
-    queryFn: () => searchStores(debouncedQuery),
-    enabled: debouncedQuery.length > 0,
-    staleTime: 60 * 1000,
-  });
+  if (!permission) {
+    return <View style={styles.container} />;
+  }
 
-  const sortedStores = useMemo(() => {
-    if (sortMode === "distance") {
-      return [...stores].sort((a, b) => a.distance_m - b.distance_m);
-    }
-    return stores; // nearby_stores RPC가 이미 recommend_score순으로 정렬해서 반환함
-  }, [stores, sortMode]);
-
-  // "추천순이 뭘 기준인지 모르겠다"는 피드백에 안내문구 대신 지도 위 배지로 직접 보여준다.
-  // stores(원본, recommend_score순)의 상위 3곳을 정렬 모드와 무관하게 항상 표시한다.
-  const topRecommendRanks = useMemo(() => {
-    const map = new Map<string, 1 | 2 | 3>();
-    stores.slice(0, 3).forEach((s, idx) => map.set(s.store_id, (idx + 1) as 1 | 2 | 3));
-    return map;
-  }, [stores]);
-
-  const favoriteIds = useFavorites((s) => s.stores);
-  const favoriteIdSet = useMemo(() => new Set(Object.keys(favoriteIds)), [favoriteIds]);
-
-  const { data: latestWinners } = useQuery({
-    queryKey: ["draws", "latest-winners"],
-    queryFn: getLatestFirstPrizeWinners,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-  });
-  const newWinnerIdSet = useMemo(
-    () => new Set((latestWinners?.stores ?? []).map((w) => w.storeId)),
-    [latestWinners],
+  // 이 화면은 헤더가 없어서(탭 설정 headerShown:false) 띠가 상태바 밑으로 들어간다 -
+  // 세이프에어리어만큼 같은 색으로 밀어낸다. 카메라 권한이 없을 때/카메라가 죽었을 때도
+  // 같이 보여야 해서 분기마다 따로 쓰지 않고 변수로 뺀다.
+  const topBand = (
+    <View style={[styles.topBandWrap, { paddingTop: insets.top }]}>
+      <LatestDrawBand />
+    </View>
   );
 
-  // 정렬 버튼은 지도 위 마커 배치 자체를 바꾸지 않아 눌러도 눈에 띄는 변화가 없었다.
-  // 눌렀을 때 해당 정렬 기준 1위 매장으로 지도를 이동시켜 버튼이 실제로 작동함을 보여준다.
-  // delta(확대 정도)를 모드별로 다르게 둬서, 두 버튼의 1위 매장 좌표가 우연히 같더라도
-  // 확대 수준이 달라져 "눌렀는데 아무 변화 없음"으로 보이지 않게 한다.
-  const handleSortRecommend = useCallback(() => {
-    setSortMode("recommend");
-    if (stores[0]) {
-      setFocusCoordinate({ latitude: stores[0].latitude, longitude: stores[0].longitude, delta: 0.05 });
-    }
-  }, [stores]);
 
-  const handleSortDistance = useCallback(() => {
-    setSortMode("distance");
-    const nearest = [...stores].sort((a, b) => a.distance_m - b.distance_m)[0];
-    if (nearest) {
-      setFocusCoordinate({ latitude: nearest.latitude, longitude: nearest.longitude, delta: 0.01 });
-    }
-  }, [stores]);
-
-
-  const center = useMemo(
-    () => ({
-      latitude: location?.coords.latitude ?? DEFAULT_MAP_CENTER.latitude,
-      longitude: location?.coords.longitude ?? DEFAULT_MAP_CENTER.longitude,
-    }),
-    [location?.coords.latitude, location?.coords.longitude],
-  );
-
-  const handlePressStore = useCallback(
-    (storeId: string) => {
-      router.push(`/store/${storeId}`);
-    },
-    [router],
-  );
-
-  const isSearchMode = debouncedQuery.length > 0;
-
-  // 안내는 로딩 스피너보다 **먼저** 보여야 한다. 예전엔 맨 아래 return에만 있어서,
-  // 위 스피너 분기에서 빠져나가는 동안은 아예 그려지지 않았다. 변수로 빼서 모든 분기가
-  // 같이 그린다.
-  const permissionGuide = (
-    <Modal
-      visible={showLocationPermissionGuide}
-      transparent
-      animationType="fade"
-      onRequestClose={() => dismissGuide(false)}
-    >
-      <View style={styles.modalBackdrop}>
-        {/* 바깥을 눌러 닫는 것은 "나중에"와 같다 - 권한 창을 띄우지 않는다. */}
-        <Pressable style={styles.modalBackdropTouchable} onPress={() => dismissGuide(false)} />
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>내 주변 판매점을 찾으려면</Text>
-          <Text style={styles.modalDescription}>
-            위치를 알려주시면 지금 있는 곳 근처의 로또 판매점을 바로 찾아드려요.
-          </Text>
-          <Text style={styles.modalBullet}>• 내 위치를 지도에 표시</Text>
-          <Text style={styles.modalBullet}>• 가까운 명당 판매점 추천</Text>
-          <Text style={styles.modalBullet}>• 명당 근처에 가면 알림</Text>
-          {/* 거부해도 앱이 쓸모없어지지 않는다는 걸 먼저 밝힌다. 막다른 길처럼 보이면
-              허용을 강요받는 느낌이 들고, 그 인상이 설치 직후 이탈로 이어진다. */}
-          <Text style={styles.modalDescription}>
-            허용하지 않아도 앱은 그대로 쓸 수 있어요. 그때는 서울시청 기준으로 보여드려요.
-          </Text>
-          <Pressable style={styles.modalButton} onPress={() => dismissGuide(true)}>
-            <Text style={styles.modalButtonText}>위치 허용하기</Text>
+  if (!permission.granted) {
+    // canAskAgain=false는 iOS/Android가 이미 "다시 묻지 않음"으로 처리한 상태라
+    // requestPermission()을 다시 불러도 시스템 팝업이 뜨지 않는다(무반응처럼 보임).
+    // 이 경우엔 앱 설정 화면으로 직접 보내야 한다. 앱스토어 심사에서 권한 거부 시
+    // 검은 화면만 남는 것도 리젝 사유가 될 수 있어 항상 안내 문구+버튼을 보여준다.
+    const canAskAgain = permission.canAskAgain;
+    return (
+      <View style={styles.container}>
+        {topBand}
+        <View style={styles.permissionContainer}>
+        <Text style={styles.permissionText}>QR 당첨 확인을 위해 카메라 권한이 필요합니다.</Text>
+        {canAskAgain ? (
+          <Pressable style={styles.permissionButton} onPress={requestPermission}>
+            <Text style={styles.permissionButtonText}>카메라 권한 허용</Text>
           </Pressable>
-          <Pressable style={styles.modalSecondaryButton} onPress={() => dismissGuide(false)}>
-            <Text style={styles.modalSecondaryButtonText}>나중에</Text>
+        ) : (
+          <Pressable style={styles.permissionButton} onPress={() => Linking.openSettings()}>
+            <Text style={styles.permissionButtonText}>설정으로 이동</Text>
           </Pressable>
+        )}
         </View>
       </View>
-    </Modal>
-  );
-  // 기다리는 기준을 location이 아니라 queryCenter로 바꿨다. "나중에"를 누르면 location도
-  // locationError도 영원히 안 채워져서, location을 기다리면 스피너에 갇힌다. queryCenter는
-  // 위치를 받았을 때 / 거부했을 때 / "나중에"를 눌렀을 때 모두 채워지므로 막다른 길이 없다.
-  //
-  // 스피너 위에 안내를 같이 그린다 - 안내를 읽는 동안 뒤에서 스피너가 도는 건 괜찮지만,
-  // 안내가 아예 안 보이면 왜 위치를 묻는지 모른 채 OS 창을 보게 된다(이번 수정의 핵심).
-  if (!queryCenter || isLoading) {
+    );
+  }
+
+  if (cameraError) {
     return (
-      <>
-        {permissionGuide}
-        <View style={styles.center}>
-          <ActivityIndicator />
-          <Text style={styles.loadingText}>
-            {!queryCenter ? "내 위치를 확인하는 중이에요" : "주변 판매점을 찾는 중이에요"}
-          </Text>
+      <View style={styles.container}>
+        {topBand}
+        <View style={styles.permissionContainer}>
+          <Text style={styles.permissionText}>카메라를 사용할 수 없어요. 앱을 재시작한 뒤 다시 시도해 주세요.</Text>
         </View>
-      </>
+      </View>
     );
   }
 
   return (
-    <>
-      {permissionGuide}
-      <View style={styles.container}>
-      {/* 조건을 locationError가 아니라 "내 위치가 없다"로 바꿨다. 안내 모달에서 "나중에"를
-          누른 사람은 아예 묻지 않았으므로 오류도 없고, 예전 조건으로는 이 띠가 안 떠서
-          위치를 나중에 켤 길이 사라졌다("나중에"가 되돌릴 수 없는 문이 됐다). */}
-      {!location && (
-        // canAskAgain이면(흔히는 안드로이드 "이번만 허용"이 앱 재시작 때마다 풀린 경우) 설정
-        // 화면을 안 거치고 바로 재요청 다이얼로그를 띄운다 - "다시 묻지 않음"으로 완전히
-        // 거부된 경우만 설정으로 보낸다.
-        <Pressable
-          style={styles.locationNotice}
-          onPress={canAskAgain ? retryLocation : () => Linking.openSettings()}
-        >
-          <Text style={styles.locationNoticeText}>
-            {canAskAgain
-              ? "📍 지금은 서울시청 기준으로 보여드리고 있어요 · 눌러서 위치 권한을 허용하면 내 주변으로 바로 바뀌어요"
-              : "📍 지금은 서울시청 기준으로 보여드리고 있어요 · 설정에서 위치 권한을 허용하면 내 주변으로 바로 바뀌어요"}
-          </Text>
-        </Pressable>
-      )}
-
-      {/* 소식 띠(NoticeCard)는 업데이트 소식 팝업으로 옮겼다 - 같은 app_notices를 띠와
-          팝업으로 두 번 보여주면 같은 글을 두 군데서 읽게 된다. */}
-      {!isSearchMode && <HomeBannerCarousel />}
-
-      <View style={[styles.searchBar, { marginHorizontal: getResponsiveSpacing(spacing.md, breakpoint) }]}>
-        <TextInput
-          style={[styles.searchInput, { fontSize: getResponsiveFontSize(15, breakpoint) }]}
-          placeholder="판매점 이름 또는 주소 검색"
-          placeholderTextColor="#999"
-          value={searchInput}
-          onChangeText={setSearchInput}
-          autoCapitalize="none"
-          returnKeyType="search"
+    <View style={styles.container}>
+      {topBand}
+      <View style={styles.cameraContainer}>
+        <CameraView
+          style={styles.camera}
+          facing="back"
+          active={isFocused}
+          enableTorch={torchOn}
+          barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+          onBarcodeScanned={handleBarcodeScanned}
+          onMountError={handleCameraMountError}
         />
-        {searchInput.length > 0 && (
-          <Pressable onPress={() => setSearchInput("")} style={styles.clearButton}>
-            <Text style={styles.clearButtonText}>✕</Text>
-          </Pressable>
+        <View style={styles.guideOverlay} pointerEvents="none">
+          <Text style={styles.guideText}>로또 용지의 QR코드를 비춰주세요</Text>
+        </View>
+        {toast && (
+          <View style={styles.toast} pointerEvents="none">
+            <Text style={styles.toastText}>{toast}</Text>
+          </View>
         )}
+        <Pressable
+          style={[styles.torchButton, torchOn && styles.torchButtonActive]}
+          onPress={() => setTorchOn((v) => !v)}
+          hitSlop={8}
+        >
+          <Text style={styles.torchButtonIcon}>{torchOn ? "🔦" : "💡"}</Text>
+        </Pressable>
       </View>
 
-      {!isSearchMode && (
-        <View style={[styles.sortBar, { paddingHorizontal: getResponsiveSpacing(spacing.md, breakpoint) }]}>
-          <Pressable
-            style={[styles.sortButton, sortMode === "recommend" && styles.sortButtonActive, { paddingHorizontal: getResponsiveSpacing(spacing.md + 2, breakpoint) }]}
-            onPress={handleSortRecommend}
-          >
-            <Text style={[styles.sortButtonText, sortMode === "recommend" && styles.sortButtonTextActive, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
-              추천순
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.sortButton, sortMode === "distance" && styles.sortButtonActive, { paddingHorizontal: getResponsiveSpacing(spacing.md + 2, breakpoint) }]}
-            onPress={handleSortDistance}
-          >
-            <Text style={[styles.sortButtonText, sortMode === "distance" && styles.sortButtonTextActive, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
-              거리순
-            </Text>
-          </Pressable>
-        </View>
-      )}
-
-      {isSearchMode ? (
-        isSearching ? (
-          <View style={styles.center}>
-            <ActivityIndicator />
+      <View style={styles.vaultPanel}>
+        <View style={styles.vaultPanelHeader}>
+          <Text style={styles.vaultPanelTitle}>🎟️ 내 복권 보관함</Text>
+          <View style={styles.vaultPanelHeaderRight}>
+            {recentTickets.length > 0 && (
+              <Pressable hitSlop={8} onPress={handleClearAll}>
+                <Text style={styles.vaultPanelClearAll}>전체삭제</Text>
+              </Pressable>
+            )}
+            <Pressable hitSlop={8} onPress={() => router.push("/mylotto")}>
+              <Text style={styles.vaultPanelMore}>전체보기 ›</Text>
+            </Pressable>
           </View>
-        ) : searchResults.length === 0 ? (
-          <View style={styles.center}>
-            <Text style={styles.emptyText}>검색 결과가 없습니다.</Text>
+        </View>
+        {recentTickets.length === 0 ? (
+          <View style={styles.vaultEmpty}>
+            <Text style={styles.vaultEmptyText}>스캔한 복권이 여기에 저장돼요</Text>
           </View>
         ) : (
           <FlatList
-            data={searchResults}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <SearchResultRow item={item} onPress={handlePressStore} />}
+            data={groupTicketsByDraw(recentTickets)}
+            keyExtractor={(item) => `draw-${item.drawNo}`}
+            renderItem={({ item }) => (
+              <VaultDrawCard
+                drawNo={item.drawNo}
+                tickets={item.tickets}
+                draw={drawsByNo.get(item.drawNo)}
+                onDelete={() => handleDeleteVaultGroup(item)}
+              />
+            )}
+            contentContainerStyle={styles.vaultList}
+            showsVerticalScrollIndicator={false}
           />
-        )
-      ) : (
-        <View style={styles.mapWrap}>
-          <StoreMapView
-            center={center}
-            stores={sortedStores}
-            onPressStore={handlePressStore}
-            onRegionChangeComplete={handleRegionChangeComplete}
-            focusCoordinate={focusCoordinate}
-            topRecommendRanks={topRecommendRanks}
-            favoriteIds={favoriteIdSet}
-            newWinnerIds={newWinnerIdSet}
-          />
-          <TopStoresCarousel stores={sortedStores} onPressStore={handlePressStore} />
-        </View>
-      )}
+        )}
       </View>
-    </>
+
+      <Modal visible={result !== null} transparent animationType="slide" onRequestClose={handleCloseSheet}>
+        <Pressable style={styles.sheetBackdrop} onPress={handleCloseSheet}>
+          <Pressable
+            style={[
+              styles.sheet,
+              (result?.status === "ok" || result?.status === "pending") && styles.sheetTall,
+              { paddingBottom: spacing.xl + insets.bottom },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {result?.status === "unrecognized" && (
+              <>
+                <Text style={styles.sheetTitle}>인식할 수 없는 QR코드예요</Text>
+                <Text style={styles.sheetSubtitle}>로또 6/45 용지의 QR코드가 맞는지 확인해 주세요.</Text>
+                {/* 읽은 원문을 보여준다 - 이게 없으면 신고를 받아도 무엇을 못 읽었는지 알 수 없다. */}
+                {/* selectable: 길게 눌러 복사해 보내줄 수 있게 한다 - 70자 넘는 숫자열을
+                    사람이 받아적게 하면 틀린다. 폰에서 복사하는 것이니 아무 데도 안 보낸다. */}
+                <Text style={styles.sheetRawQr} numberOfLines={4} selectable>
+                  {result.raw.slice(0, 160)}
+                </Text>
+              </>
+            )}
+            {result?.status === "error" && (
+              <>
+                <Text style={styles.sheetTitle}>일시적인 오류가 발생했어요</Text>
+                <Text style={styles.sheetSubtitle}>네트워크 상태를 확인한 뒤 다시 스캔해 주세요.</Text>
+              </>
+            )}
+            {result?.status === "pending" && (
+              <>
+                <Text style={styles.sheetTitle}>{result.drawNo}회 추첨 전이에요</Text>
+                <Text style={styles.sheetSubtitle}>저장하면 추첨일에 알림을 보내드려요.</Text>
+                <Pressable style={styles.officialLink} onPress={() => WebBrowser.openBrowserAsync(result.qrUrl)}>
+                  <Text style={styles.officialLinkText}>동행복권에서 원본 확인 ↗</Text>
+                </Pressable>
+                <ScrollView style={styles.checkScroll}>
+                  {result.games.map((g, idx) => (
+                    <View key={idx} style={styles.checkGameRow}>
+                      <Text style={styles.checkGameIndex}>{idx + 1}</Text>
+                      <TicketNumberRow numbers={g.numbers} winningSet={null} ballSize="small" containerStyle={styles.checkGameBalls} />
+                    </View>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+            {result?.status === "ok" &&
+              (() => {
+                const winningSet = new Set(result.winningNumbers);
+                const bestRank = result.games.reduce<WinRank>((best, g) => {
+                  if (g.rank === null) return best;
+                  return best === null ? g.rank : (Math.min(best, g.rank) as WinRank);
+                }, null);
+                return (
+                  <>
+                    <Text style={styles.sheetTitle}>
+                      {result.drawNo}회 · {bestRank ? `${RANK_LABEL[bestRank]} 당첨!` : "낙첨"}
+                    </Text>
+                    <Text style={styles.sheetSubtitle}>{result.drawDate} 추첨</Text>
+                    <Pressable style={styles.officialLink} onPress={() => WebBrowser.openBrowserAsync(result.qrUrl)}>
+                      <Text style={styles.officialLinkText}>동행복권에서 원본 확인 ↗</Text>
+                    </Pressable>
+                    <ScrollView style={styles.checkScroll}>
+                      {result.games.map((g, idx) => (
+                        <View key={idx} style={styles.checkGameRow}>
+                          <Text style={styles.checkGameIndex}>{idx + 1}</Text>
+                          <TicketNumberRow
+                            numbers={g.numbers}
+                            winningSet={winningSet}
+                            bonusNumber={result.bonusNumber}
+                            ballSize="small"
+                            containerStyle={styles.checkGameBalls}
+                          />
+                          <Text style={styles.checkGameRank}>{g.rank ? RANK_LABEL[g.rank] : "낙첨"}</Text>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </>
+                );
+              })()}
+            {(result?.status === "ok" || result?.status === "pending") && (
+              <View style={styles.actionRow}>
+                <Pressable
+                  style={[styles.saveButton, styles.actionButton, saveState === "saved" && styles.saveButtonDone]}
+                  onPress={handleManualSave}
+                  disabled={saveState === "saved"}
+                >
+                  <Text style={styles.saveButtonText} numberOfLines={1}>
+                    {saveState === "saved" ? "저장됨 ✓" : "🎟️ 보관함 저장"}
+                  </Text>
+                </Pressable>
+                <Pressable style={[styles.officialButton, styles.actionButton]} onPress={handleOpenOfficialSite}>
+                  <Text style={styles.officialButtonText} numberOfLines={1}>
+                    🔗 인터넷 확인
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+            <Pressable style={styles.closeButton} onPress={handleCloseSheet}>
+              <Text style={styles.closeButtonText}>닫고 다음 QR 스캔</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  mapWrap: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  loadingText: { marginTop: spacing.sm, color: colors.textMuted, fontSize: 13 },
-  emptyText: { color: colors.textMuted, fontSize: 14 },
-  locationNotice: {
-    backgroundColor: colors.primary,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
+  container: { flex: 1, backgroundColor: "#000" },
+  topBandWrap: { backgroundColor: colors.ink },
+  // 화면을 카메라(상단)/보관함(하단) 정확히 반반으로 분할.
+  cameraContainer: { flex: 1 },
+  vaultPanel: { flex: 1, backgroundColor: colors.background },
+  camera: { flex: 1 },
+  guideOverlay: {
+    position: "absolute",
+    top: 60,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  guideText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    backgroundColor: "rgba(0,0,0,0.5)",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-  },
-  locationNoticeText: { color: "#fff", fontSize: 12, fontWeight: "600" },
-  modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.5)" },
-  modalBackdropTouchable: { ...StyleSheet.absoluteFillObject },
-  modalCard: {
-    width: "80%",
-    maxWidth: 320,
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 24,
-    gap: 16,
-  },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: "#000", textAlign: "center" },
-  modalDescription: { fontSize: 14, color: colors.textSecondary, lineHeight: 22, textAlign: "center" },
-  modalButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  modalButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  // 목록은 가운데 정렬하지 않는다 - 글머리 기호가 들쭉날쭉해져 읽기 어렵다.
-  modalBullet: { fontSize: 14, color: colors.textSecondary, lineHeight: 22, textAlign: "left" },
-  // "나중에"는 테두리도 배경도 없다. 허용 버튼과 나란히 두면 둘 중 뭘 눌러야 하는지
-  // 고민하게 되는데, 권하는 쪽은 하나다.
-  modalSecondaryButton: { paddingVertical: 12, alignItems: "center" },
-  modalSecondaryButtonText: { color: colors.textMuted, fontSize: 14 },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    ...cardShadow,
-  },
-  searchInput: { flex: 1, paddingVertical: spacing.sm + 2, fontSize: 15, color: colors.textPrimary },
-  clearButton: { padding: spacing.xs + 2 },
-  clearButtonText: { color: colors.textMuted, fontSize: 14 },
-  sortBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  sortButton: {
-    paddingHorizontal: spacing.md + 2,
-    paddingVertical: spacing.sm - 2,
     borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  sortButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  sortButtonText: { fontSize: 13, color: colors.textSecondary, fontWeight: "600" },
-  sortButtonTextActive: { color: "#fff" },
-  resultRow: {
+  toast: {
+    position: "absolute",
+    top: 108,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  toastText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+    backgroundColor: "rgba(0,0,0,0.65)",
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md + 2,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+  },
+  permissionContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+    gap: spacing.lg,
+    backgroundColor: colors.background,
+  },
+  permissionText: { fontSize: 15, color: colors.textPrimary, textAlign: "center" },
+  permissionButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+  },
+  permissionButtonText: { color: "#fff", fontWeight: "700" },
+  vaultPanelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
   },
-  resultName: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
-  resultAddress: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  vaultPanelHeaderRight: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  vaultPanelTitle: { fontSize: 15, fontWeight: "800", color: colors.textPrimary },
+  vaultPanelMore: { fontSize: 12, fontWeight: "700", color: colors.primary },
+  vaultPanelClearAll: { fontSize: 12, fontWeight: "600", color: colors.textMuted },
+  vaultList: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.lg },
+  vaultEmpty: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  vaultEmptyText: { fontSize: 13, color: colors.textMuted },
+  vaultCard: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    gap: spacing.sm,
+    ...cardShadow,
+    minHeight: 240,
+  },
+  vaultCardMain: { flex: 1, gap: spacing.md },
+  vaultCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  vaultCardTitle: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
+  vaultCardWinningBalls: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
+  vaultCardPlus: { fontSize: 11, fontWeight: "700", color: colors.textMuted, marginHorizontal: 1 },
+  vaultCardDeleteIcon: { fontSize: 16 },
+  vaultCardOfficialLink: {
+    alignSelf: "center",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingLeft: spacing.sm,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+  },
+  vaultCardOfficialLinkText: { fontSize: 10, fontWeight: "700", color: colors.primary, textAlign: "center", lineHeight: 14 },
+  vaultCardGame: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.background,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    gap: spacing.md,
+  },
+  vaultCardGameIndex: { fontSize: 13, fontWeight: "700", color: colors.textSecondary, minWidth: 18 },
+  vaultCardBalls: { flexDirection: "row", flexWrap: "wrap", gap: 4, alignItems: "center" },
+  vaultCardNumberPlain: { fontSize: 12, fontWeight: "600", color: colors.textPrimary },
+  vaultCardBadge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
+  vaultCardBadgeWin: { backgroundColor: colors.gold },
+  vaultCardBadgeLose: { backgroundColor: colors.rankNeutral },
+  vaultCardBadgePending: { backgroundColor: colors.rankNeutral },
+  vaultCardBadgeText: { color: "#fff", fontWeight: "700", fontSize: 10 },
+  torchButton: {
+    position: "absolute",
+    right: 16,
+    bottom: 40,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  torchButtonActive: { backgroundColor: colors.goldBright },
+  torchButtonIcon: { fontSize: 22 },
+  sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    padding: spacing.xl,
+    gap: spacing.md,
+    maxHeight: "50%",
+    ...cardShadow,
+  },
+  sheetTitle: { fontSize: 18, fontWeight: "800", color: colors.textPrimary },
+  sheetRawQr: {
+    marginTop: spacing.sm,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textMuted,
+  },
+  sheetSubtitle: { fontSize: 13, color: colors.textSecondary },
+  officialLink: { alignSelf: "flex-start", marginTop: spacing.sm },
+  officialLinkText: { fontSize: 12, fontWeight: "700", color: colors.primary },
+  // 당첨확인(ok)/추첨전(pending)은 게임이 여러 개(a~e)일 수 있어 내용이 많다 - 짧은
+  // 인식불가/에러 시트보다 크게 펼친다.
+  sheetTall: { maxHeight: "80%" },
+  checkScroll: { flexGrow: 0 },
+  checkGameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.sm + 2,
+    gap: spacing.md,
+  },
+  checkGameIndex: { fontSize: 13, fontWeight: "700", color: colors.textSecondary, minWidth: 18 },
+  checkGameBalls: { flex: 1 },
+  checkGameRank: { fontSize: 12, fontWeight: "700", color: colors.textSecondary },
+  actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+  actionButton: { flex: 1, marginTop: 0 },
+  saveButton: {
+    backgroundColor: colors.goldBright,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+  },
+  saveButtonDone: { backgroundColor: colors.rankNeutral },
+  saveButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  officialButton: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+  },
+  officialButtonText: { color: colors.primary, fontWeight: "700", fontSize: 14 },
+  closeButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  closeButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 });
