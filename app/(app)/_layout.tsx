@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { colors, spacing } from "@/constants/theme";
+import { colors, spacing, radius } from "@/constants/theme";
 
 // 아래 탭바를 없앴다(2026-11-28). 탭 네 칸 + 광고 배너가 화면 아래 두 줄을 먹고 있었는데,
 // 그 네 칸 중 실제로 쓰이는 건 당첨확인과 지도뿐이었다. 랭킹·더보기는 상단 ≡ 한 곳으로
@@ -44,7 +44,21 @@ export default function AppLayout() {
 }
 
 const styles = StyleSheet.create({
-  menuButton: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.sm },
-  menuLabel: { color: colors.textMuted, fontSize: 11 },
-  menuIcon: { color: colors.textPrimary, fontSize: 20, fontWeight: "700", lineHeight: 22 },
+  // 흐린 회색 11px 글씨였더니 헤더에 묻혀 안 보였다 - 앱의 다른 화면 전부가 이 버튼
+  // 하나 뒤에 있으니 "눌러도 되는 것"으로 읽혀야 한다. 흰 알약 + 금색 테두리로 띄운다
+  // (종이색 배경 위에서 흰색이 뜨고, 테두리가 버튼 모양을 만든다). 금색으로 꽉 채우지
+  // 않은 이유는 홈의 큰 QR 버튼이 이미 금색이라 둘이 서로 세기를 깎기 때문이다.
+  menuButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.pill,
+  },
+  menuLabel: { color: colors.primaryDark, fontSize: 13, fontWeight: "800" },
+  menuIcon: { color: colors.primaryDark, fontSize: 17, fontWeight: "700", lineHeight: 19 },
 });
