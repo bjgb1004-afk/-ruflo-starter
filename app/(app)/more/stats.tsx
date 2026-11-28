@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import { useCallback } from "react";
 import { HotspotTrendCard } from "@/features/stats/components/HotspotTrendCard";
 import { RecentDrawSummary } from "@/features/stats/components/RecentDrawSummary";
-import { LuckDensityList } from "@/features/stats/components/LuckDensityList";
 import { colors, spacing } from "@/constants/theme";
 import { useResponsive, getResponsiveSpacing } from "@/utils/responsive";
 
@@ -27,9 +26,6 @@ export default function StatsScreen() {
 
       {/* 회차별 당첨현황 - 1회부터 최신 회차까지 드롭다운으로 조회 + 배출업소 아코디언 */}
       <RecentDrawSummary />
-
-      {/* 지역별 명당 밀도(행운 지수) - 카드를 펼치면 자동/수동/반자동 비율도 함께 보임 */}
-      <LuckDensityList onPressSido={handleRegionPress} />
     </ScrollView>
   );
 }

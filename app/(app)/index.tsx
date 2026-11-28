@@ -3,7 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { LottoBall } from "@/components/LottoBall";
-import { getLatestDraw } from "@/features/draws/api/drawHistoryApi";
+import { getDrawWinnersDetail, getLatestDraw } from "@/features/draws/api/drawHistoryApi";
 import { useDrawsByNo } from "@/features/draws/useDrawsByNo";
 import { VaultDrawCard } from "@/features/mylotto/components/VaultDrawCard";
 import { computeHomeResult, nextDrawLabel, type HomeResult } from "@/features/mylotto/homeResult";
@@ -60,6 +60,10 @@ export default function HomeScreen() {
     queryFn: getLatestDraw,
     staleTime: 60 * 1000,
     gcTime: 5 * 60 * 1000,
+    // 전역 기본값은 꺼져 있다(RN엔 브라우저 탭 포커스가 없어서) - 그런데 "내가 됐나?"를
+    // 답하는 이 화면만큼은 추첨 직후 앱을 다시 열었을 때 캐시가 stale하면 자동으로
+    // 새로고침돼야 한다. _layout.tsx의 AppState→focusManager 연결이 있어야 돈다.
+    refetchOnWindowFocus: true,
   });
 
   const ticketsMap = useMyLottoTickets((s) => s.tickets);
@@ -70,6 +74,18 @@ export default function HomeScreen() {
     () => (draw ? heroLines(computeHomeResult(tickets, draw.draw_no)) : null),
     [tickets, draw],
   );
+
+  // 당첨금·당첨자 수는 draw(["draws","latest"])에 이미 들어 있어 추가 호출이 필요 없다.
+  // 구매방식(자동/수동/반자동)만 배출점 상세 쪽에 있어 별도로 받는다 - stats 화면의
+  // RecentDrawSummary와 같은 쿼리키라 거기서 먼저 열어봤으면 캐시를 그대로 쓴다.
+  const { data: winnersDetail } = useQuery({
+    queryKey: ["draws", draw?.draw_no, "winners-detail"],
+    queryFn: () => getDrawWinnersDetail(draw!.draw_no),
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    enabled: !!draw,
+  });
+  const purchaseTypeSummary = winnersDetail?.purchaseTypeSummary;
 
   const previewGroups = useMemo(() => groupTicketsByDraw(tickets).slice(0, VAULT_PREVIEW_GROUPS), [tickets]);
   const previewDrawNos = useMemo(() => previewGroups.map((g) => g.drawNo), [previewGroups]);
@@ -117,6 +133,23 @@ export default function HomeScreen() {
                 <Text style={styles.heroPlus}>+</Text>
                 <LottoBall number={draw.bonus_number} isBonus size="small" />
               </View>
+            </Pressable>
+
+            {/* 추첨 직후엔 당첨번호는 먼저 뜨고 당첨금 집계는 몇 분~몇십 분 뒤에 붙는다
+                (RecentDrawSummary와 같은 패턴) - 그 틈엔 "집계 중"으로 보여준다. */}
+            <Pressable style={styles.heroPrizeSummary} onPress={() => router.push("/more/stats")}>
+              <Text style={styles.heroPrizeText}>
+                {draw.first_prize_winner_count !== null && draw.first_prize_amount_per_win !== null
+                  ? `1등 ${draw.first_prize_winner_count}명 · 1인당 ${draw.first_prize_amount_per_win.toLocaleString()}원`
+                  : "1등 당첨금 집계 중..."}
+              </Text>
+              {purchaseTypeSummary &&
+                (purchaseTypeSummary.자동 > 0 || purchaseTypeSummary.수동 > 0 || purchaseTypeSummary.반자동 > 0) && (
+                  <Text style={styles.heroPrizeMethodText}>
+                    구매방식(확인분) 자동 {purchaseTypeSummary.자동} · 수동 {purchaseTypeSummary.수동}
+                    {purchaseTypeSummary.반자동 > 0 ? ` · 반자동 ${purchaseTypeSummary.반자동}` : ""}
+                  </Text>
+                )}
             </Pressable>
           </>
         )}
@@ -203,6 +236,9 @@ const styles = StyleSheet.create({
   heroNumbersLabel: { color: colors.textMuted, fontSize: 10 },
   heroBalls: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   heroPlus: { color: colors.textSecondary, fontSize: 13, fontWeight: "700" },
+  heroPrizeSummary: { gap: 2 },
+  heroPrizeText: { color: colors.textSecondary, fontSize: 12, fontWeight: "700" },
+  heroPrizeMethodText: { color: colors.textMuted, fontSize: 11 },
 
   body: { padding: spacing.lg, gap: spacing.md },
 

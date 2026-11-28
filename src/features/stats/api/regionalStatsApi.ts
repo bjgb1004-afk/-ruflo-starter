@@ -1,25 +1,5 @@
 import { supabase } from "@/lib/supabase";
 
-export interface SidoLuckDensity {
-  sido: string;
-  storeCount: number;
-  totalFirstPrize: number;
-  luckIndex: number;
-}
-
-// 시/도별 매장당 평균 1등 배출 비율("행운 지수") - 값이 높을수록 매장 한 곳당 1등이
-// 자주 나온 지역. luck_index desc로 이미 정렬돼서 온다.
-export async function getSidoLuckDensity(): Promise<SidoLuckDensity[]> {
-  const { data, error } = await (supabase.rpc as any)("sido_luck_density");
-  if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({
-    sido: r.sido,
-    storeCount: r.store_count,
-    totalFirstPrize: r.total_first_prize,
-    luckIndex: Number(r.luck_index ?? 0),
-  }));
-}
-
 export interface ConsecutiveWinArea {
   sido: string;
   sigungu: string;
@@ -34,27 +14,5 @@ export async function getConsecutiveWinAreas(streakWeeks: number = 3): Promise<C
     sido: r.sido,
     sigungu: r.sigungu,
     streakWeeks: r.streak_weeks_out,
-  }));
-}
-
-export interface SidoPurchaseTypeRatio {
-  sido: string;
-  autoCount: number;
-  manualCount: number;
-  semiAutoCount: number;
-  totalCount: number;
-}
-
-// 시/도별 1등 당첨 구매방식(자동/수동/반자동) 건수. totalCount는 "구매방식이 확인된"
-// 건수만 집계한 것이라(pyony.com 매칭분만 존재) 시/도 전체 1등 배출 수와는 다를 수 있다.
-export async function getSidoPurchaseTypeRatio(): Promise<SidoPurchaseTypeRatio[]> {
-  const { data, error } = await (supabase.rpc as any)("sido_purchase_type_ratio");
-  if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({
-    sido: r.sido,
-    autoCount: r.auto_count,
-    manualCount: r.manual_count,
-    semiAutoCount: r.semi_auto_count,
-    totalCount: r.total_count,
   }));
 }

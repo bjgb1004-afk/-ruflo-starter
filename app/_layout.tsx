@@ -1,9 +1,9 @@
 import { useEffect } from "react";
-import { View } from "react-native";
+import { AppState, View } from "react-native";
 import { Stack, usePathname } from "expo-router";
 import { SystemBars } from "react-native-edge-to-edge";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { QueryClient, QueryCache, MutationCache } from "@tanstack/react-query";
+import { QueryClient, QueryCache, MutationCache, focusManager } from "@tanstack/react-query";
 import * as Updates from "expo-updates";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
@@ -150,15 +150,40 @@ export default function RootLayout() {
   // 없어(부하 시 몇 시간 지연/스킵 가능, 실측으로 확인됨) 추첨 후 시간대에 앱을 여는 순간
   // 서버에 최신 회차 반영을 재촉한다. 요일/시간을 여기서 먼저 걸러 그 외엔 서버 호출 자체를
   // 안 만든다 - 어차피 그 시간대가 아니면 신규 회차가 있을 수 없다. 실제 "먼저 연 사람만
-  // 트리거, 이후엔 무시"는 Edge Function 쪽 sync_lock 원자적 UPDATE로 처리한다.
+  // 트리거, 이후엔 무시"는 Edge Function 쪽 sync_lock 원자적 UPDATE로 처리한다(가볍게 여러 번
+  // 불러도 안전하다).
+  //
+  // 마운트 시점에만 재던지면, 토요일 저녁 8시가 되기 전부터 앱을 계속 켜놓고 있던 사람은
+  // 이 체크 자체가 다시 안 돈다 - 화면을 포그라운드로 복귀할 때마다 다시 확인해야 한다
+  // (2026-11-28 실측: 추첨 15분 뒤에도 홈 화면이 지난 회차에 머물러 있었음).
   useEffect(() => {
-    const now = new Date();
-    const kstHour = (now.getUTCHours() + 9) % 24;
-    const kstDay = new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCDay(); // 0=일 ... 6=토
-    const isDrawWindow = kstDay === 6 && kstHour >= 20;
-    if (!isDrawWindow) return;
+    const maybeTriggerDrawSync = () => {
+      const now = new Date();
+      const kstHour = (now.getUTCHours() + 9) % 24;
+      const kstDay = new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCDay(); // 0=일 ... 6=토
+      const isDrawWindow = kstDay === 6 && kstHour >= 20;
+      if (!isDrawWindow) return;
 
-    supabase.functions.invoke("trigger-draw-sync").catch((err) => reportError(err, "trigger-draw-sync"));
+      supabase.functions.invoke("trigger-draw-sync").catch((err) => reportError(err, "trigger-draw-sync"));
+    };
+
+    maybeTriggerDrawSync();
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") maybeTriggerDrawSync();
+    });
+    return () => subscription.remove();
+  }, []);
+
+  // react-query의 refetchOnWindowFocus는 브라우저 탭 포커스(document.visibilitychange)를
+  // 본다 - RN엔 그게 없어 기본으로는 "항상 포커스됨"으로 취급돼 동작하지 않는다. 포그라운드
+  // 복귀를 이걸로 대신 알려줘야 refetchOnWindowFocus: true를 켠 개별 쿼리(홈 화면의 최신
+  // 회차 등)가 실제로 돈다. 전역 기본값(defaultOptions.refetchOnWindowFocus)은 그대로
+  // false라 이 연결만으로 모든 쿼리가 갑자기 다시 불려오진 않는다.
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      focusManager.setFocused(state === "active");
+    });
+    return () => subscription.remove();
   }, []);
 
   // 숫자 전용 폰트가 준비되기 전에 화면이 먼저 그려지면 순위/점수 숫자가
