@@ -23,9 +23,11 @@ export default function AppLayout() {
   return (
     <Stack
       screenOptions={{
-        // 홈 맨 위 결과 띠가 먹색이라 헤더도 같은 색이어야 한 덩어리로 보인다.
-        headerStyle: { backgroundColor: colors.ink },
-        headerTintColor: "#fff",
+        // 헤더를 종이색으로 둔다(2026-11-28). 먹색으로 깔았더니 화면 위쪽이 검은 덩어리로
+        // 보였고, 상태표시줄 아이콘이 짙은 색으로 고정돼 있어(루트의 SystemBars style="dark")
+        // 시계·배터리가 그 검정 위에서 아예 안 보였다. 밝은 헤더라야 그 고정값과 맞는다.
+        headerStyle: { backgroundColor: colors.background },
+        headerTintColor: colors.textPrimary,
         headerTitleStyle: { fontWeight: "800" },
         headerShadowVisible: false,
         headerRight: () => <MenuButton />,
@@ -44,5 +46,5 @@ export default function AppLayout() {
 const styles = StyleSheet.create({
   menuButton: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.sm },
   menuLabel: { color: colors.textMuted, fontSize: 11 },
-  menuIcon: { color: "#fff", fontSize: 20, fontWeight: "700", lineHeight: 22 },
+  menuIcon: { color: colors.textPrimary, fontSize: 20, fontWeight: "700", lineHeight: 22 },
 });

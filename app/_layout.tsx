@@ -183,14 +183,15 @@ export default function RootLayout() {
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
           {/* 홈 버튼으로 들어오는 화면이라 헤더(=뒤로가기 화살표)를 띄운다. 탭이었을 때는
               첫 화면이라 돌아갈 곳이 없어 헤더를 숨겼는데, 지금 숨기면 눈에 보이는
-              나가는 길이 안드로이드 하드웨어 버튼뿐이다. 아래 당첨번호 띠와 이어지게
-              먹색으로 맞춘다. */}
+              나가는 길이 안드로이드 하드웨어 버튼뿐이다. 색은 다른 화면 헤더와 같은
+              종이색이다 - 바로 아래 당첨번호 띠가 먹색이라 거기에 맞추고 싶어지지만,
+              그러면 이 화면만 검은 헤더가 되고 짙은 상태표시줄 아이콘이 안 보인다. */}
           <Stack.Screen
             name="scan"
             options={{
               title: "QR 당첨확인",
-              headerStyle: { backgroundColor: colors.ink },
-              headerTintColor: "#fff",
+              headerStyle: { backgroundColor: colors.background },
+              headerTintColor: colors.textPrimary,
               headerTitleStyle: { fontWeight: "800" },
               headerShadowVisible: false,
             }}

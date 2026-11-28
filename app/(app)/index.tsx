@@ -168,27 +168,29 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scrollContent: { paddingBottom: spacing.xl },
 
-  // 헤더(먹색)와 이어 붙어 한 덩어리로 보이게 같은 색을 쓰고 아래쪽만 둥글린다.
+  // 헤더와 같은 종이색이라 이어 붙어 한 덩어리로 보인다. 색이 같으니 모서리를 둥글릴
+  // 이유가 없고, 대신 아래 버튼 영역과 갈라지도록 밑줄 한 줄만 긋는다.
   hero: {
-    backgroundColor: colors.ink,
+    backgroundColor: colors.background,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: spacing.lg,
     gap: spacing.md,
-    borderBottomLeftRadius: radius.lg,
-    borderBottomRightRadius: radius.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   heroPlaceholder: { height: 170 },
   heroErrorBox: { paddingVertical: spacing.xl },
-  heroErrorText: { color: "#fff", fontSize: 12, textAlign: "center" },
+  heroErrorText: { color: colors.textSecondary, fontSize: 12, textAlign: "center" },
   heroTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  heroDrawNo: { color: colors.textMuted, fontSize: 12, fontWeight: "700" },
+  heroDrawNo: { color: colors.textSecondary, fontSize: 12, fontWeight: "700" },
   heroDate: { color: colors.textMuted, fontSize: 11 },
   heroResult: { gap: spacing.xs },
-  heroTag: { color: colors.textMuted, fontSize: 13, fontWeight: "700" },
-  heroTagWin: { color: colors.goldBright },
-  heroAmount: { color: "#fff", fontSize: 34, fontWeight: "800", fontFamily: numericFont.bold },
-  heroHeadline: { color: "#fff", fontSize: 22, fontWeight: "800" },
+  heroTag: { color: colors.textSecondary, fontSize: 13, fontWeight: "700" },
+  // 당첨일 때만 금색. goldBright(#E7B94D)는 종이색 위에서 거의 안 읽혀서 진한 금색을 쓴다.
+  heroTagWin: { color: colors.primary },
+  heroAmount: { color: colors.textPrimary, fontSize: 34, fontWeight: "800", fontFamily: numericFont.bold },
+  heroHeadline: { color: colors.textPrimary, fontSize: 22, fontWeight: "800" },
   heroNext: { color: colors.textMuted, fontSize: 11 },
   heroNumbers: {
     flexDirection: "row",
@@ -196,11 +198,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.inkSoft,
+    borderTopColor: colors.border,
   },
   heroNumbersLabel: { color: colors.textMuted, fontSize: 10 },
   heroBalls: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  heroPlus: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  heroPlus: { color: colors.textSecondary, fontSize: 13, fontWeight: "700" },
 
   body: { padding: spacing.lg, gap: spacing.md },
 
