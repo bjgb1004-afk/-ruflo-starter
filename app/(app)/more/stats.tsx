@@ -15,7 +15,7 @@ export default function StatsScreen() {
   const { breakpoint } = useResponsive();
   const handleRegionPress = useCallback(
     (sido: string) => {
-      router.push({ pathname: "/(tabs)/ranking", params: { sido } });
+      router.push({ pathname: "/ranking", params: { sido } });
     },
     [router],
   );

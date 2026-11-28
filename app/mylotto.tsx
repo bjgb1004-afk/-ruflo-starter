@@ -278,7 +278,7 @@ export default function MyLottoScreen() {
         <Text style={[styles.emptySubtext, { fontSize: getResponsiveFontSize(13, breakpoint) }]}>
           QR 스캔 후 보관함에 저장하면 여기에 모여요. 번호를 직접 적어 넣어도 돼요.
         </Text>
-        <Pressable style={styles.scanButton} onPress={() => router.push("/")}>
+        <Pressable style={styles.scanButton} onPress={() => router.push("/scan")}>
           <Text style={[styles.scanButtonText, { fontSize: getResponsiveFontSize(14, breakpoint) }]}>
             QR 스캔하러 가기
           </Text>

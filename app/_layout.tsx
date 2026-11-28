@@ -66,13 +66,13 @@ const asyncStoragePersister = createAsyncStoragePersister({
   key: "lotto-query-cache",
 });
 
-// 탭 밖 화면(보관함·판매점 상세·회차 배출업소·번호 직접 입력·놓친 당첨금)의 바닥에
-// 배너를 한 줄 깐다. 화면 파일마다 붙이면 return 분기가 여럿이라 반드시 빠뜨린다.
+// 모든 화면 바닥에 배너를 한 줄 깐다. 화면 파일마다 붙이면 return 분기가 여럿이라 반드시
+// 빠뜨린다. 탭바를 없앤 뒤(2026-11-28)로는 배너를 놓는 곳이 여기 하나뿐이다 - 전에는
+// 탭바 위에도 한 줄 있어서 "어느 화면이 어느 배너를 쓰는지"를 늘 따져야 했다.
 //
-// 탭 화면은 제외한다 - 거긴 탭바 위에 이미 붙어 있어서([(tabs)/_layout.tsx]) 둘 다 걸면
-// 한 화면에 배너가 두 개 뜬다. 관리자 화면도 뺀다(내부용이라 광고를 띄울 자리가 아니고,
-// 내가 직접 누르는 화면이라 자기 광고 클릭으로 잡힌다).
-const AD_FREE_ROUTES = new Set(["(tabs)", "admin"]);
+// 관리자 화면만 뺀다(내부용이라 광고를 띄울 자리가 아니고, 내가 직접 누르는 화면이라
+// 자기 광고 클릭으로 잡힌다).
+const AD_FREE_ROUTES = new Set(["admin"]);
 
 const ScreenWithAd = ({ route, children }: { route: { name: string }; children: React.ReactElement }) =>
   AD_FREE_ROUTES.has(route.name) ? (
@@ -180,7 +180,21 @@ export default function RootLayout() {
             밝은 종이색이라 dark(짙은 아이콘)로 고정한다. */}
         <SystemBars style="dark" />
         <Stack screenLayout={ScreenWithAd}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(app)" options={{ headerShown: false }} />
+          {/* 홈 버튼으로 들어오는 화면이라 헤더(=뒤로가기 화살표)를 띄운다. 탭이었을 때는
+              첫 화면이라 돌아갈 곳이 없어 헤더를 숨겼는데, 지금 숨기면 눈에 보이는
+              나가는 길이 안드로이드 하드웨어 버튼뿐이다. 아래 당첨번호 띠와 이어지게
+              먹색으로 맞춘다. */}
+          <Stack.Screen
+            name="scan"
+            options={{
+              title: "QR 당첨확인",
+              headerStyle: { backgroundColor: colors.ink },
+              headerTintColor: "#fff",
+              headerTitleStyle: { fontWeight: "800" },
+              headerShadowVisible: false,
+            }}
+          />
           <Stack.Screen name="store/[id]" options={{ title: "판매점 상세" }} />
           <Stack.Screen name="draw/[drawNo]" options={{ title: "회차 배출업소" }} />
           <Stack.Screen name="mylotto" options={{ title: "내 복권 보관함" }} />
