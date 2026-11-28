@@ -161,6 +161,20 @@ jobs:
           cd ${{ env.WORKING_DIR }}
           npm run ingest:heal-winstores -- --recent=120
 
+      # 1등 구매방식(자동/수동/반자동)은 pyony.com 긁어오기라 바로 위 배출점 매칭이 아직
+      # 안 끝난 회차는 이번엔 건너뛰고 완료 표시도 안 남는다 - 매칭이 끝나는 날 이 단계가
+      # 다시 돌 때 자동으로 채워진다. 외부 사이트 하나가 죽어도 랭킹 재계산·알림 같은 뒷
+      # 단계를 막으면 안 되므로 실패해도 계속 진행한다.
+      - name: 💳 1등 구매방식(자동/수동) 수집
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          cd ${{ env.WORKING_DIR }}
+          npm run ingest:purchase-methods -- --recent=30
+
       - name: 🏆 명당 랭킹 재계산
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

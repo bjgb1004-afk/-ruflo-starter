@@ -236,9 +236,9 @@ const styles = StyleSheet.create({
   heroNumbersLabel: { color: colors.textMuted, fontSize: 10 },
   heroBalls: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   heroPlus: { color: colors.textSecondary, fontSize: 13, fontWeight: "700" },
-  heroPrizeSummary: { gap: 2 },
-  heroPrizeText: { color: colors.textSecondary, fontSize: 12, fontWeight: "700" },
-  heroPrizeMethodText: { color: colors.textMuted, fontSize: 11 },
+  heroPrizeSummary: { gap: 3 },
+  heroPrizeText: { color: colors.textPrimary, fontSize: 15, fontWeight: "800" },
+  heroPrizeMethodText: { color: colors.textSecondary, fontSize: 13 },
 
   body: { padding: spacing.lg, gap: spacing.md },
 

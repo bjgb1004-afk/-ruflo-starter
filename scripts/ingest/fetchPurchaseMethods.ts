@@ -88,11 +88,20 @@ async function main() {
   const args = process.argv.slice(2);
   const fromArg = args.find((a) => a.startsWith("--from="));
   const toArg = args.find((a) => a.startsWith("--to="));
+  const recentArg = args.find((a) => a.startsWith("--recent="));
   const isDryRun = process.env.DRY_RUN === "1";
   const force = process.env.FORCE === "1";
 
   const latest = await getLatestDrawNo();
-  const from = fromArg ? parseInt(fromArg.split("=")[1], 10) : EARLIEST_DRAW_NO;
+  const recent = recentArg ? parseInt(recentArg.split("=")[1], 10) : null;
+  // --recent=N: 최신 N회차만 - 매일 자동으로 도는 쪽(sync-data.yml)에서 쓴다. 배출점
+  // 매칭 자체가 아직 안 끝난 회차는 매번 건너뛰기만 하고 완료 표시가 안 남으므로(아래
+  // storeIds.length===0 분기), 매칭이 끝나는 날 자동으로 다시 집히는 식으로 동작한다.
+  const from = fromArg
+    ? parseInt(fromArg.split("=")[1], 10)
+    : recent !== null
+      ? Math.max(EARLIEST_DRAW_NO, latest - recent + 1)
+      : EARLIEST_DRAW_NO;
   const to = toArg ? parseInt(toArg.split("=")[1], 10) : latest;
 
   const alreadyDone = force ? new Set<number>() : await getDrawsAlreadyDone();
